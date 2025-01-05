@@ -89,6 +89,36 @@ Before you begin, ensure you have the following installed:
 - `npm run preview` - Preview the production build locally
 - `npm run lint` - Run ESLint to check code quality
 
+## Deployment
+
+### Netlify Deployment
+
+1. Connect your repository to Netlify
+2. Configure build settings:
+   - Build command: `npm run build`
+   - Publish directory: `dist`
+   - Node version: 18 (or higher)
+
+3. Environment variables:
+   - Add the following environment variables in Netlify's dashboard:
+     ```
+     VITE_SUPABASE_URL=your_supabase_project_url
+     VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+     ```
+
+4. Client-side routing:
+   - A `_redirects` file is included in the `public` directory to handle client-side routing
+   - This ensures that all routes are properly handled in production
+   - The file contains: `/* /index.html 200`
+
+### Other Deployment Platforms
+
+When deploying to other platforms, ensure:
+1. Node.js version 18 or higher is used
+2. All environment variables are properly configured
+3. Client-side routing is handled appropriately
+4. The build output directory (`dist`) is served
+
 ## Project Structure
 
 ```
