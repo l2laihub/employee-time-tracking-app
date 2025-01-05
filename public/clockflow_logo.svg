@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Gradient for the circle -->
+    <linearGradient id="circleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2C5282;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2B6CB0;stop-opacity:1" />
+    </linearGradient>
+    <!-- Gradient for waves -->
+    <linearGradient id="waveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#63B3ED;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#4299E1;stop-opacity:0.9" />
+    </linearGradient>
+  </defs>
+
+  <!-- Main circle with gradient and subtle shadow -->
+  <circle cx="256" cy="256" r="240" fill="url(#circleGradient)" filter="drop-shadow(0 4px 6px rgba(0,0,0,0.1))" />
+
+  <!-- Clock face elements -->
+  <g transform="translate(256 256)">
+    <!-- Hour markers -->
+    <circle cx="0" cy="-180" r="12" fill="white" />
+    <circle cx="90" cy="-155.88" r="12" fill="white" />
+    <circle cx="155.88" cy="-90" r="12" fill="white" />
+    <circle cx="180" cy="0" r="12" fill="white" />
+    <circle cx="155.88" cy="90" r="12" fill="white" />
+    <circle cx="90" cy="155.88" r="12" fill="white" />
+    <circle cx="0" cy="180" r="12" fill="white" />
+    <circle cx="-90" cy="155.88" r="12" fill="white" />
+    <circle cx="-155.88" cy="90" r="12" fill="white" />
+    <circle cx="-180" cy="0" r="12" fill="white" />
+    <circle cx="-155.88" cy="-90" r="12" fill="white" />
+    <circle cx="-90" cy="-155.88" r="12" fill="white" />
+
+    <!-- Clock hands -->
+    <rect x="-8" y="-120" width="16" height="120" rx="8" fill="white" transform="rotate(-30)" />
+    <rect x="-6" y="-80" width="12" height="80" rx="6" fill="white" transform="rotate(60)" />
+  </g>
+
+  <!-- Flowing waves -->
+  <g transform="translate(0 340)">
+    <path d="M0,0 
+             C128,40 256,-40 384,0 
+             C512,40 512,40 512,40 
+             L512,172 
+             L0,172 
+             Z" 
+          fill="url(#waveGradient)" 
+          opacity="0.6">
+    </path>
+    <path d="M0,40 
+             C128,80 256,0 384,40 
+             C512,80 512,80 512,80 
+             L512,172 
+             L0,172 
+             Z" 
+          fill="url(#waveGradient)" 
+          opacity="0.4">
+    </path>
+    <path d="M0,80 
+             C128,120 256,40 384,80 
+             C512,120 512,120 512,120 
+             L512,172 
+             L0,172 
+             Z" 
+          fill="url(#waveGradient)" 
+          opacity="0.2">
+    </path>
+  </g>
+</svg>

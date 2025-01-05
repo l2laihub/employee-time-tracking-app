@@ -10,6 +10,7 @@ import Reports from '../../pages/Reports';
 import PTO from '../../pages/PTO';
 import Login from '../../pages/Login';
 import Signup from '../../pages/Signup';
+import Overview from '../../pages/Overview';
 import ProtectedRoute from './ProtectedRoute';
 import PublicRoute from './PublicRoute';
 import { useAuth } from '../../contexts/AuthContext';
@@ -20,6 +21,12 @@ export default function AppRoutes() {
 
   return (
     <Routes>
+      {/* Public Routes */}
+      <Route path="/overview" element={
+        <PublicRoute>
+          <Overview />
+        </PublicRoute>
+      } />
       <Route path="/login" element={
         <PublicRoute>
           <Login />
@@ -30,6 +37,8 @@ export default function AppRoutes() {
           <Signup />
         </PublicRoute>
       } />
+
+      {/* Protected Routes */}
       <Route path="/" element={
         <ProtectedRoute>
           <Layout />
@@ -70,6 +79,11 @@ export default function AppRoutes() {
           }
         />
       </Route>
+
+      {/* Redirect root to overview for non-authenticated users */}
+      <Route path="*" element={
+        user ? <Navigate to="/" replace /> : <Navigate to="/overview" replace />
+      } />
     </Routes>
   );
 }

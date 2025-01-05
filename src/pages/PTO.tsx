@@ -74,18 +74,18 @@ export default function PTO() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
+    <div className="w-full">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">PTO Requests</h1>
-          <p className="text-gray-600">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">PTO Requests</h1>
+          <p className="text-sm text-gray-600">
             {isAdmin ? 'Manage team PTO requests' : 'Request and track your time off'}
           </p>
         </div>
         {!isAdmin && !editingRequest && (
           <button
             onClick={() => setShowRequestForm(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center"
+            className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center"
           >
             <Plus className="w-4 h-4 mr-2" />
             Request PTO
@@ -94,7 +94,7 @@ export default function PTO() {
       </div>
 
       {(showRequestForm || editingRequest) && (
-        <div className="mb-6 bg-white rounded-lg shadow p-6">
+        <div className="mb-6 bg-white rounded-lg shadow p-4 sm:p-6">
           <h2 className="text-lg font-semibold mb-4">
             {editingRequest ? 'Edit PTO Request' : 'New PTO Request'}
           </h2>

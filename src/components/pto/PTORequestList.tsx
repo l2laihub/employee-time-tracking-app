@@ -32,8 +32,8 @@ export default function PTORequestList({ requests, onReview, onEdit, isAdmin }: 
     <div className="space-y-4">
       {requests.map((request) => (
         <div key={request.id} className="bg-white rounded-lg shadow p-4">
-          <div className="flex justify-between items-start">
-            <div className="space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between">
+            <div className="space-y-2 mb-4 sm:mb-0">
               {isAdmin && (
                 <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
                   <User className="w-4 h-4" />
@@ -55,9 +55,9 @@ export default function PTORequestList({ requests, onReview, onEdit, isAdmin }: 
                 <span>Requested {format(new Date(request.createdAt), 'MMM d, yyyy')}</span>
               </div>
             </div>
-            <div className="flex flex-col items-end space-y-2">
+            <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:space-y-2">
               {getStatusBadge(request.status)}
-              <div className="flex space-x-2">
+              <div className="flex space-x-2 mt-2 sm:mt-0">
                 {!isAdmin && request.status === 'pending' && (
                   <button
                     onClick={() => onEdit?.(request)}

@@ -14,6 +14,7 @@ export default function PublicRoute({ children }: PublicRouteProps) {
     return <LoadingSpinner />;
   }
 
+  // Redirect authenticated users to dashboard
   if (user) {
     return <Navigate to="/" replace />;
   }
