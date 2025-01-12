@@ -1,11 +1,37 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Clock, MapPin, CheckCircle, AlertCircle, Building2, Home } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { useTimeEntry } from '../../contexts/TimeEntryContext';
 import StatsGrid from './StatsGrid';
 import { mockTimeEntries, mockJobLocations } from '../../lib/mockData';
+import JobSelector from '../time-entry/JobSelector';
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const { activeEntry, setActiveEntry, isOnBreak, startBreak, endBreak } = useTimeEntry();
+
+  const handleClockIn = () => {
+    if (!selectedJobId) return;
+
+    const newEntry = {
+      id: String(mockTimeEntries.length + 1),
+      userId: user?.id || '',
+      jobLocationId: selectedJobId,
+      clockIn: new Date().toISOString(),
+      clockOut: null,
+      serviceType: mockJobLocations.find(job => job.id === selectedJobId)?.serviceType === 'both' 
+        ? 'hvac' 
+        : (mockJobLocations.find(job => job.id === selectedJobId)?.serviceType || 'hvac'),
+      workDescription: '',
+      status: 'in-progress' as const
+    };
+    mockTimeEntries.push(newEntry);
+    setSelectedJobId(null);
+    setActiveEntry(newEntry);
+  };
 
   // Get user's time entries
   const userTimeEntries = mockTimeEntries.filter(entry => entry.userId === user?.id);
@@ -21,20 +47,24 @@ export default function EmployeeDashboard() {
     );
   });
 
-  const activeEntry = userTimeEntries.find(entry => !entry.clockOut);
   const completedToday = todayEntries.filter(entry => entry.clockOut).length;
 
   // Get assigned locations (all active locations for this example)
   const assignedLocations = mockJobLocations.filter(loc => loc.isActive);
 
-  const stats = [
+    const stats = [
     {
       label: 'Current Status',
-      value: activeEntry ? 'Working' : 'Not Clocked In',
+      value: activeEntry 
+        ? isOnBreak 
+          ? 'On Break'
+          : 'Working' 
+        : 'Not Clocked In',
       icon: Clock,
       trend: activeEntry 
         ? `Since ${new Date(activeEntry.clockIn).toLocaleTimeString()}`
-        : 'Clock in to start tracking time'
+        : 'Click to go to Time Entry page',
+      onClick: () => navigate('/time-entry')
     },
     {
       label: 'Today\'s Entries',
@@ -75,16 +105,34 @@ export default function EmployeeDashboard() {
           <h2 className="text-lg font-semibold mb-4">Current Activity</h2>
           {activeEntry ? (
             <div className="space-y-4">
-              <div className="p-4 bg-blue-50 rounded-lg">
+              <div className={`p-4 ${isOnBreak ? 'bg-orange-50' : 'bg-blue-50'} rounded-lg`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <Clock className="w-5 h-5 text-blue-500 mr-2" />
-                    <span className="font-medium text-blue-900">Currently Working</span>
+                    <Clock className={`w-5 h-5 ${isOnBreak ? 'text-orange-500' : 'text-blue-500'} mr-2`} />
+                    <span className={`font-medium ${isOnBreak ? 'text-orange-900' : 'text-blue-900'}`}>
+                      {isOnBreak ? 'On Break' : 'Currently Working'}
+                    </span>
                   </div>
-                  <span className="text-sm text-blue-600">
+                  <span className={`text-sm ${isOnBreak ? 'text-orange-600' : 'text-blue-600'}`}>
                     Started at {new Date(activeEntry.clockIn).toLocaleTimeString()}
                   </span>
                 </div>
+                {isOnBreak && (
+                  <button
+                    onClick={endBreak}
+                    className="mt-4 w-full px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
+                  >
+                    End Break
+                  </button>
+                )}
+                {!isOnBreak && (
+                  <button
+                    onClick={startBreak}
+                    className="mt-4 w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    Start Break
+                  </button>
+                )}
                 <div className="mt-3">
                   <div className="flex items-center text-sm text-blue-800">
                     <MapPin className="w-4 h-4 mr-1" />
@@ -97,10 +145,27 @@ export default function EmployeeDashboard() {
               </div>
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
-              <Clock className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-              <p>No active time entry</p>
-              <p className="text-sm">Clock in to start tracking your work</p>
+            <div className="space-y-6">
+              <div className="text-center py-4 text-gray-500">
+                <Clock className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                <p>No active time entry</p>
+                <p className="text-sm">Select a location and clock in to start tracking your work</p>
+              </div>
+              
+              <JobSelector
+                jobs={mockJobLocations}
+                selectedJobId={selectedJobId}
+                onSelect={setSelectedJobId}
+              />
+
+              {selectedJobId && (
+                <button
+                  onClick={handleClockIn}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Clock In
+                </button>
+              )}
             </div>
           )}
         </div>

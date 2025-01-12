@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTimeEntry } from '../contexts/TimeEntryContext';
 import { mockJobLocations, mockTimeEntries } from '../lib/mockData';
 import JobSelector from '../components/time-entry/JobSelector';
 import TimeControls from '../components/time-entry/TimeControls';
@@ -9,10 +10,7 @@ import TimeEntryList from '../components/time-entry/TimeEntryList';
 export default function TimeEntry() {
   const { user } = useAuth();
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [activeEntry, setActiveEntry] = useState(
-    mockTimeEntries.find(entry => entry.userId === user?.id && !entry.clockOut)
-  );
-  const [isOnBreak, setIsOnBreak] = useState(false);
+  const { activeEntry, setActiveEntry, isOnBreak, startBreak, endBreak } = useTimeEntry();
 
   const handleClockIn = () => {
     if (!selectedJobId) return;
@@ -31,7 +29,6 @@ export default function TimeEntry() {
     };
     mockTimeEntries.push(newEntry);
     setActiveEntry(newEntry);
-    setIsOnBreak(false);
   };
 
   const handleClockOut = () => {
@@ -40,17 +37,9 @@ export default function TimeEntry() {
       activeEntry.status = 'completed';
       setActiveEntry(null);
       setSelectedJobId(null);
-      setIsOnBreak(false);
     }
   };
 
-  const handleStartBreak = () => {
-    setIsOnBreak(true);
-  };
-
-  const handleEndBreak = () => {
-    setIsOnBreak(false);
-  };
 
   const getStatus = () => {
     if (!activeEntry) return 'inactive';
@@ -93,8 +82,8 @@ export default function TimeEntry() {
           isOnBreak={isOnBreak}
           onClockIn={handleClockIn}
           onClockOut={handleClockOut}
-          onStartBreak={handleStartBreak}
-          onEndBreak={handleEndBreak}
+          onStartBreak={startBreak}
+          onEndBreak={endBreak}
         />
       </div>
 

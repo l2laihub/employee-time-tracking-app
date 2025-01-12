@@ -55,12 +55,42 @@ export default function TimesheetReviewForm({
           <div key={entry.id} className="bg-gray-50 p-4 rounded-md">
             <div className="flex flex-col space-y-4">
               <div className="flex justify-between items-start">
-                <div>
+                <div className="space-y-2">
                   <p className="font-medium">{format(new Date(entry.clockIn), 'MMM d, yyyy')}</p>
-                  <p className="text-sm text-gray-600">
-                    {format(new Date(entry.clockIn), 'h:mm a')} - 
-                    {entry.clockOut ? format(new Date(entry.clockOut), 'h:mm a') : 'In Progress'}
-                  </p>
+                  <div className="flex items-center space-x-4">
+                    <div>
+                      <label className="block text-xs text-gray-500">Clock In</label>
+                      <input
+                        type="time"
+                        value={format(new Date(entry.clockIn), 'HH:mm')}
+                        onChange={(e) => {
+                          const [hours, minutes] = e.target.value.split(':');
+                          const date = new Date(entry.clockIn);
+                          date.setHours(parseInt(hours), parseInt(minutes));
+                          const newEntries = [...entries];
+                          newEntries[index] = { ...entry, clockIn: date.toISOString() };
+                          setEntries(newEntries);
+                        }}
+                        className="mt-1 block w-32 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500">Clock Out</label>
+                      <input
+                        type="time"
+                        value={entry.clockOut ? format(new Date(entry.clockOut), 'HH:mm') : ''}
+                        onChange={(e) => {
+                          const [hours, minutes] = e.target.value.split(':');
+                          const date = entry.clockOut ? new Date(entry.clockOut) : new Date(entry.clockIn);
+                          date.setHours(parseInt(hours), parseInt(minutes));
+                          const newEntries = [...entries];
+                          newEntries[index] = { ...entry, clockOut: date.toISOString() };
+                          setEntries(newEntries);
+                        }}
+                        className="mt-1 block w-32 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                      />
+                    </div>
+                  </div>
                 </div>
                 <select
                   value={entry.jobLocationId}

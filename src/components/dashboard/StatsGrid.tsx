@@ -6,6 +6,7 @@ interface Stat {
   value: string;
   icon: LucideIcon;
   trend: string;
+  onClick?: () => void;
 }
 
 interface StatsGridProps {
@@ -18,7 +19,11 @@ export default function StatsGrid({ stats }: StatsGridProps) {
       {stats.map((stat) => {
         const Icon = stat.icon;
         return (
-          <div key={stat.label} className="bg-white rounded-lg shadow p-6">
+          <div 
+            key={stat.label} 
+            className={`bg-white rounded-lg shadow p-6 ${stat.onClick ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''}`}
+            onClick={stat.onClick}
+          >
             <div className="flex items-center justify-between mb-4">
               <Icon className="h-6 w-6 text-blue-500" />
               <span className="text-2xl font-bold text-gray-900">{stat.value}</span>
