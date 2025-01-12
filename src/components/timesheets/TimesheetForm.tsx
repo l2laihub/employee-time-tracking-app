@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
 import type { TimesheetEntry, TimeEntry } from '../../lib/types';
+import { mockJobLocations } from '../../lib/mockData';
 
 interface TimesheetFormProps {
   timesheet: TimesheetEntry;
@@ -23,6 +24,15 @@ export default function TimesheetForm({ timesheet, onSubmit, onCancel }: Timeshe
     });
   };
 
+  const handleLocationChange = (entryIndex: number, locationId: string) => {
+    const newEntries = [...entries];
+    newEntries[entryIndex] = {
+      ...newEntries[entryIndex],
+      jobLocationId: locationId
+    };
+    setEntries(newEntries);
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
@@ -38,23 +48,36 @@ export default function TimesheetForm({ timesheet, onSubmit, onCancel }: Timeshe
         <h4 className="font-medium text-gray-700">Time Entries</h4>
         {entries.map((entry, index) => (
           <div key={entry.id} className="bg-gray-50 p-4 rounded-md">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="font-medium">{format(new Date(entry.clockIn), 'MMM d, yyyy')}</p>
-                <p className="text-sm text-gray-600">
-                  {format(new Date(entry.clockIn), 'h:mm a')} - 
-                  {entry.clockOut ? format(new Date(entry.clockOut), 'h:mm a') : 'In Progress'}
-                </p>
+            <div className="flex flex-col space-y-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-medium">{format(new Date(entry.clockIn), 'MMM d, yyyy')}</p>
+                  <p className="text-sm text-gray-600">
+                    {format(new Date(entry.clockIn), 'h:mm a')} - 
+                    {entry.clockOut ? format(new Date(entry.clockOut), 'h:mm a') : 'In Progress'}
+                  </p>
+                </div>
+                <select
+                  value={entry.jobLocationId}
+                  onChange={(e) => handleLocationChange(index, e.target.value)}
+                  className="block w-64 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                >
+                  {mockJobLocations.map(location => (
+                    <option key={location.id} value={location.id}>
+                      {location.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <input
                 type="text"
-                value={entry.workDescription}
+                value={entry.workDescription || ''}
                 onChange={(e) => {
                   const newEntries = [...entries];
                   newEntries[index] = { ...entry, workDescription: e.target.value };
                   setEntries(newEntries);
                 }}
-                className="flex-1 ml-4 px-3 py-1 border rounded-md text-sm"
+                className="w-full px-3 py-2 border rounded-md text-sm"
                 placeholder="Add description..."
               />
             </div>
