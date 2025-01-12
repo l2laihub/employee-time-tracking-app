@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { TimesheetEntry } from '../../lib/types';
+import { TimesheetEntry, TimeEntry } from '../../lib/types';
+import { mockJobLocations } from '../../lib/mockData';
 
 interface TimesheetReviewFormProps {
   timesheet: TimesheetEntry;
@@ -15,6 +16,16 @@ export default function TimesheetReviewForm({
 }: TimesheetReviewFormProps) {
   const [reviewNotes, setReviewNotes] = useState('');
   const [status, setStatus] = useState<'approved' | 'rejected'>('approved');
+  const [entries, setEntries] = useState<TimeEntry[]>(timesheet.timeEntries);
+
+  const handleLocationChange = (entryIndex: number, locationId: string) => {
+    const newEntries = [...entries];
+    newEntries[entryIndex] = {
+      ...newEntries[entryIndex],
+      jobLocationId: locationId
+    };
+    setEntries(newEntries);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,7 +33,8 @@ export default function TimesheetReviewForm({
       ...timesheet,
       status,
       reviewedAt: new Date().toISOString(),
-      notes: timesheet.notes + (reviewNotes ? `\n\nReview Notes: ${reviewNotes}` : '')
+      notes: timesheet.notes + (reviewNotes ? `\n\nReview Notes: ${reviewNotes}` : ''),
+      timeEntries: entries
     });
   };
 
@@ -39,16 +51,41 @@ export default function TimesheetReviewForm({
 
       <div className="space-y-4">
         <h4 className="font-medium text-gray-700">Time Entries</h4>
-        {timesheet.timeEntries.map((entry) => (
+        {entries.map((entry, index) => (
           <div key={entry.id} className="bg-gray-50 p-4 rounded-md">
-            <p className="font-medium">
-              {format(new Date(entry.clockIn), 'MMM d, yyyy')}
-            </p>
-            <p className="text-sm text-gray-600">
-              {format(new Date(entry.clockIn), 'h:mm a')} - 
-              {entry.clockOut && format(new Date(entry.clockOut), 'h:mm a')}
-            </p>
-            <p className="mt-2 text-sm">{entry.workDescription}</p>
+            <div className="flex flex-col space-y-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-medium">{format(new Date(entry.clockIn), 'MMM d, yyyy')}</p>
+                  <p className="text-sm text-gray-600">
+                    {format(new Date(entry.clockIn), 'h:mm a')} - 
+                    {entry.clockOut ? format(new Date(entry.clockOut), 'h:mm a') : 'In Progress'}
+                  </p>
+                </div>
+                <select
+                  value={entry.jobLocationId}
+                  onChange={(e) => handleLocationChange(index, e.target.value)}
+                  className="block w-64 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                >
+                  {mockJobLocations.map(location => (
+                    <option key={location.id} value={location.id}>
+                      {location.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <input
+                type="text"
+                value={entry.workDescription || ''}
+                onChange={(e) => {
+                  const newEntries = [...entries];
+                  newEntries[index] = { ...entry, workDescription: e.target.value };
+                  setEntries(newEntries);
+                }}
+                className="w-full px-3 py-2 border rounded-md text-sm"
+                placeholder="Add description..."
+              />
+            </div>
           </div>
         ))}
       </div>
