@@ -140,6 +140,27 @@ flowchart TD
 - Optimistic updates
 - Batch processing
 
+## Timesheet Features
+
+### Time Entry Management
+- Clock in/out time editing for non-approved timesheets
+- Automatic hours calculation using date-fns
+- Individual entry hours display
+- Total timesheet hours calculation and display
+- Real-time hours updates on time changes
+
+### Validation Rules
+- Clock out time must be after clock in time
+- All entries must have clock out times before submission
+- Time validation on both individual edits and submission
+- Prevents invalid time entries from being saved
+
+### Status Management
+- Read-only mode for approved timesheets
+- Visual indicators for timesheet status
+- Clear feedback for validation errors
+- Automatic recalculation of hours on changes
+
 ## Security Notes
 - Role-based access control
 - Data validation
@@ -176,3 +197,11 @@ flowchart TD
 - Use TypeScript to prevent type-related errors
 - Handle edge cases gracefully
 - Provide meaningful error messages
+
+### Time Validation
+- Validate time entries immediately on input
+- Ensure clock out time is after clock in time
+- Validate all entries before timesheet submission
+- Use date-fns for consistent time calculations
+- Round time calculations to 2 decimal places
+- Handle timezone considerations properly
