@@ -2,14 +2,14 @@ import React from 'react';
 import { Employee, TimesheetEntry } from '../../lib/types';
 import { Briefcase, Stethoscope } from 'lucide-react';
 import { calculateVacationBalance, calculateSickLeaveBalance, getVacationAllocationText } from '../../utils/ptoCalculations';
+import { mockTimesheets } from '../../lib/mockData';
 
 interface UserPTOBalanceProps {
   user: Employee;
 }
 
 export default function UserPTOBalance({ user }: UserPTOBalanceProps) {
-  // Mock timesheets for now - in real app, this would come from a prop or context
-  const mockTimesheets: TimesheetEntry[] = [];
+  // Use mock timesheet data for now - in real app, this would come from a prop or context
 
   return (
     <div className="bg-gray-50 rounded-lg p-4 mb-4">

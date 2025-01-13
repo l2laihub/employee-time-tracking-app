@@ -1,5 +1,30 @@
 # PTO Feature Technical Documentation
 
+## Tech Stack & Dependencies
+
+### Core Technologies
+- **React**: Frontend library for building user interfaces
+- **TypeScript**: Static typing and enhanced developer experience
+- **Vite**: Build tool and development server
+- **ES Modules**: Using native JavaScript modules (import/export)
+
+### Key Libraries
+- **date-fns**: Date manipulation and formatting
+- **lucide-react**: Icon components
+- **tailwindcss**: Utility-first CSS framework
+
+### Module System
+- Using ES Modules (import/export) syntax
+- No CommonJS (require/module.exports) usage
+- All imports must be at the top level of files
+- Dynamic imports should use the import() function, not require()
+
+### Development Environment
+- VSCode as primary IDE
+- ESLint for code linting
+- Prettier for code formatting
+- TypeScript compiler for type checking
+
 ## Architecture Overview
 The PTO feature is built using React with TypeScript, utilizing context for global state management and modular components for different functionalities.
 
@@ -120,3 +145,34 @@ flowchart TD
 - Data validation
 - Input sanitization
 - Session management
+
+## Code Standards & Best Practices
+
+### Module Imports
+- Always use ES Module syntax (import/export)
+- Place all imports at the top level of the file
+- Group imports in the following order:
+  1. React and core libraries
+  2. Third-party libraries
+  3. Project utilities and types
+  4. Components
+  5. Assets and styles
+
+### Mock Data Handling
+- Import mock data using ES Module syntax
+- Mock data should be imported at the top level
+- Future implementation will replace mock data with API calls
+- Mock data files location: src/lib/mock*.ts
+
+### Component Structure
+- Use TypeScript interfaces for props
+- Implement proper type checking
+- Keep components focused and modular
+- Use hooks for shared logic
+- Follow React best practices for state management
+
+### Error Handling
+- Implement proper error boundaries
+- Use TypeScript to prevent type-related errors
+- Handle edge cases gracefully
+- Provide meaningful error messages

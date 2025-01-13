@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { format, isWeekend, eachDayOfInterval, isSameDay } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
 import { mockUsers } from '../../lib/mockUsers';
+import { mockTimesheets } from '../../lib/mockData';
 import { PTORequest, PTOType, TimesheetEntry } from '../../lib/types';
 import { calculateVacationBalance, calculateSickLeaveBalance } from '../../utils/ptoCalculations';
 
@@ -37,8 +38,7 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
       .reduce((total, req) => total + req.hours, 0);
   };
 
-  // Mock timesheets for now - in real app, this would come from a prop or context
-  const mockTimesheets: TimesheetEntry[] = [];
+  // Use mock timesheet data for now - in real app, this would come from a prop or context
 
   const getAvailableHours = (ptoType: PTOType) => {
     if (!currentUser) return 0;

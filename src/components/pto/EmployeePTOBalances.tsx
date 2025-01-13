@@ -5,6 +5,7 @@ import { Briefcase, Stethoscope, Clock, Edit2 } from 'lucide-react';
 import EmployeeStartDateForm from './EmployeeStartDateForm';
 import { calculateVacationBalance, calculateSickLeaveBalance, getVacationAllocationText } from '../../utils/ptoCalculations';
 import { formatDateForDisplay } from '../../utils/dateUtils';
+import { mockTimesheets } from '../../lib/mockData';
 
 interface EmployeePTOBalancesProps {
   employees: Employee[];
@@ -14,7 +15,6 @@ interface EmployeePTOBalancesProps {
 export default function EmployeePTOBalances({ employees, onUpdateStartDate }: EmployeePTOBalancesProps) {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   // Mock timesheets for now - in real app, this would come from a prop or context
-  const mockTimesheets: TimesheetEntry[] = [];
 
   return (
     <div className="bg-white rounded-lg shadow">
