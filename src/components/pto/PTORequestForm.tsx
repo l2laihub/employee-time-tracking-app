@@ -179,7 +179,7 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
           type="number"
           required
           min="1"
-          max="40"
+          max={getAvailableHours(type)}
           value={hours}
           onChange={(e) => {
             const newHours = Number(e.target.value);
