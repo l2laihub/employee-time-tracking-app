@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { PTORequest } from '../../lib/types';
-import { X } from 'lucide-react';
+import { X, Briefcase, Stethoscope, Timer } from 'lucide-react';
 
 interface PTOReviewFormProps {
   request: PTORequest;
@@ -28,12 +28,30 @@ export default function PTOReviewForm({ request, onSubmit, onClose }: PTOReviewF
           </button>
         </div>
 
-        <div className="mb-6">
+        <div className="mb-6 space-y-3">
+          <div className="flex items-center space-x-2">
+            {request.type === 'vacation' ? (
+              <Briefcase className="w-4 h-4 text-blue-500" />
+            ) : (
+              <Stethoscope className="w-4 h-4 text-green-500" />
+            )}
+            <span className="text-sm font-medium capitalize">
+              {request.type.replace('_', ' ')}
+            </span>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            <p className="text-sm text-gray-600">
+              <span className="font-medium">Date Range:</span>{' '}
+              {format(new Date(request.startDate), 'MMM d, yyyy')} - {format(new Date(request.endDate), 'MMM d, yyyy')}
+            </p>
+            <div className="flex items-center space-x-2">
+              <Timer className="w-4 h-4 text-gray-400" />
+              <span className="text-sm font-medium">{request.hours} hours</span>
+            </div>
+          </div>
+
           <p className="text-sm text-gray-600">
-            <span className="font-medium">Date Range:</span>{' '}
-            {format(new Date(request.startDate), 'MMM d, yyyy')} - {format(new Date(request.endDate), 'MMM d, yyyy')}
-          </p>
-          <p className="text-sm text-gray-600 mt-2">
             <span className="font-medium">Reason:</span> {request.reason}
           </p>
         </div>

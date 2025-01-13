@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { DEPARTMENTS } from '../../lib/constants/departments';
 import type { Employee } from '../../lib/types';
+import { formatDateForInput, getTodayForInput } from '../../utils/dateUtils';
 
 interface EmployeeFormProps {
   isOpen: boolean;
@@ -23,7 +24,8 @@ export default function EmployeeForm({
     phone: '',
     role: 'employee' as Employee['role'],
     department: '',
-    status: 'active' as 'active' | 'inactive'
+    status: 'active' as 'active' | 'inactive',
+    startDate: getTodayForInput()
   });
 
   // Reset form data when initialData changes or form opens/closes
@@ -36,7 +38,8 @@ export default function EmployeeForm({
         phone: initialData?.phone || '',
         role: initialData?.role || 'employee',
         department: initialData?.department || '',
-        status: initialData?.status || 'active'
+        status: initialData?.status || 'active',
+        startDate: initialData?.startDate ? formatDateForInput(initialData.startDate) : getTodayForInput()
       });
     }
   }, [isOpen, initialData]);
@@ -135,16 +138,30 @@ export default function EmployeeForm({
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Status</label>
-            <select
-              value={formData.status}
-              onChange={e => setFormData(prev => ({ ...prev, status: e.target.value as 'active' | 'inactive' }))}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Status</label>
+              <select
+                value={formData.status}
+                onChange={e => setFormData(prev => ({ ...prev, status: e.target.value as 'active' | 'inactive' }))}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Start Date</label>
+              <input
+                type="date"
+                required
+                max={getTodayForInput()}
+                value={formData.startDate}
+                onChange={e => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              />
+            </div>
           </div>
 
           <div className="flex justify-end space-x-3 pt-4">

@@ -8,6 +8,7 @@ import Employees from '../../pages/Employees';
 import Timesheets from '../../pages/Timesheets';
 import Reports from '../../pages/Reports';
 import PTO from '../../pages/PTO';
+import PTOBalances from '../../pages/PTOBalances';
 import Login from '../../pages/Login';
 import Signup from '../../pages/Signup';
 import Overview from '../../pages/Overview';
@@ -46,7 +47,19 @@ export default function AppRoutes() {
       }>
         <Route index element={<Dashboard />} />
         <Route path="time-entry" element={<TimeEntry />} />
-        <Route path="pto" element={<PTO />} />
+        <Route path="pto">
+          <Route index element={<PTO />} />
+          <Route 
+            path="balances" 
+            element={
+              isAdmin ? (
+                <PTOBalances />
+              ) : (
+                <Navigate to="/pto" replace />
+              )
+            } 
+          />
+        </Route>
         <Route 
           path="job-locations" 
           element={

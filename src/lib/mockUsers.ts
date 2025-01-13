@@ -9,7 +9,8 @@ export const mockUsers: Employee[] = [
     last_name: 'User',
     role: 'admin',
     department: 'Administration',
-    status: 'active'
+    status: 'active',
+    startDate: '2020-01-15' // >3 years
   },
   {
     id: '2',
@@ -18,7 +19,8 @@ export const mockUsers: Employee[] = [
     last_name: 'User',
     role: 'employee',
     department: 'Field Work',
-    status: 'active'
+    status: 'active',
+    startDate: '2023-06-15' // <1 year
   },
   {
     id: '3',
@@ -27,7 +29,8 @@ export const mockUsers: Employee[] = [
     last_name: 'User',
     role: 'manager',
     department: 'Management',
-    status: 'active'
+    status: 'active',
+    startDate: '2021-03-10' // >2 years
   },
   {
     id: '4',
@@ -37,7 +40,8 @@ export const mockUsers: Employee[] = [
     role: 'employee',
     department: 'Field Work',
     status: 'active',
-    phone: '480-555-0101'
+    phone: '480-555-0101',
+    startDate: '2022-08-20' // ~1.5 years
   },
   {
     id: '5',
@@ -47,7 +51,8 @@ export const mockUsers: Employee[] = [
     role: 'employee',
     department: 'Field Work',
     status: 'active',
-    phone: '480-555-0102'
+    phone: '480-555-0102',
+    startDate: '2023-01-10' // ~1 year
   },
   {
     id: '6',
@@ -57,7 +62,8 @@ export const mockUsers: Employee[] = [
     role: 'employee',
     department: 'Field Work',
     status: 'active',
-    phone: '480-555-0103'
+    phone: '480-555-0103',
+    startDate: '2023-09-01' // <6 months
   },
   {
     id: '7',
@@ -67,6 +73,7 @@ export const mockUsers: Employee[] = [
     role: 'manager',
     department: 'Management',
     status: 'active',
-    phone: '480-555-0104'
+    phone: '480-555-0104',
+    startDate: '2021-11-15' // >2 years
   }
 ];

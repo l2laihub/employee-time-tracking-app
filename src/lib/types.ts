@@ -35,11 +35,15 @@ export interface JobLocation {
   isActive: boolean;
 }
 
+export type PTOType = 'vacation' | 'sick_leave';
+
 export interface PTORequest {
   id: string;
   userId: string;
   startDate: string;
   endDate: string;
+  type: PTOType;
+  hours: number;
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
   notes?: string;
@@ -57,5 +61,5 @@ export interface Employee {
   role: 'admin' | 'manager' | 'employee';
   status: 'active' | 'inactive';
   department?: string;
-  ptoBalance?: number;
+  startDate: string; // Required for PTO calculations
 }

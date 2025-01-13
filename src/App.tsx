@@ -3,6 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { TimeEntryProvider } from './contexts/TimeEntryContext';
+import { EmployeeProvider } from './contexts/EmployeeContext';
 import AppRoutes from './components/routes/AppRoutes';
 
 export default function App() {
@@ -10,8 +11,10 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <TimeEntryProvider>
-          <Toaster position="top-right" />
-          <AppRoutes />
+          <EmployeeProvider>
+            <Toaster position="top-right" />
+            <AppRoutes />
+          </EmployeeProvider>
         </TimeEntryProvider>
       </AuthProvider>
     </BrowserRouter>

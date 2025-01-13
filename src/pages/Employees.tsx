@@ -4,11 +4,11 @@ import EmployeeList from '../components/employees/EmployeeList';
 import EmployeeForm from '../components/employees/EmployeeForm';
 import ImportEmployeesModal from '../components/employees/ImportEmployeesModal';
 import EmployeeFilters from '../components/employees/EmployeeFilters';
-import { mockUsers } from '../lib/mockUsers';
 import type { Employee } from '../lib/types';
+import { useEmployees } from '../contexts/EmployeeContext';
 
 export default function Employees() {
-  const [employees, setEmployees] = useState<Employee[]>(mockUsers);
+  const { employees, addEmployee, updateEmployee, deleteEmployee } = useEmployees();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -35,29 +35,20 @@ export default function Employees() {
   });
 
   const handleAddEmployee = (employeeData: Omit<Employee, 'id'>) => {
-    const newEmployee = {
-      ...employeeData,
-      id: `emp-${Date.now()}`
-    };
-    setEmployees([...employees, newEmployee]);
+    addEmployee(employeeData);
     setIsFormOpen(false);
   };
 
   const handleEditEmployee = (employeeData: Omit<Employee, 'id'>) => {
     if (!selectedEmployee) return;
-    
-    setEmployees(employees.map(emp => 
-      emp.id === selectedEmployee.id 
-        ? { ...employeeData, id: selectedEmployee.id }
-        : emp
-    ));
+    updateEmployee(selectedEmployee.id, employeeData);
     setSelectedEmployee(null);
     setIsFormOpen(false);
   };
 
   const handleDeleteEmployee = (id: string) => {
     if (confirm('Are you sure you want to delete this employee?')) {
-      setEmployees(employees.filter(emp => emp.id !== id));
+      deleteEmployee(id);
     }
   };
 
@@ -65,9 +56,9 @@ export default function Employees() {
     const newEmployees = importedEmployees.map((emp, index) => ({
       ...emp,
       id: `imported-${Date.now()}-${index}`,
-      status: 'active'
+      status: 'active' as const
     }));
-    setEmployees([...employees, ...newEmployees]);
+    newEmployees.forEach(emp => addEmployee(emp));
     setIsImportOpen(false);
   };
 

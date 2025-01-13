@@ -1,6 +1,8 @@
 import React from 'react';
-import { Edit2, Trash2, Mail, Phone } from 'lucide-react';
+import { Edit2, Trash2, Mail, Phone, Calendar, Clock } from 'lucide-react';
+import { differenceInYears } from 'date-fns';
 import type { Employee } from '../../lib/types';
+import { formatDateForDisplay } from '../../utils/dateUtils';
 
 interface EmployeeListProps {
   employees: Employee[];
@@ -22,6 +24,9 @@ export default function EmployeeList({ employees, onEdit, onDelete }: EmployeeLi
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Role
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Employment
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Status
@@ -77,6 +82,18 @@ export default function EmployeeList({ employees, onEdit, onDelete }: EmployeeLi
                 }`}>
                   {employee.role}
                 </span>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="flex flex-col space-y-1">
+                  <div className="flex items-center text-sm text-gray-500">
+                    <Calendar className="w-4 h-4 mr-2" />
+                    {formatDateForDisplay(employee.startDate)}
+                  </div>
+                  <div className="flex items-center text-sm text-gray-500">
+                    <Clock className="w-4 h-4 mr-2" />
+                    {differenceInYears(new Date(), new Date(employee.startDate))} years
+                  </div>
+                </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${

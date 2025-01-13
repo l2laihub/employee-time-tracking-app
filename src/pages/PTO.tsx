@@ -6,7 +6,9 @@ import PTORequestList from '../components/pto/PTORequestList';
 import PTOReviewForm from '../components/pto/PTOReviewForm';
 import { mockPTORequests } from '../lib/mockPTOData';
 import { mockUsers } from '../lib/mockUsers';
-import type { PTORequest } from '../lib/types';
+import type { PTORequest, PTOType, Employee } from '../lib/types';
+import UserPTOBalance from '../components/pto/UserPTOBalance';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 export default function PTO() {
@@ -17,6 +19,7 @@ export default function PTO() {
   const [editingRequest, setEditingRequest] = useState<PTORequest | null>(null);
   const [filters, setFilters] = useState({
     status: 'all',
+    type: 'all',
     startDate: '',
     endDate: '',
     employee: 'all'
@@ -28,9 +31,12 @@ export default function PTO() {
   const filteredRequests = useMemo(() => {
     let filtered = isAdmin ? requests : requests.filter(r => r.userId === user?.id);
 
-    // Apply status filter
+    // Apply status and type filters
     if (filters.status !== 'all') {
       filtered = filtered.filter(r => r.status === filters.status);
+    }
+    if (filters.type !== 'all') {
+      filtered = filtered.filter(r => r.type === filters.type);
     }
 
     // Apply date range filter
@@ -61,12 +67,14 @@ export default function PTO() {
     }).sort((a, b) => a.name.localeCompare(b.name));
   }, [requests, isAdmin]);
 
-  const handleCreateRequest = (data: { startDate: string; endDate: string; reason: string }) => {
+  const handleCreateRequest = (data: { startDate: string; endDate: string; type: PTOType; hours: number; reason: string }) => {
     const newRequest: PTORequest = {
       id: `pto-${Date.now()}`,
       userId: user?.id || '',
       startDate: data.startDate,
       endDate: data.endDate,
+      type: data.type,
+      hours: data.hours,
       reason: data.reason,
       status: 'pending',
       createdAt: new Date().toISOString()
@@ -77,7 +85,7 @@ export default function PTO() {
     toast.success('PTO request submitted successfully');
   };
 
-  const handleEditRequest = (data: { startDate: string; endDate: string; reason: string }) => {
+  const handleEditRequest = (data: { startDate: string; endDate: string; type: PTOType; hours: number; reason: string }) => {
     if (!editingRequest) return;
 
     const updatedRequests = requests.map(req =>
@@ -86,6 +94,8 @@ export default function PTO() {
             ...req,
             startDate: data.startDate,
             endDate: data.endDate,
+            type: data.type,
+            hours: data.hours,
             reason: data.reason
           }
         : req
@@ -126,13 +136,23 @@ export default function PTO() {
           </p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center justify-center"
-          >
-            <Filter className="w-4 h-4 mr-2" />
-            Filters
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center justify-center"
+            >
+              <Filter className="w-4 h-4 mr-2" />
+              Filters
+            </button>
+            {isAdmin && (
+              <Link
+                to="/pto/balances"
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center justify-center"
+              >
+                View Balances
+              </Link>
+            )}
+          </div>
           {!editingRequest && (
             <button
               onClick={() => setShowRequestForm(true)}
@@ -149,20 +169,36 @@ export default function PTO() {
         <div className="mb-6 bg-white rounded-lg shadow p-4 sm:p-6">
           <h2 className="text-lg font-semibold mb-4">Filters</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Status
-              </label>
-              <select
-                value={filters.status}
-                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-                className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Status
+                </label>
+                <select
+                  value={filters.status}
+                  onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                >
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Type
+                </label>
+                <select
+                  value={filters.type}
+                  onChange={(e) => setFilters(prev => ({ ...prev, type: e.target.value }))}
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                >
+                  <option value="all">All Types</option>
+                  <option value="vacation">Vacation</option>
+                  <option value="sick_leave">Sick Leave</option>
+                </select>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -214,6 +250,11 @@ export default function PTO() {
           <h2 className="text-lg font-semibold mb-4">
             {editingRequest ? 'Edit PTO Request' : 'New PTO Request'}
           </h2>
+          {user && (
+            <UserPTOBalance 
+              user={mockUsers.find(u => u.id === user.id) as Employee} 
+            />
+          )}
           <PTORequestForm
             onSubmit={editingRequest ? handleEditRequest : handleCreateRequest}
             onCancel={() => {
@@ -222,6 +263,7 @@ export default function PTO() {
             }}
             initialData={editingRequest || undefined}
             isEdit={!!editingRequest}
+            pendingRequests={requests.filter(r => r.status === 'pending')}
           />
         </div>
       )}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { PTORequest } from '../../lib/types';
-import { Calendar, Clock, Edit2, User } from 'lucide-react';
+import { Calendar, Clock, Edit2, User, Briefcase, Stethoscope, Timer } from 'lucide-react';
 import { mockUsers } from '../../lib/mockUsers';
 
 interface PTORequestListProps {
@@ -40,10 +40,26 @@ export default function PTORequestList({ requests, onReview, onEdit, isAdmin }: 
                   <span>{getEmployeeName(request.userId)}</span>
                 </div>
               )}
-              <div className="flex items-center space-x-2">
-                <Calendar className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-medium">
-                  {format(new Date(request.startDate), 'MMM d, yyyy')} - {format(new Date(request.endDate), 'MMM d, yyyy')}
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm font-medium">
+                    {format(new Date(request.startDate), 'MMM d, yyyy')} - {format(new Date(request.endDate), 'MMM d, yyyy')}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Timer className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm font-medium">{request.hours} hours</span>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2 mb-1">
+                {request.type === 'vacation' ? (
+                  <Briefcase className="w-4 h-4 text-blue-500" />
+                ) : (
+                  <Stethoscope className="w-4 h-4 text-green-500" />
+                )}
+                <span className="text-sm font-medium capitalize">
+                  {request.type.replace('_', ' ')}
                 </span>
               </div>
               <p className="text-sm text-gray-600">{request.reason}</p>
