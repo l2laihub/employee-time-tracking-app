@@ -12,7 +12,10 @@ export interface WeeklyEmployeeHours {
   };
   totalRegular: number;
   totalOT: number;
-  totalPTO: number;
+  vacationHours: number;
+  sickLeaveHours: number;
+  vacationBalance: number;
+  sickLeaveBalance: number;
 }
 
 export interface EmployeeTimeEntry {
@@ -62,7 +65,10 @@ export const weeklyEmployeeHours: WeeklyEmployeeHours[] = [
     },
     totalRegular: 40,
     totalOT: 0,
-    totalPTO: 0
+    vacationHours: 0,
+    sickLeaveHours: 0,
+    vacationBalance: 80,
+    sickLeaveBalance: 40
   },
   {
     id: '2',
@@ -78,7 +84,10 @@ export const weeklyEmployeeHours: WeeklyEmployeeHours[] = [
     },
     totalRegular: 40,
     totalOT: 5,
-    totalPTO: 0
+    vacationHours: 0,
+    sickLeaveHours: 0,
+    vacationBalance: 80,
+    sickLeaveBalance: 45
   },
   {
     id: '3',
@@ -94,7 +103,10 @@ export const weeklyEmployeeHours: WeeklyEmployeeHours[] = [
     },
     totalRegular: 32,
     totalOT: 0,
-    totalPTO: 8
+    vacationHours: 8,
+    sickLeaveHours: 0,
+    vacationBalance: 72,
+    sickLeaveBalance: 32
   }
 ];
 

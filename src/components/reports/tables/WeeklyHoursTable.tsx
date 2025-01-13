@@ -15,15 +15,21 @@ export default function WeeklyHoursTable({ data, onSelectEmployee }: WeeklyHours
     }, 0);
   };
 
-  const getTotalColumn = (type: 'regular' | 'ot' | 'pto') => {
+  const getTotalColumn = (type: 'regular' | 'ot' | 'vacation' | 'sick' | 'vacationBalance' | 'sickBalance') => {
     return data.reduce((sum, employee) => {
       switch (type) {
         case 'regular':
           return sum + employee.totalRegular;
         case 'ot':
           return sum + employee.totalOT;
-        case 'pto':
-          return sum + employee.totalPTO;
+        case 'vacation':
+          return sum + employee.vacationHours;
+        case 'sick':
+          return sum + employee.sickLeaveHours;
+        case 'vacationBalance':
+          return sum + employee.vacationBalance;
+        case 'sickBalance':
+          return sum + employee.sickLeaveBalance;
         default:
           return sum;
       }
@@ -50,7 +56,16 @@ export default function WeeklyHoursTable({ data, onSelectEmployee }: WeeklyHours
               Total OT Hours
             </th>
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Total PTO
+              Vacation Hours
+            </th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Vacation Balance
+            </th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Sick Leave Hours
+            </th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Sick Leave Balance
             </th>
           </tr>
         </thead>
@@ -76,7 +91,16 @@ export default function WeeklyHoursTable({ data, onSelectEmployee }: WeeklyHours
                 {employee.totalOT}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {employee.totalPTO}
+                {employee.vacationHours}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {employee.vacationBalance}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {employee.sickLeaveHours}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {employee.sickLeaveBalance}
               </td>
             </tr>
           ))}
@@ -96,7 +120,16 @@ export default function WeeklyHoursTable({ data, onSelectEmployee }: WeeklyHours
               {getTotalColumn('ot')}
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-              {getTotalColumn('pto')}
+              {getTotalColumn('vacation')}
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              {getTotalColumn('vacationBalance')}
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              {getTotalColumn('sick')}
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              {getTotalColumn('sickBalance')}
             </td>
           </tr>
         </tbody>

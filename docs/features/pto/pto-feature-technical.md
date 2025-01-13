@@ -25,6 +25,11 @@
 - Prettier for code formatting
 - TypeScript compiler for type checking
 
+### Screenshot
+
+### PTO Request
+![alt text](image.png)
+
 ## Architecture Overview
 The PTO feature is built using React with TypeScript, utilizing context for global state management and modular components for different functionalities.
 
@@ -139,6 +144,9 @@ flowchart TD
 - Lazy loading of components
 - Optimistic updates
 - Batch processing
+
+## Integration with Reports
+PTO data is displayed in various reports, particularly the Employee Hours Report. For detailed documentation about reports implementation and features, see [Reports Feature Technical Documentation](./reports-feature-technical.md).
 
 ## Timesheet Features
 

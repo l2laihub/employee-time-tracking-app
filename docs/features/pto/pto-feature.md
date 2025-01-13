@@ -8,6 +8,8 @@ The PTO feature manages employee vacation and sick leave balances, requests, and
 ### Pages
 
 #### 1. PTO Page (`/src/pages/PTO.tsx`)
+![alt text](image-1.png)
+
 - Main PTO management interface
 - Features:
   - PTO request creation/editing
@@ -21,6 +23,8 @@ The PTO feature manages employee vacation and sick leave balances, requests, and
   - `editingRequest`: Request being edited
 
 #### 2. PTOBalances Page (`/src/pages/PTOBalances.tsx`)
+![alt text](image-3.png)
+
 - Admin view for managing employee PTO balances
 - Features:
   - View all employee balances
@@ -31,6 +35,7 @@ The PTO feature manages employee vacation and sick leave balances, requests, and
 ### Components
 
 #### 1. PTORequestForm (`/src/components/pto/PTORequestForm.tsx`)
+
 - Form for creating/editing PTO requests
 - Features:
   - Date range selection
