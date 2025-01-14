@@ -53,40 +53,26 @@ export default function EmployeeDashboard() {
   const assignedLocations = mockJobLocations.filter(loc => loc.isActive);
 
     const stats = [
-    {
-      label: 'Current Status',
-      value: activeEntry 
-        ? isOnBreak 
-          ? 'On Break'
-          : 'Working' 
-        : 'Not Clocked In',
-      icon: Clock,
-      trend: activeEntry 
-        ? `Since ${new Date(activeEntry.clockIn).toLocaleTimeString()}`
-        : 'Click to go to Time Entry page',
-      onClick: () => navigate('/time-entry')
-    },
-    {
-      label: 'Today\'s Entries',
-      value: String(completedToday),
-      icon: CheckCircle,
-      trend: 'Completed jobs today'
-    },
-    {
-      label: 'Assigned Locations',
-      value: String(assignedLocations.length),
-      icon: MapPin,
-      trend: 'Available work locations'
-    },
-    {
-      label: 'Active Tasks',
-      value: activeEntry ? '1' : '0',
-      icon: AlertCircle,
-      trend: activeEntry 
-        ? `At ${mockJobLocations.find(loc => loc.id === activeEntry.jobLocationId)?.name}`
-        : 'No active tasks'
-    }
-  ];
+      {
+        label: 'Current Status',
+        value: activeEntry 
+          ? isOnBreak 
+            ? 'On Break'
+            : 'Working' 
+          : 'Not Clocked In',
+        icon: Clock,
+        trend: activeEntry 
+          ? `Since ${new Date(activeEntry.clockIn).toLocaleTimeString()}`
+          : 'Click to go to Time Entry page',
+        onClick: () => navigate('/time-entry')
+      },
+      {
+        label: 'Today\'s Entries',
+        value: String(completedToday),
+        icon: CheckCircle,
+        trend: 'Completed jobs today'
+      }
+    ];
 
   return (
     <div className="space-y-6">
@@ -99,7 +85,7 @@ export default function EmployeeDashboard() {
 
       <StatsGrid stats={stats} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {/* Active Time Entry */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold mb-4">Current Activity</h2>
@@ -170,42 +156,8 @@ export default function EmployeeDashboard() {
           )}
         </div>
 
-        {/* Assigned Locations */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">Assigned Locations</h2>
-          <div className="space-y-3">
-            {assignedLocations.map(location => (
-              <div key={location.id} className="p-3 hover:bg-gray-50 rounded-lg border border-gray-100">
-                <div className="flex items-center">
-                  {location.type === 'commercial' ? (
-                    <Building2 className="w-5 h-5 text-blue-500 mr-2" />
-                  ) : (
-                    <Home className="w-5 h-5 text-green-500 mr-2" />
-                  )}
-                  <div>
-                    <h3 className="font-medium text-gray-900">{location.name}</h3>
-                    <p className="text-sm text-gray-500">
-                      {location.city}, {location.state}
-                    </p>
-                  </div>
-                  <span className={`ml-auto inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                    ${location.serviceType === 'both'
-                      ? 'bg-purple-100 text-purple-800'
-                      : location.serviceType === 'hvac'
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-green-100 text-green-800'
-                    }`}
-                  >
-                    {location.serviceType === 'both' ? 'HVAC & Plumbing' : location.serviceType.toUpperCase()}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Today's Completed Entries */}
-        <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
+        <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold mb-4">Today's Work History</h2>
           {todayEntries.length > 0 ? (
             <div className="space-y-4">
