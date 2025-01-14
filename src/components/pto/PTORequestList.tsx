@@ -23,9 +23,18 @@ export default function PTORequestList({ requests, onReview, onEdit, isAdmin }: 
     }
   };
 
-  const getEmployeeName = (userId: string) => {
+  const getEmployeeName = (userId: string, createdBy?: string) => {
     const employee = mockUsers.find(user => user.id === userId);
-    return employee ? `${employee.first_name} ${employee.last_name}` : 'Unknown Employee';
+    if (!employee) return 'Unknown Employee';
+    
+    const name = `${employee.first_name} ${employee.last_name}`;
+    if (createdBy) {
+      const creator = mockUsers.find(user => user.id === createdBy);
+      if (creator && (creator.role === 'admin' || creator.role === 'manager')) {
+        return `${name} (Request by ${creator.role === 'admin' ? 'Admin' : 'Manager'})`;
+      }
+    }
+    return name;
   };
 
   return (
@@ -37,7 +46,7 @@ export default function PTORequestList({ requests, onReview, onEdit, isAdmin }: 
               {isAdmin && (
                 <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
                   <User className="w-4 h-4" />
-                  <span>{getEmployeeName(request.userId)}</span>
+                  <span>{getEmployeeName(request.userId, request.createdBy)}</span>
                 </div>
               )}
               <div className="flex items-center space-x-4">

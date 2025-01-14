@@ -48,6 +48,7 @@ export interface PTORequest {
   status: 'pending' | 'approved' | 'rejected';
   notes?: string;
   createdAt: string;
+  createdBy?: string;  // Track who created the request (admin or employee)
   reviewedBy?: string;
   reviewedAt?: string;
 }
@@ -62,4 +63,18 @@ export interface Employee {
   status: 'active' | 'inactive';
   department?: string;
   startDate: string; // Required for PTO calculations
+  ptoAllocation: {
+    vacation: {
+      type: 'auto' | 'manual';
+      hours?: number;
+    };
+    sickLeave: {
+      type: 'auto' | 'manual';
+      hours?: number;
+    };
+  };
+  ptoBalances?: Array<{
+    type: PTOType;
+    hours: number;
+  }>;
 }

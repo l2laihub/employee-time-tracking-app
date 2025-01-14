@@ -5,7 +5,7 @@ import PTORequestForm from '../components/pto/PTORequestForm';
 import PTORequestList from '../components/pto/PTORequestList';
 import PTOReviewForm from '../components/pto/PTOReviewForm';
 import { mockPTORequests } from '../lib/mockPTOData';
-import { mockUsers } from '../lib/mockUsers';
+import { useEmployees } from '../contexts/EmployeeContext';
 import type { PTORequest, PTOType, Employee } from '../lib/types';
 import UserPTOBalance from '../components/pto/UserPTOBalance';
 import { Link } from 'react-router-dom';
@@ -25,6 +25,7 @@ export default function PTO() {
     employee: 'all'
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   
   const isAdmin = user?.role === 'admin' || user?.role === 'manager';
 
@@ -55,11 +56,12 @@ export default function PTO() {
     return filtered;
   }, [requests, filters, isAdmin, user?.id]);
 
+  const { employees } = useEmployees();
   const employeeOptions = useMemo(() => {
     if (!isAdmin) return [];
     const uniqueEmployeeIds = [...new Set(requests.map(r => r.userId))];
     return uniqueEmployeeIds.map(id => {
-      const employee = mockUsers.find(u => u.id === id);
+      const employee = employees.find(u => u.id === id);
       return {
         id,
         name: employee ? `${employee.first_name} ${employee.last_name}` : id
@@ -67,17 +69,26 @@ export default function PTO() {
     }).sort((a, b) => a.name.localeCompare(b.name));
   }, [requests, isAdmin]);
 
-  const handleCreateRequest = (data: { startDate: string; endDate: string; type: PTOType; hours: number; reason: string }) => {
+  const handleCreateRequest = (data: { 
+    startDate: string; 
+    endDate: string; 
+    type: PTOType; 
+    hours: number; 
+    reason: string;
+    userId: string;
+    createdBy?: string;
+  }) => {
     const newRequest: PTORequest = {
       id: `pto-${Date.now()}`,
-      userId: user?.id || '',
+      userId: data.userId,
       startDate: data.startDate,
       endDate: data.endDate,
       type: data.type,
       hours: data.hours,
       reason: data.reason,
       status: 'pending',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      createdBy: data.createdBy
     };
     
     setRequests([newRequest, ...requests]);
@@ -85,7 +96,15 @@ export default function PTO() {
     toast.success('PTO request submitted successfully');
   };
 
-  const handleEditRequest = (data: { startDate: string; endDate: string; type: PTOType; hours: number; reason: string }) => {
+  const handleEditRequest = (data: { 
+    startDate: string; 
+    endDate: string; 
+    type: PTOType; 
+    hours: number; 
+    reason: string;
+    userId: string;
+    createdBy?: string;
+  }) => {
     if (!editingRequest) return;
 
     const updatedRequests = requests.map(req =>
@@ -96,7 +115,9 @@ export default function PTO() {
             endDate: data.endDate,
             type: data.type,
             hours: data.hours,
-            reason: data.reason
+            reason: data.reason,
+            userId: data.userId,
+            createdBy: data.createdBy || req.createdBy // Maintain original createdBy if not provided
           }
         : req
     );
@@ -252,7 +273,13 @@ export default function PTO() {
           </h2>
           {user && (
             <UserPTOBalance 
-              user={mockUsers.find(u => u.id === user.id) as Employee} 
+              user={
+                isAdmin 
+                  ? (editingRequest 
+                      ? employees.find(u => u.id === editingRequest.userId) as Employee
+                      : selectedEmployee || (employees.find(u => u.id === user.id) as Employee))
+                  : employees.find(u => u.id === user.id) as Employee
+              } 
             />
           )}
           <PTORequestForm
@@ -263,7 +290,7 @@ export default function PTO() {
             }}
             initialData={editingRequest || undefined}
             isEdit={!!editingRequest}
-            pendingRequests={requests.filter(r => r.status === 'pending')}
+            onEmployeeSelect={setSelectedEmployee}
           />
         </div>
       )}

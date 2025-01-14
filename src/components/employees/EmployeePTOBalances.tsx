@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import { differenceInYears } from 'date-fns';
 import { Employee, TimesheetEntry } from '../../lib/types';
-import { Briefcase, Stethoscope, Clock, Edit2 } from 'lucide-react';
-import EmployeeStartDateForm from './EmployeeStartDateForm';
-import { calculateVacationBalance, calculateSickLeaveBalance, getVacationAllocationText } from '../../utils/ptoCalculations';
+import { Briefcase, Stethoscope, Clock, Edit2, Settings } from 'lucide-react';
+import EmployeeStartDateForm from '../pto/EmployeeStartDateForm';
+import { PTOAllocationForm } from '../pto/PTOAllocationForm';
+import { getVacationAllocationText } from '../../utils/ptoCalculations';
+import { usePTO } from '../../contexts/PTOContext';
 import { formatDateForDisplay } from '../../utils/dateUtils';
 import { mockTimesheets } from '../../lib/mockData';
+import { mockUsers } from '../../lib/mockUsers';
+import { useEmployees } from '../../contexts/EmployeeContext';
 
 interface EmployeePTOBalancesProps {
   employees: Employee[];
@@ -13,11 +17,31 @@ interface EmployeePTOBalancesProps {
 }
 
 export default function EmployeePTOBalances({ employees, onUpdateStartDate }: EmployeePTOBalancesProps) {
+  const { updateEmployee } = useEmployees();
+  const { getPTOBalance, updatePTOAllocation } = usePTO();
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  // Mock timesheets for now - in real app, this would come from a prop or context
+  const [editingPTOEmployee, setEditingPTOEmployee] = useState<Employee | null>(null);
+
+  const handleUpdatePTOAllocation = (employeeId: string, allocation: Employee['ptoAllocation']) => {
+    // Update both contexts to ensure consistency
+    updateEmployee(employeeId, { 
+      ptoAllocation: {
+        vacation: {
+          type: allocation.vacation.type,
+          hours: allocation.vacation.type === 'manual' ? allocation.vacation.hours : undefined
+        },
+        sickLeave: {
+          type: allocation.sickLeave.type,
+          hours: allocation.sickLeave.type === 'manual' ? allocation.sickLeave.hours : undefined
+        }
+      }
+    });
+    updatePTOAllocation(employeeId, allocation);
+    setEditingPTOEmployee(null);
+  };
 
   return (
-    <div className="bg-white rounded-lg shadow">
+    <div className="bg-white rounded-lg shadow mt-8">
       <div className="p-4 border-b">
         <h2 className="text-lg font-semibold">Employee PTO Balances</h2>
       </div>
@@ -53,8 +77,17 @@ export default function EmployeePTOBalances({ employees, onUpdateStartDate }: Em
                     </button>
                   </div>
                 </div>
-                <div className="text-sm text-gray-600">
-                  Allocation: {getVacationAllocationText(employee)}
+                <div className="flex items-center space-x-4">
+                  <div className="text-sm text-gray-600">
+                    Allocation: {getVacationAllocationText(employee)}
+                  </div>
+                  <button
+                    onClick={() => setEditingPTOEmployee(employee)}
+                    className="text-gray-400 hover:text-gray-600"
+                    title="Edit PTO allocation"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
               
@@ -62,16 +95,26 @@ export default function EmployeePTOBalances({ employees, onUpdateStartDate }: Em
                 <div className="flex items-center space-x-2">
                   <Briefcase className="w-4 h-4 text-blue-500" />
                   <div>
-                    <div className="text-sm font-medium">Vacation Balance</div>
-                    <div className="text-lg">{calculateVacationBalance(employee)} hours</div>
+                    <div className="text-sm font-medium">
+                      Vacation Balance
+                      {employee.ptoAllocation.vacation.type === 'manual' && (
+                        <span className="ml-2 text-xs text-blue-600">(Manual)</span>
+                      )}
+                    </div>
+                    <div className="text-lg">{getPTOBalance(employee, 'vacation')} hours</div>
                   </div>
                 </div>
                 
                 <div className="flex items-center space-x-2">
                   <Stethoscope className="w-4 h-4 text-green-500" />
                   <div>
-                    <div className="text-sm font-medium">Sick Leave Balance</div>
-                    <div className="text-lg">{calculateSickLeaveBalance(mockTimesheets)} hours</div>
+                    <div className="text-sm font-medium">
+                      Sick Leave Balance
+                      {employee.ptoAllocation.sickLeave.type === 'manual' && (
+                        <span className="ml-2 text-xs text-green-600">(Manual)</span>
+                      )}
+                    </div>
+                    <div className="text-lg">{getPTOBalance(employee, 'sick_leave')} hours</div>
                   </div>
                 </div>
               </div>
@@ -97,6 +140,13 @@ export default function EmployeePTOBalances({ employees, onUpdateStartDate }: Em
           onClose={() => setEditingEmployee(null)}
         />
       )}
+
+      <PTOAllocationForm
+        employee={editingPTOEmployee || mockUsers[0]} // Provide a default to satisfy TS
+        onSave={(allocation) => editingPTOEmployee && handleUpdatePTOAllocation(editingPTOEmployee.id, allocation)}
+        onCancel={() => setEditingPTOEmployee(null)}
+        isOpen={!!editingPTOEmployee}
+      />
     </div>
   );
 }

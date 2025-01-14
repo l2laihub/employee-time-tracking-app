@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { format, isWeekend, eachDayOfInterval, isSameDay } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
-import { mockUsers } from '../../lib/mockUsers';
 import { mockTimesheets } from '../../lib/mockData';
-import { PTORequest, PTOType, TimesheetEntry } from '../../lib/types';
-import { calculateVacationBalance, calculateSickLeaveBalance } from '../../utils/ptoCalculations';
+import { PTORequest, PTOType, TimesheetEntry, Employee } from '../../lib/types';
+import { usePTO } from '../../contexts/PTOContext';
+import { useEmployees } from '../../contexts/EmployeeContext';
 
 interface PTORequestFormProps {
   onSubmit: (data: {
@@ -13,40 +13,78 @@ interface PTORequestFormProps {
     type: PTOType;
     hours: number;
     reason: string;
+    userId: string;
+    createdBy?: string;
   }) => void;
   onCancel: () => void;
   initialData?: PTORequest;
   isEdit?: boolean;
-  pendingRequests: PTORequest[];
+  onEmployeeSelect?: (employee: Employee | null) => void;
 }
 
-export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit, pendingRequests }: PTORequestFormProps) {
+export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit, onEmployeeSelect }: PTORequestFormProps) {
   const { user } = useAuth();
   const [startDate, setStartDate] = useState(initialData?.startDate || '');
   const [endDate, setEndDate] = useState(initialData?.endDate || '');
   const [type, setType] = useState<PTOType>(initialData?.type || 'vacation');
   const [hours, setHours] = useState(initialData?.hours || 8);
   const [reason, setReason] = useState(initialData?.reason || '');
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const currentUser = user ? mockUsers.find(u => u.id === user.id) : null;
+  const isAdmin = user?.role === 'admin' || user?.role === 'manager';
+  // For admin users, always use the selected employee if available
+  // For admin users, use selected employee or current user
+  const { employees } = useEmployees();
+  const currentUser = isAdmin 
+    ? selectedEmployee
+    : (user ? employees.find(u => u.id === user.id) : null);
 
-  const getPendingHours = (ptoType: PTOType) => {
-    if (!user) return 0;
-    return pendingRequests
-      .filter(req => req.userId === user.id && req.type === ptoType && req.status === 'pending')
-      .reduce((total, req) => total + req.hours, 0);
+  const { getPTOBalance, addPTORequest, pendingRequests } = usePTO();
+
+  // Set initial selected employee if editing or if admin is creating for themselves
+  useEffect(() => {
+    if (isAdmin) {
+      if (initialData) {
+        // For editing, use the request's user
+        const employee = employees.find((u: Employee) => u.id === initialData.userId);
+        setSelectedEmployee(employee || null);
+      } else {
+        // For new requests, pre-select the admin user
+        const adminUser = employees.find((u: Employee) => u.id === user?.id);
+        setSelectedEmployee(adminUser || null);
+      }
+    }
+  }, [initialData, isAdmin, user?.id, employees]);
+
+  const getTotalAllocation = (ptoType: PTOType) => {
+    if (!currentUser) return 0;
+    // For manual allocation, return the raw hours value
+    if (ptoType === 'vacation' && currentUser.ptoAllocation.vacation.type === 'manual') {
+      return currentUser.ptoAllocation.vacation.hours || 0;
+    } else if (ptoType === 'sick_leave' && currentUser.ptoAllocation.sickLeave.type === 'manual') {
+      return currentUser.ptoAllocation.sickLeave.hours || 0;
+    }
+    // For automatic allocation, use getPTOBalance
+    return getPTOBalance(currentUser, ptoType);
   };
 
-  // Use mock timesheet data for now - in real app, this would come from a prop or context
+  const getUsedHours = (ptoType: PTOType) => {
+    if (!currentUser) return 0;
+    const used = pendingRequests
+      .filter(req => 
+        req.userId === currentUser.id && 
+        req.type === ptoType && 
+        (req.status === 'pending' || req.status === 'approved')
+      )
+      .reduce((total, req) => total + req.hours, 0);
+    return used;
+  };
 
   const getAvailableHours = (ptoType: PTOType) => {
-    if (!currentUser) return 0;
-    const totalBalance = ptoType === 'vacation'
-      ? calculateVacationBalance(currentUser)
-      : calculateSickLeaveBalance(mockTimesheets);
-    const pendingHours = getPendingHours(ptoType);
-    return totalBalance - pendingHours;
+    const total = getTotalAllocation(ptoType);
+    const used = getUsedHours(ptoType);
+    return total - used;
   };
 
   const calculateBusinessDays = (startDate: Date, endDate: Date) => {
@@ -103,17 +141,61 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
 
   useEffect(() => {
     if (startDate && endDate) {
+      if (!currentUser && isAdmin) {
+        setError('Please select an employee first');
+        return;
+      }
+
+      const expectedHours = calculateExpectedHours(startDate, endDate);
+      const availableHours = getAvailableHours(type);
+
+      if (expectedHours > availableHours) {
+        setError(
+          `Selected date range requires ${expectedHours} hours, but only ${availableHours} hours available. ` +
+          `(Total: ${getTotalAllocation(type)} - Used: ${getUsedHours(type)})`
+        );
+      } else {
+        setHours(expectedHours);
+        setError(null);
+      }
+    }
+  }, [startDate, endDate, type, currentUser, isAdmin]);
+
+  // Reset form when employee changes
+  useEffect(() => {
+    if (selectedEmployee) {
+      // Reset hours to match date range if dates are set
+      if (startDate && endDate) {
+        updateHours(startDate, endDate);
+      }
+      // Clear any existing errors
+      setError(null);
+    }
+  }, [selectedEmployee, startDate, endDate]);
+
+  // Update hours when type changes
+  useEffect(() => {
+    if (startDate && endDate) {
       updateHours(startDate, endDate);
     }
-  }, [startDate, endDate]);
+  }, [type]);
 
   const validateRequest = () => {
-    if (!currentUser) return false;
+    if (!currentUser) {
+      setError('Please select an employee');
+      return false;
+    }
     
-    const availableHours = getAvailableHours(type);
+    const totalAllocation = getTotalAllocation(type);
+    const usedHours = getUsedHours(type);
+    const availableHours = totalAllocation - usedHours;
 
     if (hours > availableHours) {
-      setError(`Insufficient ${type.replace('_', ' ')} balance. Available: ${availableHours} hours`);
+      setError(
+        `Insufficient ${type.replace('_', ' ')} balance. ` +
+        `Available: ${availableHours} hours ` +
+        `(Total: ${totalAllocation} - Used: ${usedHours})`
+      );
       return false;
     }
 
@@ -129,45 +211,108 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      setError('Please select an employee');
+      return;
+    }
+    
     if (validateRequest()) {
-      onSubmit({ startDate, endDate, type, hours, reason });
+      // For admin users, ensure we use the selected employee's ID
+      const requestData = {
+        startDate,
+        endDate,
+        type,
+        hours,
+        reason,
+        userId: currentUser.id, // currentUser is already set to selectedEmployee for admin users
+        createdBy: isAdmin ? user?.id : undefined // Track if admin created the request
+      };
+      
+      addPTORequest(requestData);
+      onSubmit(requestData);
+      
+      if (isAdmin) {
+        setError('Request created successfully. It will need to be reviewed and approved.');
+      }
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {isAdmin && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Employee</label>
+          <select
+            required
+            value={selectedEmployee?.id || ''}
+            onChange={(e) => {
+              const employee = employees.find((u: Employee) => u.id === e.target.value);
+              setSelectedEmployee(employee || null);
+              onEmployeeSelect?.(employee || null);
+              // Reset error when employee changes
+              setError(null);
+            }}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          >
+            <option value="">Select Employee (Required)</option>
+            {employees
+              .filter(u => u.role === 'employee' || u.id === user?.id)
+              .map(emp => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.first_name} {emp.last_name}
+                </option>
+              ))
+            }
+          </select>
+        </div>
+      )}
       <div>
         <label className="block text-sm font-medium text-gray-700">Start Date</label>
-        <input
-          type="date"
-          required
-          min={format(new Date(), 'yyyy-MM-dd')}
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-        />
+          <input
+            type="date"
+            required
+            disabled={isAdmin && !currentUser}
+            min={format(new Date(), 'yyyy-MM-dd')}
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 ${
+              isAdmin && !currentUser 
+                ? 'bg-gray-100 cursor-not-allowed border-gray-300'
+                : 'border-gray-300'
+            }`}
+          />
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700">End Date</label>
-        <input
-          type="date"
-          required
-          min={startDate || format(new Date(), 'yyyy-MM-dd')}
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-        />
+          <input
+            type="date"
+            required
+            disabled={isAdmin && !currentUser}
+            min={startDate || format(new Date(), 'yyyy-MM-dd')}
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 ${
+              isAdmin && !currentUser 
+                ? 'bg-gray-100 cursor-not-allowed border-gray-300'
+                : 'border-gray-300'
+            }`}
+          />
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700">Type</label>
-        <select
-          required
-          value={type}
-          onChange={(e) => setType(e.target.value as PTOType)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-        >
+          <select
+            required
+            disabled={isAdmin && !currentUser}
+            value={type}
+            onChange={(e) => setType(e.target.value as PTOType)}
+            className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 ${
+              isAdmin && !currentUser 
+                ? 'bg-gray-100 cursor-not-allowed border-gray-300'
+                : 'border-gray-300'
+            }`}
+          >
           <option value="vacation">Vacation</option>
           <option value="sick_leave">Sick Leave</option>
         </select>
@@ -178,8 +323,9 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
         <input
           type="number"
           required
+          disabled={isAdmin && !currentUser}
           min="1"
-          max={getAvailableHours(type)}
+          max={currentUser ? getTotalAllocation(type) - getUsedHours(type) : 0}
           value={hours}
           onChange={(e) => {
             const newHours = Number(e.target.value);
@@ -187,40 +333,43 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
             
             // Validate hours against date range immediately
             const expectedHours = calculateExpectedHours(startDate, endDate);
-            if (newHours !== expectedHours) {
+            const availableHours = getAvailableHours(type);
+
+            if (newHours > availableHours) {
+              setError(
+                `Insufficient ${type.replace('_', ' ')} balance. ` +
+                `Available: ${availableHours} hours ` +
+                `(Total: ${getTotalAllocation(type)} - Used: ${getUsedHours(type)})`
+              );
+            } else if (newHours !== expectedHours) {
               setError(`Hours must match the selected date range (${expectedHours} hours for ${expectedHours/8} business days)`);
             } else {
               setError(null);
             }
           }}
           className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 ${
-            error ? 'border-red-300 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
+            isAdmin && !currentUser 
+              ? 'bg-gray-100 cursor-not-allowed border-gray-300'
+              : error 
+                ? 'border-red-300 focus:border-red-500' 
+                : 'border-gray-300 focus:border-blue-500'
           }`}
         />
         {error ? (
           <p className="mt-1 text-sm text-red-600">{error}</p>
         ) : (
           <p className="mt-1 text-sm text-gray-500">
-            {type === 'sick_leave' ? (
-              <>
-                Available: {getAvailableHours('sick_leave')} hours
-                {getPendingHours('sick_leave') > 0 && (
-                  <span className="text-yellow-600">
-                    {' '}(includes {getPendingHours('sick_leave')} pending hours)
-                  </span>
-                )}
-                {' '}(Accrues at 1 hour per 40 hours worked)
-              </>
-            ) : (
-              <>
-                Available: {getAvailableHours('vacation')} hours
-                {getPendingHours('vacation') > 0 && (
-                  <span className="text-yellow-600">
-                    {' '}(includes {getPendingHours('vacation')} pending hours)
-                  </span>
-                )}
-              </>
-            )}
+            <>
+              Total Allocation: {getTotalAllocation(type)} hours
+              <div className="text-sm mt-1">
+                <span className="text-gray-600">Used: {getUsedHours(type)} hours</span>
+                <br />
+                <span className="text-green-600">Available: {getAvailableHours(type)} hours</span>
+              </div>
+              {type === 'sick_leave' && currentUser?.ptoAllocation?.sickLeave?.type === 'auto' && (
+                <> (Accrues at 1 hour per 40 hours worked)</>
+              )}
+            </>
           </p>
         )}
       </div>
@@ -229,10 +378,15 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
         <label className="block text-sm font-medium text-gray-700">Reason</label>
         <textarea
           required
+          disabled={isAdmin && !currentUser}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={3}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 ${
+            isAdmin && !currentUser 
+              ? 'bg-gray-100 cursor-not-allowed border-gray-300'
+              : 'border-gray-300'
+          }`}
           placeholder="Please provide a reason for your PTO request"
         />
       </div>
@@ -249,7 +403,7 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
           type="submit"
           className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
         >
-          {isEdit ? 'Save Changes' : 'Submit Request'}
+          {isEdit ? 'Save Changes' : isAdmin ? 'Create Pending Request' : 'Submit Request'}
         </button>
       </div>
     </form>

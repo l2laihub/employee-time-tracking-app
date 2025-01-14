@@ -2,6 +2,20 @@ import { PTORequest } from './types';
 
 export const mockPTORequests: PTORequest[] = [
   {
+    id: '0',
+    userId: '4', // John Smith's ID
+    startDate: '2024-01-19',
+    endDate: '2024-01-23',
+    type: 'vacation',
+    hours: 40,
+    reason: 'Family wedding',
+    status: 'approved',
+    notes: 'Approved',
+    createdAt: subDays(new Date(), 15).toISOString(),
+    reviewedBy: '1',
+    reviewedAt: subDays(new Date(), 14).toISOString()
+  },
+  {
     id: '1',
     userId: '2',
     startDate: '2024-01-15',
@@ -25,20 +39,6 @@ export const mockPTORequests: PTORequest[] = [
     createdAt: new Date().toISOString(),
     reviewedBy: '1',
     reviewedAt: new Date().toISOString()
-  },
-  {
-    id: '3',
-    userId: '4',
-    startDate: '2024-01-20',
-    endDate: '2024-01-24',
-    type: 'vacation',
-    hours: 40,
-    reason: 'Family wedding',
-    status: 'approved',
-    notes: 'Approved - coverage arranged',
-    createdAt: subDays(new Date(), 10).toISOString(),
-    reviewedBy: '7',
-    reviewedAt: subDays(new Date(), 8).toISOString()
   },
   {
     id: '4',

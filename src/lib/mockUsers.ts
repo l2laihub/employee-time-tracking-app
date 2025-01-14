@@ -1,6 +1,11 @@
 import { DEPARTMENTS } from './constants/departments';
 import type { Employee } from './types';
 
+const defaultPTOAllocation = {
+  vacation: { type: 'auto' as const },
+  sickLeave: { type: 'auto' as const }
+};
+
 export const mockUsers: Employee[] = [
   {
     id: '1',
@@ -10,7 +15,8 @@ export const mockUsers: Employee[] = [
     role: 'admin',
     department: 'Administration',
     status: 'active',
-    startDate: '2020-01-15' // >3 years
+    startDate: '2020-01-15', // >3 years
+    ptoAllocation: defaultPTOAllocation
   },
   {
     id: '2',
@@ -20,7 +26,8 @@ export const mockUsers: Employee[] = [
     role: 'employee',
     department: 'Field Work',
     status: 'active',
-    startDate: '2023-06-15' // <1 year
+    startDate: '2023-06-15', // <1 year
+    ptoAllocation: defaultPTOAllocation
   },
   {
     id: '3',
@@ -30,7 +37,8 @@ export const mockUsers: Employee[] = [
     role: 'manager',
     department: 'Management',
     status: 'active',
-    startDate: '2021-03-10' // >2 years
+    startDate: '2021-03-10', // >2 years
+    ptoAllocation: defaultPTOAllocation
   },
   {
     id: '4',
@@ -41,7 +49,11 @@ export const mockUsers: Employee[] = [
     department: 'Field Work',
     status: 'active',
     phone: '480-555-0101',
-    startDate: '2022-08-20' // ~1.5 years
+    startDate: '2022-08-20', // ~1.5 years
+    ptoAllocation: {
+      vacation: { type: 'manual' as const, hours: 65 },
+      sickLeave: { type: 'manual' as const, hours: 15 }
+    }
   },
   {
     id: '5',
@@ -52,7 +64,8 @@ export const mockUsers: Employee[] = [
     department: 'Field Work',
     status: 'active',
     phone: '480-555-0102',
-    startDate: '2023-01-10' // ~1 year
+    startDate: '2023-01-10', // ~1 year
+    ptoAllocation: defaultPTOAllocation
   },
   {
     id: '6',
@@ -63,7 +76,8 @@ export const mockUsers: Employee[] = [
     department: 'Field Work',
     status: 'active',
     phone: '480-555-0103',
-    startDate: '2023-09-01' // <6 months
+    startDate: '2023-09-01', // <6 months
+    ptoAllocation: defaultPTOAllocation
   },
   {
     id: '7',
@@ -74,6 +88,7 @@ export const mockUsers: Employee[] = [
     department: 'Management',
     status: 'active',
     phone: '480-555-0104',
-    startDate: '2021-11-15' // >2 years
+    startDate: '2021-11-15', // >2 years
+    ptoAllocation: defaultPTOAllocation
   }
 ];

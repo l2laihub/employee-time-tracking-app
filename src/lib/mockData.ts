@@ -144,67 +144,56 @@ export const mockTimeEntries: TimeEntry[] = [
   }
 ];
 
+// Create mock timesheets with consistent hours for proper PTO calculation
+const createEmployeeTimesheet = (userId: string, weekOffset: number): TimesheetEntry => {
+  // Calculate hours based on start date to avoid excessive sick leave accrual
+  const now = new Date();
+  const weekStartDate = subDays(now, (weekOffset + 1) * 7);
+  
+  // Only give hours for dates after employee start date
+  const employeeStartDates: { [key: string]: string } = {
+    '2': '2023-06-15', // Employee User
+    '4': '2022-08-20', // John Smith
+    '5': '2023-01-10', // Sarah Wilson
+    '6': '2023-09-01'  // Mike Johnson
+  };
+
+  const startDate = new Date(employeeStartDates[userId]);
+  
+  // Randomize hours between 32-40 to make sick leave accrual more realistic
+  const hours = weekStartDate >= startDate ? Math.floor(Math.random() * (40 - 32 + 1)) + 32 : 0;
+
+  return {
+    id: `ts-${userId}-${weekOffset}`,
+    userId,
+    weekStartDate: weekStartDate.toISOString(),
+    weekEndDate: subDays(now, weekOffset * 7).toISOString(),
+    status: 'approved',
+    notes: 'Regular work week',
+    timeEntries: [],
+    totalHours: hours,
+    submittedAt: subDays(now, weekOffset * 7 - 1).toISOString(),
+    reviewedBy: '1',
+    reviewedAt: subDays(now, weekOffset * 7 - 2).toISOString()
+  };
+};
+
+// Generate 8 weeks of timesheets for each employee (2 months of history)
+const generateEmployeeTimesheets = (userId: string): TimesheetEntry[] => {
+  return Array.from({ length: 8 }, (_, i) => createEmployeeTimesheet(userId, i));
+};
+
+// Create timesheets for all employees
 export const mockTimesheets: TimesheetEntry[] = [
-  {
-    id: '1',
-    userId: '2',
-    weekStartDate: subDays(new Date(), 14).toISOString(),
-    weekEndDate: subDays(new Date(), 8).toISOString(),
-    status: 'approved',
-    notes: 'Completed all scheduled maintenance tasks and emergency repairs',
-    timeEntries: mockTimeEntries.map(entry => ({
-      ...entry,
-      clockIn: subDays(new Date(entry.clockIn), 14).toISOString(),
-      clockOut: entry.clockOut ? subDays(new Date(entry.clockOut), 14).toISOString() : null
-    })),
-    totalHours: 18,
-    submittedAt: subDays(new Date(), 7).toISOString(),
-    reviewedBy: '1',
-    reviewedAt: subDays(new Date(), 6).toISOString()
-  },
-  {
-    id: '2',
-    userId: '2',
-    weekStartDate: subDays(new Date(), 7).toISOString(),
-    weekEndDate: subDays(new Date(), 1).toISOString(),
-    status: 'submitted',
-    notes: 'Multiple emergency calls handled successfully',
-    timeEntries: mockTimeEntries,
-    totalHours: 18,
-    submittedAt: new Date().toISOString()
-  },
-  {
-    id: '3',
-    userId: '2',
-    weekStartDate: new Date().toISOString(),
-    weekEndDate: addDays(new Date(), 6).toISOString(),
-    status: 'draft',
-    notes: '',
-    timeEntries: [mockTimeEntries[0]],
-    totalHours: 6
-  },
-  {
-    id: '4',
-    userId: '4',
-    weekStartDate: subDays(new Date(), 7).toISOString(),
-    weekEndDate: subDays(new Date(), 1).toISOString(),
-    status: 'approved',
-    notes: 'Completed mall maintenance ahead of schedule',
-    timeEntries: [mockTimeEntries[3]],
-    totalHours: 7,
-    submittedAt: subDays(new Date(), 5).toISOString(),
-    reviewedBy: '1',
-    reviewedAt: subDays(new Date(), 4).toISOString()
-  },
-  {
-    id: '5',
-    userId: '5',
-    weekStartDate: subDays(new Date(), 7).toISOString(),
-    weekEndDate: subDays(new Date(), 1).toISOString(),
-    status: 'submitted',
-    notes: 'Residential plumbing work completed',
-    timeEntries: [mockTimeEntries[4]],
-    totalHours: 3,
-    submittedAt: new Date().toISOString()
-  }
+  // Employee User (id: '2') - Started 2023-06-15
+  ...generateEmployeeTimesheets('2'),
+  
+  // John Smith (id: '4') - Started 2022-08-20
+  ...generateEmployeeTimesheets('4'),
+  
+  // Sarah Wilson (id: '5') - Started 2023-01-10
+  ...generateEmployeeTimesheets('5'),
+  
+  // Mike Johnson (id: '6') - Started 2023-09-01
+  ...generateEmployeeTimesheets('6')
 ];

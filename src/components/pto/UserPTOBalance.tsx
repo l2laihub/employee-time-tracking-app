@@ -1,15 +1,15 @@
 import React from 'react';
 import { Employee, TimesheetEntry } from '../../lib/types';
 import { Briefcase, Stethoscope } from 'lucide-react';
-import { calculateVacationBalance, calculateSickLeaveBalance, getVacationAllocationText } from '../../utils/ptoCalculations';
-import { mockTimesheets } from '../../lib/mockData';
+import { getVacationAllocationText } from '../../utils/ptoCalculations';
+import { usePTO } from '../../contexts/PTOContext';
 
 interface UserPTOBalanceProps {
   user: Employee;
 }
 
 export default function UserPTOBalance({ user }: UserPTOBalanceProps) {
-  // Use mock timesheet data for now - in real app, this would come from a prop or context
+  const { getPTOBalance } = usePTO();
 
   return (
     <div className="bg-gray-50 rounded-lg p-4 mb-4">
@@ -18,7 +18,7 @@ export default function UserPTOBalance({ user }: UserPTOBalanceProps) {
           <Briefcase className="w-5 h-5 text-blue-500" />
           <div>
             <div className="text-sm font-medium text-gray-500">Vacation Balance</div>
-            <div className="text-lg font-semibold">{calculateVacationBalance(user)} hours</div>
+            <div className="text-lg font-semibold">{getPTOBalance(user, 'vacation')} hours</div>
             <div className="text-xs text-gray-500">
               Allocation: {getVacationAllocationText(user)}
             </div>
@@ -29,7 +29,7 @@ export default function UserPTOBalance({ user }: UserPTOBalanceProps) {
           <Stethoscope className="w-5 h-5 text-green-500" />
           <div>
             <div className="text-sm font-medium text-gray-500">Sick Leave Balance</div>
-            <div className="text-lg font-semibold">{calculateSickLeaveBalance(mockTimesheets)} hours</div>
+            <div className="text-lg font-semibold">{getPTOBalance(user, 'sick_leave')} hours</div>
             <div className="text-xs text-gray-500">
               Accrues: 1 hour per 40 hours worked
             </div>

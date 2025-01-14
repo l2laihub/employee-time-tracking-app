@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Plus, Upload } from 'lucide-react';
 import EmployeeList from '../components/employees/EmployeeList';
 import EmployeeForm from '../components/employees/EmployeeForm';
 import ImportEmployeesModal from '../components/employees/ImportEmployeesModal';
 import EmployeeFilters from '../components/employees/EmployeeFilters';
+import EmployeePTOBalances from '../components/employees/EmployeePTOBalances';
 import type { Employee } from '../lib/types';
 import { useEmployees } from '../contexts/EmployeeContext';
 
@@ -62,8 +63,12 @@ export default function Employees() {
     setIsImportOpen(false);
   };
 
+  const handleUpdateStartDate = useCallback((employeeId: string, startDate: string) => {
+    updateEmployee(employeeId, { startDate });
+  }, [updateEmployee]);
+
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto space-y-8">
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Employee Management</h1>
@@ -120,6 +125,11 @@ export default function Employees() {
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
         onImport={handleImportEmployees}
+      />
+
+      <EmployeePTOBalances 
+        employees={filteredEmployees}
+        onUpdateStartDate={handleUpdateStartDate}
       />
     </div>
   );
