@@ -143,9 +143,9 @@ The PTO feature manages employee vacation and sick leave balances, requests, and
 ## Business Rules
 
 ### Vacation Time
-1. First year employees: 1 week (40 hours)
-2. Second year: 2 weeks (80 hours)
-3. Third year onwards: 3 weeks (120 hours)
+1. First year employees: 5 days (40 hours) pro-rated based on months worked
+2. Second year: 10 days (80 hours)
+3. Third year onwards: 15 days (120 hours)
 4. Manual allocations can override automatic accrual
    - Requires manager approval
    - Must include reason
@@ -203,25 +203,55 @@ The PTO feature manages employee vacation and sick leave balances, requests, and
 
 ### Vacation Balance
 ```typescript
-// Example calculation
-function calculateVacationBalance(employee: Employee): number {
-  const yearsOfService = differenceInYears(new Date(), new Date(employee.startDate));
+// Example calculation with default rules
+function calculateVacationBalance(employee: Employee, rules?: PTORules): number {
+  // Default PTO rules if none provided
+  const defaultRules = {
+    firstYearVacationDays: 5,
+    secondYearVacationDays: { min: 10, max: 10 },
+    thirdYearPlusVacationDays: { min: 15, max: 15 },
+    sickLeaveAccrualHours: 40
+  };
   
-  if (yearsOfService < 1) return 40;     // 1 week
-  if (yearsOfService < 2) return 80;     // 2 weeks
-  return 120;                            // 3 weeks
+  const effectiveRules = rules || defaultRules;
+  const yearsOfService = differenceInYears(new Date(), new Date(employee.startDate));
+  const hoursPerDay = 8; // Standard work day hours
+  
+  if (yearsOfService < 1) {
+    const monthsWorked = differenceInMonths(new Date(), new Date(employee.startDate));
+    return Math.floor((effectiveRules.firstYearVacationDays * hoursPerDay * monthsWorked) / 12);
+  }
+  
+  if (yearsOfService < 2) {
+    return effectiveRules.secondYearVacationDays.max * hoursPerDay;
+  }
+  
+  return effectiveRules.thirdYearPlusVacationDays.max * hoursPerDay;
 }
 ```
 
 ### Sick Leave Accrual
 ```typescript
-// Example calculation
-function calculateSickLeaveBalance(timesheets: TimesheetEntry[]): number {
+// Example calculation with default rules
+function calculateSickLeaveBalance(timesheets: TimesheetEntry[], rules?: PTORules): number {
+  // Default PTO rules if none provided
+  const defaultRules = {
+    firstYearVacationDays: 5,
+    secondYearVacationDays: { min: 10, max: 10 },
+    thirdYearPlusVacationDays: { min: 15, max: 15 },
+    sickLeaveAccrualHours: 40
+  };
+  
+  const effectiveRules = rules || defaultRules;
   const totalWorkedHours = timesheets.reduce((total, timesheet) => {
-    return total + timesheet.totalHours;
+    // Only count approved timesheets
+    if (timesheet.status === 'approved') {
+      return total + timesheet.totalHours;
+    }
+    return total;
   }, 0);
   
-  return Math.floor(totalWorkedHours / 40); // 1 hour per 40 worked
+  return Math.floor(totalWorkedHours / effectiveRules.sickLeaveAccrualHours);
 }
 ```
 
