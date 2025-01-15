@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { TimesheetEntry, TimeEntry } from '../../lib/types';
 import { mockJobLocations } from '../../lib/mockData';
@@ -14,9 +14,61 @@ export default function TimesheetReviewForm({
   onSubmit, 
   onCancel 
 }: TimesheetReviewFormProps) {
+  console.log('Full timesheet data:', JSON.stringify(timesheet, null, 2));
+  console.log('Expected employee:', timesheet.employeeName);
+  console.log('Time entries:', timesheet.timeEntries);
+  console.log('Timesheet ID:', timesheet.id);
+  
   const [reviewNotes, setReviewNotes] = useState('');
   const [status, setStatus] = useState<'approved' | 'rejected'>('approved');
-  const [entries, setEntries] = useState<TimeEntry[]>(timesheet.timeEntries);
+  const [entries, setEntries] = useState<TimeEntry[]>(timesheet.timeEntries || []);
+  const [totalHours, setTotalHours] = useState(timesheet.totalHours);
+
+  const calculateTotalHours = (entries: TimeEntry[]) => {
+    return entries.reduce((total, entry) => {
+      if (!entry.clockOut) return total;
+      const clockIn = new Date(entry.clockIn);
+      const clockOut = new Date(entry.clockOut);
+      
+      // Handle same-day entries
+      if (clockIn.toDateString() === clockOut.toDateString()) {
+        const hours = (clockOut.getTime() - clockIn.getTime()) / (1000 * 60 * 60);
+        return total + hours;
+      }
+      
+      // Handle multi-day entries (split into daily chunks)
+      let currentDate = new Date(clockIn);
+      let totalEntryHours = 0;
+      
+      while (currentDate <= clockOut) {
+        const dayStart = new Date(currentDate);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(currentDate);
+        dayEnd.setHours(23, 59, 59, 999);
+        
+        const start = currentDate.getTime() === clockIn.getTime() 
+          ? clockIn 
+          : new Date(dayStart);
+        const end = currentDate.toDateString() === clockOut.toDateString()
+          ? clockOut
+          : new Date(dayEnd);
+          
+        const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+        totalEntryHours += hours;
+        
+        // Move to next day
+        currentDate.setDate(currentDate.getDate() + 1);
+        currentDate.setHours(0, 0, 0, 0);
+      }
+      
+      return total + totalEntryHours;
+    }, 0);
+  };
+
+  useEffect(() => {
+    const newTotal = calculateTotalHours(entries);
+    setTotalHours(Math.round(newTotal * 100) / 100); // Round to 2 decimal places
+  }, [entries]);
 
   const handleLocationChange = (entryIndex: number, locationId: string) => {
     const newEntries = [...entries];
@@ -34,7 +86,8 @@ export default function TimesheetReviewForm({
       status,
       reviewedAt: new Date().toISOString(),
       notes: timesheet.notes + (reviewNotes ? `\n\nReview Notes: ${reviewNotes}` : ''),
-      timeEntries: entries
+      timeEntries: entries,
+      totalHours: totalHours
     });
   };
 
@@ -42,10 +95,10 @@ export default function TimesheetReviewForm({
     <form onSubmit={handleSubmit} className="space-y-6 bg-white rounded-lg shadow p-6">
       <div>
         <h3 className="text-lg font-medium text-gray-900">
-          Review Timesheet - Week of {format(new Date(timesheet.weekStartDate), 'MMM d, yyyy')}
+          Review Timesheet - {timesheet?.employeeName || 'Unknown Employee'} - Week of {format(new Date(timesheet.weekStartDate), 'MMM d, yyyy')}
         </h3>
         <p className="mt-1 text-sm text-gray-500">
-          Total Hours: {timesheet.totalHours}
+          Total Hours: {totalHours.toFixed(2)}
         </p>
       </div>
 
@@ -57,40 +110,55 @@ export default function TimesheetReviewForm({
               <div className="flex justify-between items-start">
                 <div className="space-y-2">
                   <p className="font-medium">{format(new Date(entry.clockIn), 'MMM d, yyyy')}</p>
-                  <div className="flex items-center space-x-4">
+                  {['pending', 'submitted'].includes(timesheet.status) ? (
+                    <div className="flex items-center space-x-4">
                     <div>
-                      <label className="block text-xs text-gray-500">Clock In</label>
-                      <input
-                        type="time"
-                        value={format(new Date(entry.clockIn), 'HH:mm')}
-                        onChange={(e) => {
-                          const [hours, minutes] = e.target.value.split(':');
-                          const date = new Date(entry.clockIn);
-                          date.setHours(parseInt(hours), parseInt(minutes));
-                          const newEntries = [...entries];
-                          newEntries[index] = { ...entry, clockIn: date.toISOString() };
-                          setEntries(newEntries);
-                        }}
-                        className="mt-1 block w-32 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                      />
+                      <label className="block text-xs text-gray-500">Hours</label>
+                      <p className="text-sm text-gray-600">
+                        {entry.clockOut 
+                          ? `${((new Date(entry.clockOut).getTime() - new Date(entry.clockIn).getTime()) / (1000 * 60 * 60)).toFixed(2)}h`
+                          : 'In Progress'}
+                      </p>
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-500">Clock Out</label>
-                      <input
-                        type="time"
-                        value={entry.clockOut ? format(new Date(entry.clockOut), 'HH:mm') : ''}
-                        onChange={(e) => {
-                          const [hours, minutes] = e.target.value.split(':');
-                          const date = entry.clockOut ? new Date(entry.clockOut) : new Date(entry.clockIn);
-                          date.setHours(parseInt(hours), parseInt(minutes));
-                          const newEntries = [...entries];
-                          newEntries[index] = { ...entry, clockOut: date.toISOString() };
-                          setEntries(newEntries);
-                        }}
-                        className="mt-1 block w-32 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                      />
+                      <div>
+                        <label className="block text-xs text-gray-500">Clock In</label>
+                        <input
+                          type="time"
+                          value={format(new Date(entry.clockIn), 'HH:mm')}
+                          onChange={(e) => {
+                            const [hours, minutes] = e.target.value.split(':');
+                            const date = new Date(entry.clockIn);
+                            date.setHours(parseInt(hours), parseInt(minutes));
+                            const newEntries = [...entries];
+                            newEntries[index] = { ...entry, clockIn: date.toISOString() };
+                            setEntries(newEntries);
+                          }}
+                          className="mt-1 block w-32 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500">Clock Out</label>
+                        <input
+                          type="time"
+                          value={entry.clockOut ? format(new Date(entry.clockOut), 'HH:mm') : ''}
+                          onChange={(e) => {
+                            const [hours, minutes] = e.target.value.split(':');
+                            const date = entry.clockOut ? new Date(entry.clockOut) : new Date(entry.clockIn);
+                            date.setHours(parseInt(hours), parseInt(minutes));
+                            const newEntries = [...entries];
+                            newEntries[index] = { ...entry, clockOut: date.toISOString() };
+                            setEntries(newEntries);
+                          }}
+                          className="mt-1 block w-32 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                        />
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <p className="text-sm text-gray-600">
+                      {format(new Date(entry.clockIn), 'h:mm a')} - 
+                      {entry.clockOut ? format(new Date(entry.clockOut), 'h:mm a') : 'In Progress'}
+                    </p>
+                  )}
                 </div>
                 <select
                   value={entry.jobLocationId}

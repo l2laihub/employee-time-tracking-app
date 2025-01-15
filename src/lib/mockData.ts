@@ -145,7 +145,15 @@ export const mockTimeEntries: TimeEntry[] = [
 ];
 
 // Create mock timesheets with consistent hours for proper PTO calculation
+const employeeNames: { [key: string]: string } = {
+  '2': 'John Doe',
+  '4': 'Jane Smith',
+  '5': 'Mike Johnson',
+  '6': 'Sarah Wilson'
+};
+
 const createEmployeeTimesheet = (userId: string, weekOffset: number): TimesheetEntry => {
+  const employeeName = employeeNames[userId] || 'Unknown Employee';
   // Calculate hours based on start date to avoid excessive sick leave accrual
   const now = new Date();
   const weekStartDate = subDays(now, (weekOffset + 1) * 7);
@@ -163,14 +171,39 @@ const createEmployeeTimesheet = (userId: string, weekOffset: number): TimesheetE
   // Randomize hours between 32-40 to make sick leave accrual more realistic
   const hours = weekStartDate >= startDate ? Math.floor(Math.random() * (40 - 32 + 1)) + 32 : 0;
 
+  // Generate time entries for this timesheet
+  const timeEntries: TimeEntry[] = [];
+  const daysInWeek = 5; // Monday to Friday
+  const baseHours = hours / daysInWeek;
+  
+  for (let i = 0; i < daysInWeek; i++) {
+    const entryDate = addDays(weekStartDate, i);
+    const clockIn = new Date(entryDate);
+    clockIn.setHours(8, 0, 0, 0); // 8:00 AM
+    const clockOut = new Date(clockIn);
+    clockOut.setHours(clockIn.getHours() + Math.floor(baseHours));
+    
+    timeEntries.push({
+      id: `te-${userId}-${weekOffset}-${i}`,
+      userId,
+      jobLocationId: mockJobLocations[i % mockJobLocations.length].id,
+      clockIn: clockIn.toISOString(),
+      clockOut: clockOut.toISOString(),
+      serviceType: mockJobLocations[i % mockJobLocations.length].serviceType,
+      workDescription: `Daily work at ${mockJobLocations[i % mockJobLocations.length].name}`,
+      status: 'completed'
+    });
+  }
+
   return {
     id: `ts-${userId}-${weekOffset}`,
     userId,
+    employeeName,
     weekStartDate: weekStartDate.toISOString(),
     weekEndDate: subDays(now, weekOffset * 7).toISOString(),
     status: 'approved',
     notes: 'Regular work week',
-    timeEntries: [],
+    timeEntries,
     totalHours: hours,
     submittedAt: subDays(now, weekOffset * 7 - 1).toISOString(),
     reviewedBy: '1',
@@ -178,9 +211,29 @@ const createEmployeeTimesheet = (userId: string, weekOffset: number): TimesheetE
   };
 };
 
-// Generate 8 weeks of timesheets for each employee (2 months of history)
+// Generate 16 weeks of timesheets for each employee (4 months of history)
 const generateEmployeeTimesheets = (userId: string): TimesheetEntry[] => {
-  return Array.from({ length: 8 }, (_, i) => createEmployeeTimesheet(userId, i));
+  return Array.from({ length: 16 }, (_, i) => {
+    const timesheet = createEmployeeTimesheet(userId, i);
+    
+    // Add more status variations
+    if (i % 4 === 0) {
+      timesheet.status = 'submitted';
+      timesheet.reviewedBy = null;
+      timesheet.reviewedAt = null;
+    }
+    
+    // Add more detailed notes
+    if (i % 5 === 0) {
+      timesheet.notes = 'Overtime hours for special project';
+      timesheet.totalHours = 45;
+    } else if (i % 3 === 0) {
+      timesheet.notes = 'Short week due to holiday';
+      timesheet.totalHours = 32;
+    }
+    
+    return timesheet;
+  });
 };
 
 // Create timesheets for all employees

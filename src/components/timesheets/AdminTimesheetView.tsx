@@ -20,15 +20,15 @@ interface TimesheetFilters {
   };
 }
 
-const initialFilters: TimesheetFilters = {
-  search: '',
-  status: 'submitted',
-  department: '',
-  dateRange: {
-    startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0]
-  }
-};
+  const initialFilters: TimesheetFilters = {
+    search: '',
+    status: '',
+    department: '',
+    dateRange: {
+      startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+      endDate: new Date().toISOString().split('T')[0]
+    }
+  };
 
 export default function AdminTimesheetView({ timesheets, onUpdateTimesheet }: AdminTimesheetViewProps) {
   const [selectedTimesheet, setSelectedTimesheet] = useState<TimesheetEntry | null>(null);
@@ -37,40 +37,53 @@ export default function AdminTimesheetView({ timesheets, onUpdateTimesheet }: Ad
   // Get pending timesheets count
   const pendingCount = timesheets.filter(t => t.status === 'submitted').length;
 
-  const filteredTimesheets = timesheets.filter(timesheet => {
-    const employee = mockUsers.find(user => user.id === timesheet.userId);
-    if (!employee) return false;
+  const filteredTimesheets = timesheets
+    .map(timesheet => {
+      const employee = mockUsers.find(user => user.id === timesheet.userId);
+      if (!employee) return null;
 
-    // Search filter
-    const searchLower = filters.search.toLowerCase();
-    const employeeName = `${employee.first_name} ${employee.last_name}`.toLowerCase();
-    const matchesSearch = !filters.search || 
-      employeeName.includes(searchLower) ||
-      timesheet.id.toLowerCase().includes(searchLower);
+      // Add employee name to timesheet data
+      const enhancedTimesheet: TimesheetEntry = {
+        ...timesheet,
+        employeeName: `${employee.first_name} ${employee.last_name}`
+      };
 
-    // Status filter
-    const matchesStatus = !filters.status || timesheet.status === filters.status;
+      // Search filter
+      const searchLower = filters.search.toLowerCase();
+      const employeeName = enhancedTimesheet.employeeName.toLowerCase();
+      const matchesSearch = !filters.search || 
+        employeeName.includes(searchLower) ||
+        timesheet.id.toLowerCase().includes(searchLower);
 
-    // Department filter
-    const matchesDepartment = !filters.department || employee.department === filters.department;
+      // Status filter
+      const matchesStatus = !filters.status || 
+        (filters.status === 'Pending Review'
+          ? ['pending', 'submitted'].includes(timesheet.status)
+          : timesheet.status === filters.status);
 
-    // Date range filter
-    const weekStartDate = new Date(timesheet.weekStartDate);
-    const weekEndDate = new Date(timesheet.weekEndDate);
-    const startDate = new Date(filters.dateRange.startDate);
-    const endDate = new Date(filters.dateRange.endDate);
-    startDate.setHours(0, 0, 0, 0);
-    endDate.setHours(23, 59, 59, 999);
+      // Department filter
+      const matchesDepartment = !filters.department || employee.department === filters.department;
 
-    // Check if the timesheet week overlaps with the selected date range
-    const matchesDateRange = (
-      (weekStartDate <= endDate && weekEndDate >= startDate) ||
-      (weekStartDate >= startDate && weekStartDate <= endDate) ||
-      (weekEndDate >= startDate && weekEndDate <= endDate)
-    );
+      // Date range filter
+      const weekStartDate = new Date(timesheet.weekStartDate);
+      const weekEndDate = new Date(timesheet.weekEndDate);
+      const startDate = new Date(filters.dateRange.startDate);
+      const endDate = new Date(filters.dateRange.endDate);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
 
-    return matchesSearch && matchesStatus && matchesDepartment && matchesDateRange;
-  });
+      // Check if the timesheet week overlaps with the selected date range
+      const matchesDateRange = (
+        (weekStartDate <= endDate && weekEndDate >= startDate) ||
+        (weekStartDate >= startDate && weekStartDate <= endDate) ||
+        (weekEndDate >= startDate && weekEndDate <= endDate)
+      );
+
+      return matchesSearch && matchesStatus && matchesDepartment && matchesDateRange 
+        ? enhancedTimesheet 
+        : null;
+    })
+    .filter((timesheet): timesheet is TimesheetEntry => timesheet !== null);
 
   const departments = Array.from(new Set(mockUsers.map(user => user.department))).filter(Boolean);
 

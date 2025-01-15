@@ -12,15 +12,16 @@ export interface TimeEntry {
 export interface TimesheetEntry {
   id: string;
   userId: string;
+  employeeName: string;
   weekStartDate: string;
   weekEndDate: string;
-  status: 'draft' | 'submitted' | 'approved' | 'rejected';
+  status: 'draft' | 'submitted' | 'approved' | 'rejected' | 'pending';
   notes: string;
   timeEntries: TimeEntry[];
   totalHours: number;
   submittedAt?: string;
-  reviewedBy?: string;
-  reviewedAt?: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
 }
 
 export interface JobLocation {

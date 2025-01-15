@@ -20,7 +20,7 @@ export default function JobSelector({ jobs, selectedJobId, onSelect }: JobSelect
           onChange={(e) => onSelect(e.target.value)}
           className="block w-full pl-10 pr-4 py-2.5 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-lg"
         >
-          <option value="">Select a location...</option>
+          <option value="">Select a location to clock in...</option>
           {activeJobs.map(job => (
             <option key={job.id} value={job.id}>
               {job.name} - {job.city}, {job.state}
