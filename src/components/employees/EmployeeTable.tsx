@@ -52,50 +52,52 @@ export default function EmployeeTable({ employees, onEdit, onDelete, onUpdateSta
     return () => clearTimeout(timeoutId);
   }, [rules, employees.length]); // Only watch rules and employees.length
 
-  const handleUpdatePTOAllocation = (employeeId: string, allocation: Employee['ptoAllocation']) => {
-    // Update all employees with automatic allocations
-    employees.forEach(employee => {
-      const shouldUpdateVacation = employee.ptoAllocation.vacation.type === 'auto';
-      const shouldUpdateSickLeave = employee.ptoAllocation.sickLeave.type === 'auto';
+  const handleUpdatePTOAllocation = (data: {
+    employeeId: string;
+    allocation: Employee['ptoAllocation'];
+  }) => {
+    const { employeeId, allocation } = data;
+    const employee = employees.find(e => e.id === employeeId);
+    
+    if (!employee) {
+      setEditingPTOEmployee(null);
+      return;
+    }
 
-      if (shouldUpdateVacation || shouldUpdateSickLeave) {
-        const updatedAllocation = {
-          vacation: shouldUpdateVacation ? {
-            type: allocation.vacation.type,
-            hours: allocation.vacation.type === 'manual' ? allocation.vacation.hours : undefined
-          } : employee.ptoAllocation.vacation,
-          
-          sickLeave: shouldUpdateSickLeave ? {
-            type: allocation.sickLeave.type,
-            hours: allocation.sickLeave.type === 'manual' ? allocation.sickLeave.hours : undefined
-          } : employee.ptoAllocation.sickLeave
-        };
-
-        // Update employee allocation
-        updateEmployee(employee.id, { 
-          ptoAllocation: updatedAllocation
-        });
-        
-        // Update PTO allocation and trigger balance recalculation
-        updatePTOAllocation(employee.id, updatedAllocation);
-        
-        // Force recalculation of PTO balances
-        const newVacationBalance = getPTOBalance(employee, 'vacation');
-        const newSickLeaveBalance = getPTOBalance(employee, 'sick_leave');
-        
-        // Update employee with recalculated balances
-        updateEmployee(employee.id, {
-          ptoAllocation: updatedAllocation,
-          ptoBalances: [
-            { type: 'vacation', hours: newVacationBalance },
-            { type: 'sick_leave', hours: newSickLeaveBalance }
-          ]
-        });
-        
-        // Force refresh of PTO data
-        updatePTOAllocation(employee.id, updatedAllocation);
+    const updatedAllocation = {
+      vacation: {
+        type: allocation.vacation.type,
+        hours: allocation.vacation.type === 'manual' ? allocation.vacation.hours : undefined
+      },
+      sickLeave: {
+        type: allocation.sickLeave.type,
+        hours: allocation.sickLeave.type === 'manual' ? allocation.sickLeave.hours : undefined
       }
+    };
+
+    // Update employee allocation
+    updateEmployee(employeeId, { 
+      ptoAllocation: updatedAllocation
     });
+    
+    // Update PTO allocation and trigger balance recalculation
+    updatePTOAllocation(employeeId, updatedAllocation);
+    
+    // Force recalculation of PTO balances
+    const newVacationBalance = getPTOBalance(employee, 'vacation');
+    const newSickLeaveBalance = getPTOBalance(employee, 'sick_leave');
+    
+    // Update employee with recalculated balances
+    updateEmployee(employeeId, {
+      ptoAllocation: updatedAllocation,
+      ptoBalances: [
+        { type: 'vacation', hours: newVacationBalance },
+        { type: 'sick_leave', hours: newSickLeaveBalance }
+      ]
+    });
+    
+    // Force refresh of PTO data
+    updatePTOAllocation(employeeId, updatedAllocation);
 
     setEditingPTOEmployee(null);
   };
@@ -267,7 +269,7 @@ export default function EmployeeTable({ employees, onEdit, onDelete, onUpdateSta
       {editingPTOEmployee && (
         <PTOAllocationForm
           employee={editingPTOEmployee}
-          onSave={(allocation) => handleUpdatePTOAllocation(editingPTOEmployee.id, allocation)}
+          onSave={handleUpdatePTOAllocation}
           onCancel={() => setEditingPTOEmployee(null)}
           isOpen={true}
         />

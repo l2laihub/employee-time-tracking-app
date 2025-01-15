@@ -10,9 +10,12 @@ type AllocationType = 'auto' | 'manual';
 
 interface PTOAllocationFormProps {
   employee: Employee;
-  onSave: (allocation: {
-    vacation: { type: AllocationType; hours?: number };
-    sickLeave: { type: AllocationType; hours?: number };
+  onSave: (data: {
+    employeeId: string;
+    allocation: {
+      vacation: { type: AllocationType; hours?: number };
+      sickLeave: { type: AllocationType; hours?: number };
+    };
   }) => void;
   onCancel: () => void;
   isOpen: boolean;
@@ -42,13 +45,16 @@ export function PTOAllocationForm({ employee, onSave, onCancel, isOpen }: PTOAll
 
   const handleSave = () => {
     onSave({
-      vacation: {
-        type: vacation.type,
-        hours: vacation.type === 'manual' ? vacation.hours : undefined
-      },
-      sickLeave: {
-        type: sickLeave.type,
-        hours: sickLeave.type === 'manual' ? sickLeave.hours : undefined
+      employeeId: employee.id,
+      allocation: {
+        vacation: {
+          type: vacation.type,
+          hours: vacation.type === 'manual' ? vacation.hours : undefined
+        },
+        sickLeave: {
+          type: sickLeave.type,
+          hours: sickLeave.type === 'manual' ? sickLeave.hours : undefined
+        }
       }
     });
   };
@@ -89,14 +95,12 @@ export function PTOAllocationForm({ employee, onSave, onCancel, isOpen }: PTOAll
                 Current automatic allocation: {getVacationBalance(employee)} hours
               </div>
             ) : (
-            <div className="mt-2">
               <Input
                 type="number"
                 label="Vacation Hours"
                 value={vacation.hours || ''}
-                onChange={(value: string) => setVacation(prev => ({ ...prev, hours: Number(value) }))}
+                onChange={(e) => setVacation(prev => ({ ...prev, hours: Number(e.target.value) }))}
               />
-            </div>
             )}
           </div>
         </div>
@@ -135,7 +139,7 @@ export function PTOAllocationForm({ employee, onSave, onCancel, isOpen }: PTOAll
                 type="number"
                 label="Sick Leave Hours"
                 value={sickLeave.hours || ''}
-                onChange={(value: string) => setSickLeave(prev => ({ ...prev, hours: Number(value) }))}
+                onChange={(e) => setSickLeave(prev => ({ ...prev, hours: Number(e.target.value) }))}
               />
             </div>
             )}
