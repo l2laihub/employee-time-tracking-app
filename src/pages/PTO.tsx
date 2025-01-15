@@ -165,14 +165,6 @@ export default function PTO() {
               <Filter className="w-4 h-4 mr-2" />
               Filters
             </button>
-            {isAdmin && (
-              <Link
-                to="/pto/balances"
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center justify-center"
-              >
-                View Balances
-              </Link>
-            )}
           </div>
           {!editingRequest && (
             <button

@@ -1,10 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { Plus, Upload } from 'lucide-react';
-import EmployeeList from '../components/employees/EmployeeList';
 import EmployeeForm from '../components/employees/EmployeeForm';
 import ImportEmployeesModal from '../components/employees/ImportEmployeesModal';
 import EmployeeFilters from '../components/employees/EmployeeFilters';
-import EmployeePTOBalances from '../components/employees/EmployeePTOBalances';
+import EmployeeTable from '../components/employees/EmployeeTable';
 import type { Employee } from '../lib/types';
 import { useEmployees } from '../contexts/EmployeeContext';
 
@@ -100,16 +99,15 @@ export default function Employees() {
         onFilterChange={handleFilterChange}
       />
 
-      <div className="mt-6">
-        <EmployeeList
-          employees={filteredEmployees}
-          onEdit={(emp) => {
-            setSelectedEmployee(emp);
-            setIsFormOpen(true);
-          }}
-          onDelete={handleDeleteEmployee}
-        />
-      </div>
+      <EmployeeTable
+        employees={filteredEmployees}
+        onEdit={(emp) => {
+          setSelectedEmployee(emp);
+          setIsFormOpen(true);
+        }}
+        onDelete={handleDeleteEmployee}
+        onUpdateStartDate={handleUpdateStartDate}
+      />
 
       <EmployeeForm
         isOpen={isFormOpen}
@@ -125,11 +123,6 @@ export default function Employees() {
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
         onImport={handleImportEmployees}
-      />
-
-      <EmployeePTOBalances 
-        employees={filteredEmployees}
-        onUpdateStartDate={handleUpdateStartDate}
       />
     </div>
   );

@@ -37,27 +37,31 @@ The PTO feature is built using React with TypeScript, utilizing context for glob
 ```mermaid
 graph TD
     A[App] --> B[PTO Page]
-    A --> C[PTOBalances Page]
+    A --> C[Employees Page]
     B --> D[PTORequestForm]
     B --> E[PTORequestList]
     B --> F[UserPTOBalance]
-    C --> G[EmployeePTOBalances]
-    G --> H[EmployeeStartDateForm]
+    C --> G[EmployeeManagement]
+    G --> H[EmployeePTOBalances]
+    H --> I[EmployeeStartDateForm]
     
     subgraph Context
-        I[EmployeeContext]
+        J[PTOContext]
+        K[EmployeeContext]
     end
     
     subgraph Utils
-        J[dateUtils]
-        K[ptoCalculations]
+        L[dateUtils]
+        M[ptoCalculations]
     end
     
-    B -.-> I
-    C -.-> I
-    D -.-> J & K
-    G -.-> J & K
+    B -.-> J
+    C -.-> K
+    D -.-> L & M
+    H -.-> L & M
 ```
+
+Note: Employee PTO balances management has been moved to the Employees Management page for better organization and integration with employee data.
 
 ### Data Flow
 ```mermaid
@@ -98,27 +102,45 @@ flowchart TD
   - PTO request creation/editing
   - Request list viewing
   - Request filtering
-  - Balance viewing
+  - Personal balance viewing
 - Key States:
   - `requests`: List of PTO requests
   - `filters`: Current filter settings
   - `selectedRequest`: Currently selected request for review
   - `editingRequest`: Request being edited
 
+#### 2. Employees Page (`/src/pages/Employees.tsx`)
+- Integrated PTO management features:
+  - Employee PTO balances viewing
+  - PTO allocation management
+  - Start date tracking for PTO accrual
+- Key States:
+  - `ptoBalances`: Map of employee PTO balances
+  - `allocations`: Current PTO allocations
+  - `selectedEmployee`: Employee being managed
+
 [Rest of the technical documentation from pto-feature.md...]
 
 ## Implementation Notes
 
 ### State Management Strategy
-- EmployeeContext for global employee data
+- PTOContext for global PTO state including:
+  - PTO requests and their status
+  - PTO allocations and balances
+  - Request tracking (creator/reviewer info)
+- EmployeeContext for employee data
 - Local state for form handling
 - Props for component-specific data
 
 ### Data Flow
 1. User actions trigger component handlers
-2. Handlers update local state or context
-3. Context updates trigger re-renders
-4. Components reflect updated state
+2. Handlers validate input and calculate balances
+3. Updates are sent to PTOContext
+4. Context updates trigger re-renders
+5. Components reflect updated state with:
+   - Current balances
+   - Request status
+   - Validation feedback
 
 ### Code Organization
 - Components grouped by feature
