@@ -23,7 +23,6 @@ The PTO feature manages employee vacation and sick leave balances, requests, and
   - `editingRequest`: Request being edited
 
 #### 2. PTOBalances Page (`/src/pages/PTOBalances.tsx`)
-![alt text](image-3.png)
 
 - Admin view for managing employee PTO balances
 - Features:
@@ -107,22 +106,69 @@ The PTO feature manages employee vacation and sick leave balances, requests, and
   - `addEmployee`
   - `deleteEmployee`
 
+#### 2. PTOContext (`/src/contexts/PTOContext.tsx`)
+- Global PTO state management
+- Features:
+  - PTO requests with tracking metadata
+  - Manual allocation overrides
+  - Accrual rules and loading states
+- Key Data Structures:
+  ```typescript
+  // Manual Allocation
+  {
+    employeeId: string;
+    type: 'vacation' | 'sickLeave';
+    hours: number;
+    reason: string;
+    createdBy: string;
+    createdAt: Date;
+  }
+
+  // Request Tracking
+  {
+    requestId: string;
+    createdBy: string;
+    createdAt: Date;
+    reviewedBy?: string;
+    reviewedAt?: Date;
+    status: 'pending' | 'approved' | 'denied';
+  }
+  ```
+- Methods:
+  - `addRequest`
+  - `updateRequest`
+  - `addManualAllocation`
+  - `updateAccrualRules`
+
 ## Business Rules
 
 ### Vacation Time
 1. First year employees: 1 week (40 hours)
 2. Second year: 2 weeks (80 hours)
 3. Third year onwards: 3 weeks (120 hours)
+4. Manual allocations can override automatic accrual
+   - Requires manager approval
+   - Must include reason
+   - Limited to 2x standard accrual
 
 ### Sick Leave
 - Accrues at 1 hour per 40 hours worked
 - Calculated from timesheet entries
+- Manual adjustments allowed for:
+  - Carryover from previous year
+  - Special circumstances
+  - Requires HR approval
 
 ### Request Validation
-1. Cannot exceed available balance
+1. Cannot exceed available balance (including manual allocations)
 2. Hours must match business days in range
 3. Cannot request future dates
 4. Requires reason for request
+5. Must include tracking metadata:
+   - Creator information
+   - Creation timestamp
+   - Reviewer information (when approved/denied)
+   - Review timestamp
 
 ## Date Handling
 
@@ -303,3 +349,9 @@ src/
 - Added employment start date editing
 - Fixed date handling issues
 - Improved balance calculations
+
+### v1.2.0
+- Added manual allocation overrides
+- Implemented request tracking metadata
+- Enhanced validation rules for manual allocations
+- Added tracking of creator/reviewer information

@@ -74,6 +74,7 @@ sequenceDiagram
     U->>C: Action
     C->>EC: Get State
     C->>U: Calculate Values
+    Note over C: Debounce (300ms)
     C->>EC: Update State
     EC-->>C: New State
     C-->>U: UI Update
@@ -86,10 +87,22 @@ flowchart TD
     B -->|Read| C[Local State]
     B -->|Read| D[Context State]
     B -->|Process| E[Utils/Calculations]
-    E -->|Update| F{State Type}
-    F -->|Local| G[Update Component]
-    F -->|Global| H[Update Context]
-    G & H -->|Trigger| I[Re-render]
+    E -->|Debounce| F[300ms Delay]
+    F -->|Update| G{State Type}
+    G -->|Local| H[Update Component]
+    G -->|Global| I[Update Context]
+    H & I -->|Trigger| J[Re-render]
+    
+    subgraph PTOContext
+        K[Rules] --> L[Accrual Calculations]
+        M[Allocations] --> N[Manual Overrides]
+        O[Requests] --> P[Tracking]
+        P --> Q[createdBy]
+        P --> R[reviewedBy]
+        S[Loading States]
+    end
+    
+    I --> K & M & O & S
 ```
 
 ## Core Components
@@ -99,15 +112,18 @@ flowchart TD
 #### 1. PTO Page (`/src/pages/PTO.tsx`)
 - Main PTO management interface
 - Features:
-  - PTO request creation/editing
-  - Request list viewing
-  - Request filtering
-  - Personal balance viewing
+  - PTO request creation/editing with creator tracking
+  - Request list viewing with review status
+  - Request filtering by type/status
+  - Personal balance viewing with manual override support
+  - Detailed accrual rules display
 - Key States:
-  - `requests`: List of PTO requests
+  - `requests`: List of PTO requests with tracking metadata
   - `filters`: Current filter settings
   - `selectedRequest`: Currently selected request for review
   - `editingRequest`: Request being edited
+  - `manualAllocations`: Map of manual PTO overrides
+  - `loadingRules`: State for accrual rules updates
 
 #### 2. Employees Page (`/src/pages/Employees.tsx`)
 - Integrated PTO management features:
@@ -123,14 +139,68 @@ flowchart TD
 
 ## Implementation Notes
 
+### Balance Calculation Strategy
+- Uses debounced effect (300ms) to prevent rapid successive updates
+- Only updates balances when they've actually changed
+- Uses stable dependencies (rules and employees.length)
+- Properly cleans up pending timeouts
+- Prevents infinite re-render cycles while maintaining functionality
+- Supports manual allocation overrides for vacation and sick leave:
+  ```typescript
+  const calculateBalance = (type: PTOType) => {
+    const baseBalance = calculateAccruedHours(type);
+    const manualAdjustment = getManualAdjustment(employeeId, type);
+    return Math.max(0, baseBalance + manualAdjustment);
+  };
+  ```
+- Tracks used hours across pending and approved requests:
+  ```typescript
+  const getUsedHours = (type: PTOType) => {
+    return requests
+      .filter(r => r.type === type && r.status !== 'denied')
+      .reduce((sum, r) => sum + r.hours, 0);
+  };
+  ```
+- Ensures balances never go negative through max(0, balance) protection
+- Handles both automatic accrual and manual allocation scenarios
+- Integrates with request tracking system to:
+  - Track creator/reviewer info
+  - Maintain audit trail of changes
+  - Provide detailed balance history
+
 ### State Management Strategy
 - PTOContext for global PTO state including:
-  - PTO requests and their status
-  - PTO allocations and balances
-  - Request tracking (creator/reviewer info)
+  - PTO requests and their status with tracking metadata
+  - PTO allocations and balances with manual override support
+  - Request tracking (creator/reviewer info with timestamps)
+  - Accrual rules with loading states
+  - Manual allocation overrides stored as:
+    ```typescript
+    {
+      employeeId: string;
+      type: 'vacation' | 'sickLeave';
+      hours: number;
+      reason: string;
+      createdBy: string;
+      createdAt: Date;
+    }
+    ```
+  - Request tracking implemented as:
+    ```typescript
+    {
+      requestId: string;
+      createdBy: string;
+      createdAt: Date;
+      reviewedBy?: string;
+      reviewedAt?: Date;
+      status: 'pending' | 'approved' | 'denied';
+    }
+    ```
 - EmployeeContext for employee data
-- Local state for form handling
+- Local state for form handling and UI states
 - Props for component-specific data
+- Loading states for async operations
+- Error states for failed operations
 
 ### Data Flow
 1. User actions trigger component handlers
@@ -166,6 +236,9 @@ flowchart TD
 - Lazy loading of components
 - Optimistic updates
 - Batch processing
+- Debounced state updates (300ms)
+- Change detection before updates
+- Cleanup of pending effects
 
 ## Integration with Reports
 PTO data is displayed in various reports, particularly the Employee Hours Report. For detailed documentation about reports implementation and features, see [Reports Feature Technical Documentation](./reports-feature-technical.md).

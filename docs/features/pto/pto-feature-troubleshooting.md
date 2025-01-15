@@ -92,7 +92,8 @@ const today = new Date();
 console.log({
   startDate,
   today,
-  yearsOfService: differenceInYears(today, startDate)
+  yearsOfService: differenceInYears(today, startDate),
+  manualAllocation: employee.ptoAllocation.vacation
 });
 ```
 
@@ -100,6 +101,7 @@ console.log({
 1. Verify start date is correct
 2. Check years calculation
 3. Validate balance tiers
+4. Check for manual allocation overrides
 
 #### 2. Sick Leave Calculation
 **Problem**: Sick leave hours not accruing correctly
@@ -107,7 +109,8 @@ console.log({
 // Debug steps
 console.log({
   totalHours: timesheets.reduce((sum, t) => sum + t.totalHours, 0),
-  sickLeaveHours: Math.floor(totalHours / 40)
+  sickLeaveHours: Math.floor(totalHours / 40),
+  manualAllocation: employee.ptoAllocation.sickLeave
 });
 ```
 
@@ -115,6 +118,24 @@ console.log({
 1. Verify timesheet hours
 2. Check 40-hour calculation
 3. Validate rounding
+4. Check for manual allocation overrides
+
+#### 3. Manual Allocation Issues
+**Problem**: Manual allocation not being applied
+```typescript
+// Debug steps
+console.log({
+  employeeId,
+  allocation: state.allocations[employeeId],
+  rules: state.rules
+});
+```
+
+**Solution**:
+1. Verify allocation exists in state
+2. Check allocation type (manual vs automatic)
+3. Validate allocation hours
+4. Ensure proper state updates
 
 ### Form Validation Issues
 
@@ -202,6 +223,27 @@ console.log('After update:', employees);
   onChange={e => setStartDate(e.target.value)}
 />
 ```
+
+#### 3. Request Tracking Issues
+**Problem**: Creator/reviewer info not showing
+```typescript
+// Debug steps
+console.log({
+  requestId,
+  creator: state.requests[requestId].creator,
+  reviewer: state.requests[requestId].reviewer,
+  timestamps: {
+    created: state.requests[requestId].createdAt,
+    reviewed: state.requests[requestId].reviewedAt
+  }
+});
+```
+
+**Solution**:
+1. Verify request creation flow
+2. Check review process
+3. Validate timestamp storage
+4. Ensure proper state updates
 
 ## Debugging Tools
 

@@ -10,36 +10,47 @@ The PTO (Paid Time Off) feature helps manage employee time off, including both v
    - See available vacation hours
    - Track sick leave balance
    - View upcoming time off
+   - See manual allocation overrides
 
 2. **Request Time Off**
    - Select dates
    - Choose type (vacation or sick leave)
    - Provide reason
-   - See status of requests
+   - See status of requests with tracking info
+   - View request history with timestamps
 
 ### For Managers/Admins
 1. **Manage Requests**
-   - Review employee requests
-   - Approve or deny with comments
+   - Review employee requests with creator info
+   - Approve or deny with comments and timestamps
    - View team calendar
+   - Track request review history
 
 2. **Track Balances**
    - Monitor team PTO usage
-   - View individual balances
+   - View individual balances with manual overrides
    - Manage employment dates
+   - Set manual allocations when needed
 
 ## How PTO is Calculated
 
 ### Vacation Time
-Based on years of service:
-- First year: 1 week (40 hours)
-- Second year: 2 weeks (80 hours)
-- Third year onwards: 3 weeks (120 hours)
+- Automatic accrual based on years of service:
+  - First year: 1 week (40 hours)
+  - Second year: 2 weeks (80 hours)
+  - Third year onwards: 3 weeks (120 hours)
+- Manual override capability for special cases
+- Tracks used hours across pending and approved requests
+- Ensures balances never go negative
 
 ### Sick Leave
-- Earns 1 hour for every 40 hours worked
-- Calculated automatically from work hours
-- No maximum cap
+- Automatic accrual:
+  - Earns 1 hour for every 40 hours worked
+  - Calculated from work hours
+  - No maximum cap
+- Manual override capability for special cases
+- Tracks used hours across pending and approved requests
+- Ensures balances never go negative
 
 ## Common Workflows
 
@@ -127,19 +138,21 @@ flowchart TD
 - Request queue
 - Usage reports
 
-## Recent Updates (v1.1.0)
+## Recent Updates (v1.2.0)
 
 ### New Features
-- Employment date management
-- Improved balance calculations
-- Better date handling
-- Enhanced validation
+- Manual PTO allocation overrides
+- Enhanced request tracking with creator/reviewer info
+- Improved balance calculations with manual override support
+- Better date handling and validation
+- Loading states for async operations
 
 ### Coming Soon
 - Holiday calendar integration
 - Balance carryover rules
 - Mobile app support
 - Team calendar view
+- Enhanced reporting with manual allocation tracking
 
 ## Support
 For technical issues or questions about using the PTO feature, please contact your system administrator or the IT support team.
