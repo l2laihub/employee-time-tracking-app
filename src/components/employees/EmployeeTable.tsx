@@ -6,6 +6,7 @@ import { formatDateForDisplay } from '../../utils/dateUtils';
 import { getVacationAllocationText } from '../../utils/ptoCalculations';
 import EmployeeStartDateForm from '../pto/EmployeeStartDateForm';
 import { PTOAllocationForm } from '../pto/PTOAllocationForm';
+import PTOAllocationRules from '../pto/PTOAllocationRules';
 import { usePTO } from '../../contexts/PTOContext';
 import { useEmployees } from '../../contexts/EmployeeContext';
 
@@ -18,41 +19,93 @@ interface EmployeeTableProps {
 
 export default function EmployeeTable({ employees, onEdit, onDelete, onUpdateStartDate }: EmployeeTableProps) {
   const { updateEmployee } = useEmployees();
-  const { updatePTOAllocation, getPTOBalance } = usePTO();
+  const { updatePTOAllocation, getPTOBalance, rules } = usePTO();
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [editingPTOEmployee, setEditingPTOEmployee] = useState<Employee | null>(null);
 
-  const handleUpdatePTOAllocation = (employeeId: string, allocation: Employee['ptoAllocation']) => {
-    updateEmployee(employeeId, { 
-      ptoAllocation: {
-        vacation: {
-          type: allocation.vacation.type,
-          hours: allocation.vacation.type === 'manual' ? allocation.vacation.hours : undefined
-        },
-        sickLeave: {
-          type: allocation.sickLeave.type,
-          hours: allocation.sickLeave.type === 'manual' ? allocation.sickLeave.hours : undefined
+  // Debounced effect to update balances
+  React.useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      employees.forEach(employee => {
+        if (employee.ptoAllocation.vacation.type === 'auto' || 
+            employee.ptoAllocation.sickLeave.type === 'auto') {
+          const newVacationBalance = getPTOBalance(employee, 'vacation');
+          const newSickLeaveBalance = getPTOBalance(employee, 'sick_leave');
+          
+          // Only update if balances have actually changed
+          const currentVacation = employee.ptoBalances?.find(b => b.type === 'vacation')?.hours;
+          const currentSickLeave = employee.ptoBalances?.find(b => b.type === 'sick_leave')?.hours;
+          
+          if (currentVacation !== newVacationBalance || 
+              currentSickLeave !== newSickLeaveBalance) {
+            updateEmployee(employee.id, {
+              ptoBalances: [
+                { type: 'vacation', hours: newVacationBalance },
+                { type: 'sick_leave', hours: newSickLeaveBalance }
+              ]
+            });
+          }
         }
+      });
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [rules, employees.length]); // Only watch rules and employees.length
+
+  const handleUpdatePTOAllocation = (employeeId: string, allocation: Employee['ptoAllocation']) => {
+    // Update all employees with automatic allocations
+    employees.forEach(employee => {
+      const shouldUpdateVacation = employee.ptoAllocation.vacation.type === 'auto';
+      const shouldUpdateSickLeave = employee.ptoAllocation.sickLeave.type === 'auto';
+
+      if (shouldUpdateVacation || shouldUpdateSickLeave) {
+        const updatedAllocation = {
+          vacation: shouldUpdateVacation ? {
+            type: allocation.vacation.type,
+            hours: allocation.vacation.type === 'manual' ? allocation.vacation.hours : undefined
+          } : employee.ptoAllocation.vacation,
+          
+          sickLeave: shouldUpdateSickLeave ? {
+            type: allocation.sickLeave.type,
+            hours: allocation.sickLeave.type === 'manual' ? allocation.sickLeave.hours : undefined
+          } : employee.ptoAllocation.sickLeave
+        };
+
+        // Update employee allocation
+        updateEmployee(employee.id, { 
+          ptoAllocation: updatedAllocation
+        });
+        
+        // Update PTO allocation and trigger balance recalculation
+        updatePTOAllocation(employee.id, updatedAllocation);
+        
+        // Force recalculation of PTO balances
+        const newVacationBalance = getPTOBalance(employee, 'vacation');
+        const newSickLeaveBalance = getPTOBalance(employee, 'sick_leave');
+        
+        // Update employee with recalculated balances
+        updateEmployee(employee.id, {
+          ptoAllocation: updatedAllocation,
+          ptoBalances: [
+            { type: 'vacation', hours: newVacationBalance },
+            { type: 'sick_leave', hours: newSickLeaveBalance }
+          ]
+        });
+        
+        // Force refresh of PTO data
+        updatePTOAllocation(employee.id, updatedAllocation);
       }
     });
-    updatePTOAllocation(employeeId, allocation);
+
     setEditingPTOEmployee(null);
   };
 
   return (
     <div className="bg-white shadow-md rounded-lg overflow-hidden">
-      {/* Allocation Rules */}
+      {/* Header */}
       <div className="p-4 border-b">
-        <h2 className="text-lg font-semibold">Employee Management</h2>
-        <div className="mt-2 bg-blue-50 p-3 rounded-md">
-          <h3 className="text-sm font-medium text-blue-900 mb-2">PTO Allocation Rules</h3>
-          <ul className="text-sm text-blue-800 space-y-1">
-            <li>• First year employees: 1 week vacation</li>
-            <li>• Second year: 1-2 weeks vacation</li>
-            <li>• Third year onwards: 2-3 weeks vacation</li>
-            <li>• Sick leave accrues at 1 hour per 40 hours worked</li>
-          </ul>
-        </div>
+        {/* <h2 className="text-lg font-semibold">Employee Management</h2> */}
+        <PTOAllocationRules />
       </div>
 
       {/* Table */}
@@ -170,13 +223,6 @@ export default function EmployeeTable({ employees, onEdit, onDelete, onUpdateSta
                 {/* Actions */}
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end space-x-2">
-                    <button
-                      onClick={() => setEditingEmployee(employee)}
-                      className="text-blue-600 hover:text-blue-900"
-                      title="Edit start date"
-                    >
-                      <Calendar className="w-4 h-4" />
-                    </button>
                     <button
                       onClick={() => setEditingPTOEmployee(employee)}
                       className="text-blue-600 hover:text-blue-900"

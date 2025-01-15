@@ -2,16 +2,20 @@ import { ReactNode } from 'react';
 
 interface ButtonProps {
   children: ReactNode;
-  onClick: () => void;
+  onClick?: () => void;
   variant?: 'primary' | 'secondary';
   className?: string;
+  type?: 'button' | 'submit' | 'reset';
+  disabled?: boolean;
 }
 
 export default function Button({ 
   children, 
   onClick, 
   variant = 'primary', 
-  className = '' 
+  className = '',
+  type,
+  disabled
 }: ButtonProps) {
   const baseStyles = 'px-4 py-2 rounded-md font-medium transition-colors';
   const variantStyles = variant === 'primary'
@@ -20,8 +24,10 @@ export default function Button({
 
   return (
     <button
+      type={type || 'button'}
       className={`${baseStyles} ${variantStyles} ${className}`}
       onClick={onClick}
+      disabled={disabled}
     >
       {children}
     </button>

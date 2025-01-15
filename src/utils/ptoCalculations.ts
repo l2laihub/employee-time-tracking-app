@@ -1,20 +1,31 @@
 import { Employee, TimesheetEntry } from '../lib/types';
 import { differenceInYears, differenceInMonths } from 'date-fns';
 
-function calculateAutoVacation(startDate: string): number {
+interface PTORules {
+  firstYearVacationDays: number;
+  secondYearVacationDays: { min: number; max: number };
+  thirdYearPlusVacationDays: { min: number; max: number };
+  sickLeaveAccrualHours: number;
+}
+
+function calculateAutoVacation(startDate: string, rules: PTORules): number {
   const yearsOfService = differenceInYears(new Date(), new Date(startDate));
+  const hoursPerDay = 8; // Standard work day hours
   
   // Pro-rate first year vacation based on months worked
   if (yearsOfService < 1) {
     const monthsWorked = differenceInMonths(new Date(), new Date(startDate));
-    return Math.floor((40 * monthsWorked) / 12); // Pro-rated portion of 40 hours
+    return Math.floor((rules.firstYearVacationDays * hoursPerDay * monthsWorked) / 12);
   }
   
-  if (yearsOfService < 2) return 80; // 2 weeks
-  return 120; // 3 weeks
+  if (yearsOfService < 2) {
+    return rules.secondYearVacationDays.max * hoursPerDay;
+  }
+  
+  return rules.thirdYearPlusVacationDays.max * hoursPerDay;
 }
 
-function calculateAutoSickLeave(timesheets: TimesheetEntry[]): number {
+function calculateAutoSickLeave(timesheets: TimesheetEntry[], rules: PTORules): number {
   const totalWorkedHours = timesheets.reduce((total, timesheet) => {
     // Only count approved timesheets
     if (timesheet.status === 'approved') {
@@ -23,23 +34,23 @@ function calculateAutoSickLeave(timesheets: TimesheetEntry[]): number {
     return total;
   }, 0);
   
-  return Math.floor(totalWorkedHours / 40); // 1 hour per 40 worked
+  return Math.floor(totalWorkedHours / rules.sickLeaveAccrualHours);
 }
 
-export function getVacationBalance(employee: Employee): number {
+export function getVacationBalance(employee: Employee, rules: PTORules): number {
   // Check if employee has manual allocation
   if (employee.ptoAllocation?.vacation?.type === 'manual') {
     return employee.ptoAllocation.vacation.hours || 0;
   }
-  return calculateAutoVacation(employee.startDate);
+  return calculateAutoVacation(employee.startDate, rules);
 }
 
-export function getSickLeaveBalance(employee: Employee, timesheets: TimesheetEntry[]): number {
+export function getSickLeaveBalance(employee: Employee, timesheets: TimesheetEntry[], rules: PTORules): number {
   // Check if employee has manual allocation
   if (employee.ptoAllocation?.sickLeave?.type === 'manual') {
     return employee.ptoAllocation.sickLeave.hours || 0;
   }
-  return calculateAutoSickLeave(timesheets);
+  return calculateAutoSickLeave(timesheets, rules);
 }
 
 export function getVacationAllocationText(employee: Employee): string {

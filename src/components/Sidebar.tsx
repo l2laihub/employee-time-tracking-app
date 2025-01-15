@@ -25,7 +25,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Time Entry', href: '/time-entry', icon: Clock },
-    { name: 'PTO', href: '/pto', icon: Calendar },
+    { name: 'PTO Requests', href: '/pto', icon: Calendar },
     ...(isAdmin ? [
       { name: 'Job Locations', href: '/job-locations', icon: MapPin },
       { name: 'Employees', href: '/employees', icon: Users }

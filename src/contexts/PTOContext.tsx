@@ -4,12 +4,22 @@ import { mockTimesheets } from '../lib/mockData';
 import { mockPTORequests } from '../lib/mockPTOData';
 import { getVacationBalance, getSickLeaveBalance } from '../utils/ptoCalculations';
 
+interface PTORules {
+  firstYearVacationDays: number;
+  secondYearVacationDays: { min: number; max: number };
+  thirdYearPlusVacationDays: { min: number; max: number };
+  sickLeaveAccrualHours: number;
+}
+
 interface PTOContextType {
   getPTOBalance: (employee: Employee, type: 'vacation' | 'sick_leave') => number;
   updatePTOAllocation: (employeeId: string, allocation: Employee['ptoAllocation']) => void;
   pendingRequests: PTORequest[];
   addPTORequest: (request: Omit<PTORequest, 'id' | 'status' | 'createdAt'>) => void;
   updatePTORequest: (requestId: string, status: 'approved' | 'rejected', reviewedBy: string) => void;
+  rules: PTORules;
+  updateRules: (newRules: PTORules) => Promise<void>;
+  loadingRules: boolean;
 }
 
 const PTOContext = createContext<PTOContextType | undefined>(undefined);
@@ -20,12 +30,21 @@ const initialPendingRequests: PTORequest[] = mockPTORequests;
 interface PTOState {
   pendingRequests: PTORequest[];
   allocations: Record<string, Employee['ptoAllocation']>;
+  rules: PTORules;
+  loadingRules: boolean;
 }
 
 export function PTOProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<PTOState>({
     pendingRequests: initialPendingRequests,
-    allocations: {}
+    allocations: {},
+    rules: {
+      firstYearVacationDays: 5,
+      secondYearVacationDays: { min: 5, max: 10 },
+      thirdYearPlusVacationDays: { min: 10, max: 15 },
+      sickLeaveAccrualHours: 40
+    },
+    loadingRules: false
   });
 
   const getPTOBalance = useCallback((employee: Employee, type: 'vacation' | 'sick_leave') => {
@@ -41,8 +60,8 @@ export function PTOProvider({ children }: { children: React.ReactNode }) {
     } else {
       // Fall back to calculated allocation
       allocation = type === 'vacation'
-        ? getVacationBalance(employee)
-        : getSickLeaveBalance(employee, mockTimesheets);
+        ? getVacationBalance(employee, state.rules)
+        : getSickLeaveBalance(employee, mockTimesheets, state.rules);
     }
 
     // Get all used hours (both pending and approved)
@@ -124,7 +143,24 @@ export function PTOProvider({ children }: { children: React.ReactNode }) {
         updatePTOAllocation,
         pendingRequests: state.pendingRequests,
         addPTORequest,
-        updatePTORequest
+        updatePTORequest,
+        rules: state.rules,
+        updateRules: async (newRules) => {
+          setState(prev => ({ ...prev, loadingRules: true }));
+          try {
+            // Clear existing allocations to force recalculation with new rules
+            setState(prev => ({
+              ...prev,
+              rules: newRules,
+              allocations: {}, // Clear cached allocations
+              loadingRules: false
+            }));
+          } catch (error) {
+            console.error('Failed to update rules:', error);
+            setState(prev => ({ ...prev, loadingRules: false }));
+          }
+        },
+        loadingRules: state.loadingRules
       }}
     >
       {children}

@@ -4,12 +4,13 @@ interface InputProps {
   type?: 'text' | 'number' | 'email' | 'password';
   label?: string;
   value: string | number;
-  onChange: (value: string) => void;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   placeholder?: string;
   className?: string;
   error?: string;
   min?: number;
   max?: number;
+  required?: boolean;
 }
 
 export default function Input({
@@ -21,7 +22,8 @@ export default function Input({
   className = '',
   error,
   min,
-  max
+  max,
+  required
 }: InputProps) {
   return (
     <div className={`space-y-1 ${className}`}>
@@ -33,10 +35,11 @@ export default function Input({
       <input
         type={type}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={onChange}
         placeholder={placeholder}
         min={min}
         max={max}
+        required={required}
         className={`
           block w-full px-3 py-2 border rounded-md shadow-sm
           focus:ring-blue-500 focus:border-blue-500 sm:text-sm
