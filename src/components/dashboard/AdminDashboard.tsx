@@ -1,35 +1,30 @@
 import React from 'react';
-import { Users, Clock, MapPin, FileText } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Users, Clock, CalendarDays, FileText } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { mockUsers } from '../../lib/mockUsers';
 import { mockTimeEntries } from '../../lib/mockData';
 import { mockTimesheets } from '../../lib/mockData';
+import { mockPTORequests } from '../../lib/mockPTOData';
 import ActivityFeed from './ActivityFeed';
 import StatsGrid from './StatsGrid';
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   // Calculate dashboard statistics
   const stats = [
     {
       label: 'Active Employees',
       value: mockUsers.filter(user => user.status === 'active').length.toString(),
       icon: Users,
-      trend: `${mockUsers.filter(user => user.department === 'Field Work').length} field workers`
-    },
-    {
-      label: 'Today\'s Active Jobs',
-      value: new Set(mockTimeEntries
-        .filter(entry => !entry.clockOut)
-        .map(entry => entry.jobLocationId)
-      ).size.toString(),
-      icon: MapPin,
-      trend: 'Currently in progress'
+      trend: `${mockUsers.filter(user => user.department === 'Field Work').length} field workers`,
+      onClick: () => navigate('/employees')
     },
     {
       label: 'Pending Timesheets',
       value: mockTimesheets.filter(ts => ts.status === 'submitted').length.toString(),
       icon: FileText,
-      trend: 'Awaiting review'
+      trend: 'Awaiting review',
+      onClick: () => navigate('/timesheets')
     },
     {
       label: 'Total Hours Today',
@@ -42,6 +37,13 @@ export default function AdminDashboard() {
         }, 0).toFixed(1),
       icon: Clock,
       trend: 'Hours logged today'
+    },
+    {
+      label: 'PTO Requests',
+      value: mockPTORequests.filter(req => req.status === 'pending').length.toString(),
+      icon: CalendarDays,
+      trend: 'Awaiting approval',
+      onClick: () => navigate('/pto')
     }
   ];
 

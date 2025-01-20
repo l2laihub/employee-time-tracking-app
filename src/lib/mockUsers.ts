@@ -1,9 +1,15 @@
 import { DEPARTMENTS } from './constants/departments';
 import type { Employee } from './types';
 
-const defaultPTOAllocation = {
-  vacation: { type: 'auto' as const },
-  sickLeave: { type: 'auto' as const }
+const defaultPTO = {
+  vacation: {
+    beginningBalance: 0,
+    ongoingBalance: 0,
+    firstYearRule: 40, // 5 days
+  },
+  sickLeave: {
+    beginningBalance: 0,
+  }
 };
 
 export const mockUsers: Employee[] = [
@@ -16,7 +22,7 @@ export const mockUsers: Employee[] = [
     department: 'Administration',
     status: 'active',
     startDate: '2020-01-15', // >3 years
-    ptoAllocation: defaultPTOAllocation
+    pto: defaultPTO
   },
   {
     id: '2',
@@ -27,7 +33,7 @@ export const mockUsers: Employee[] = [
     department: 'Field Work',
     status: 'active',
     startDate: '2023-06-15', // <1 year
-    ptoAllocation: defaultPTOAllocation
+    pto: defaultPTO
   },
   {
     id: '3',
@@ -38,7 +44,7 @@ export const mockUsers: Employee[] = [
     department: 'Management',
     status: 'active',
     startDate: '2021-03-10', // >2 years
-    ptoAllocation: defaultPTOAllocation
+    pto: defaultPTO
   },
   {
     id: '4',
@@ -50,10 +56,7 @@ export const mockUsers: Employee[] = [
     status: 'active',
     phone: '480-555-0101',
     startDate: '2022-08-20', // ~1.5 years
-    ptoAllocation: {
-      vacation: { type: 'manual' as const, hours: 65 },
-      sickLeave: { type: 'manual' as const, hours: 15 }
-    }
+    pto: defaultPTO
   },
   {
     id: '5',
@@ -65,7 +68,7 @@ export const mockUsers: Employee[] = [
     status: 'active',
     phone: '480-555-0102',
     startDate: '2023-01-10', // ~1 year
-    ptoAllocation: defaultPTOAllocation
+    pto: defaultPTO
   },
   {
     id: '6',
@@ -77,7 +80,7 @@ export const mockUsers: Employee[] = [
     status: 'active',
     phone: '480-555-0103',
     startDate: '2023-09-01', // <6 months
-    ptoAllocation: defaultPTOAllocation
+    pto: defaultPTO
   },
   {
     id: '7',
@@ -89,6 +92,6 @@ export const mockUsers: Employee[] = [
     status: 'active',
     phone: '480-555-0104',
     startDate: '2021-11-15', // >2 years
-    ptoAllocation: defaultPTOAllocation
+    pto: defaultPTO
   }
 ];

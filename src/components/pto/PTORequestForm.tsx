@@ -58,14 +58,7 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
   }, [initialData, isAdmin, user?.id, employees]);
 
   const getTotalAllocation = (ptoType: PTOType) => {
-    if (!currentUser) return 0;
-    // For manual allocation, return the raw hours value
-    if (ptoType === 'vacation' && currentUser.ptoAllocation.vacation.type === 'manual') {
-      return currentUser.ptoAllocation.vacation.hours || 0;
-    } else if (ptoType === 'sick_leave' && currentUser.ptoAllocation.sickLeave.type === 'manual') {
-      return currentUser.ptoAllocation.sickLeave.hours || 0;
-    }
-    // For automatic allocation, use getPTOBalance
+    if (!currentUser || !currentUser.pto) return 0;
     return getPTOBalance(currentUser, ptoType);
   };
 

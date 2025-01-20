@@ -63,19 +63,15 @@ export interface Employee {
   role: 'admin' | 'manager' | 'employee';
   status: 'active' | 'inactive';
   department?: string;
-  startDate: string; // Required for PTO calculations
-  ptoAllocation: {
+  startDate: string;
+  pto: {
     vacation: {
-      type: 'auto' | 'manual';
-      hours?: number;
+      beginningBalance: number;
+      ongoingBalance: number; // for transfers from other systems
+      firstYearRule: number; // default 40 hours
     };
     sickLeave: {
-      type: 'auto' | 'manual';
-      hours?: number;
+      beginningBalance: number;
     };
   };
-  ptoBalances?: Array<{
-    type: PTOType;
-    hours: number;
-  }>;
 }

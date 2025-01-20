@@ -1,93 +1,79 @@
 import { Employee, TimesheetEntry } from '../lib/types';
 import { differenceInYears, differenceInMonths } from 'date-fns';
 
-interface PTORules {
-  firstYearVacationDays: number;
-  secondYearVacationDays: { min: number; max: number };
-  thirdYearPlusVacationDays: { min: number; max: number };
-  sickLeaveAccrualHours: number;
+interface VacationRules {
+  firstYearHours: number;  // 40 hours (5 days)
+  secondYearOnwardsHours: number;  // 80 hours (10 days)
+  hoursPerDay: number;
 }
 
-function calculateAutoVacation(startDate: string, rules?: PTORules): number {
-  // Default PTO rules if none provided
-  const defaultRules = {
-    firstYearVacationDays: 5,
-    secondYearVacationDays: { min: 10, max: 10 },
-    thirdYearPlusVacationDays: { min: 15, max: 15 },
-    sickLeaveAccrualHours: 40
-  };
+const DEFAULT_VACATION_RULES: VacationRules = {
+  firstYearHours: 40,  // 5 days
+  secondYearOnwardsHours: 80,  // 10 days
+  hoursPerDay: 8
+};
+
+function calculateVacationHours(startDate: string, rules: VacationRules = DEFAULT_VACATION_RULES): number {
+  const today = new Date();
+  const employeeStartDate = new Date(startDate);
   
-  const effectiveRules = rules || defaultRules;
-  const yearsOfService = differenceInYears(new Date(), new Date(startDate));
-  const hoursPerDay = 8; // Standard work day hours
+  // If start date is in the future, return 0
+  if (employeeStartDate > today) {
+    return 0;
+  }
+
+  const yearsOfService = differenceInYears(today, employeeStartDate);
   
-  // Pro-rate first year vacation based on months worked
+  // First year: Pro-rate 40 hours based on months worked
   if (yearsOfService < 1) {
-    const monthsWorked = differenceInMonths(new Date(), new Date(startDate));
-    return Math.floor((effectiveRules.firstYearVacationDays * hoursPerDay * monthsWorked) / 12);
+    const monthsWorked = differenceInMonths(today, employeeStartDate);
+    // Handle case where months worked is 0 (started today)
+    if (monthsWorked <= 0) {
+      return 0;
+    }
+    return Math.floor((rules.firstYearHours * monthsWorked) / 12);
   }
   
-  if (yearsOfService < 2) {
-    return effectiveRules.secondYearVacationDays.max * hoursPerDay;
-  }
-  
-  return effectiveRules.thirdYearPlusVacationDays.max * hoursPerDay;
+  // Second year onwards: 80 hours (10 days)
+  return rules.secondYearOnwardsHours;
 }
 
-function calculateAutoSickLeave(timesheets: TimesheetEntry[], rules?: PTORules): number {
-  // Default PTO rules if none provided
-  const defaultRules = {
-    firstYearVacationDays: 5,
-    secondYearVacationDays: { min: 10, max: 10 },
-    thirdYearPlusVacationDays: { min: 15, max: 15 },
-    sickLeaveAccrualHours: 40
-  };
+function calculateSickLeaveHours(timesheets: TimesheetEntry[], startDate: string): number {
+  const employeeStartDate = new Date(startDate);
   
-  const effectiveRules = rules || defaultRules;
   const totalWorkedHours = timesheets.reduce((total, timesheet) => {
-    // Only count approved timesheets
-    if (timesheet.status === 'approved') {
+    // Only count approved timesheets after employee start date
+    if (timesheet.status === 'approved' && new Date(timesheet.weekStartDate) >= employeeStartDate) {
       return total + timesheet.totalHours;
     }
     return total;
   }, 0);
   
-  return Math.floor(totalWorkedHours / effectiveRules.sickLeaveAccrualHours);
+  // 1 hour of sick leave per 40 hours worked
+  return Math.floor(totalWorkedHours / 40);
 }
 
-export function getVacationBalance(employee: Employee, rules?: PTORules): number {
-  // Check if employee has manual allocation
-  if (employee.ptoAllocation?.vacation?.type === 'manual') {
-    return employee.ptoAllocation.vacation.hours || 0;
-  }
-  return calculateAutoVacation(employee.startDate, rules);
+export function getVacationBalance(employee: Employee): number {
+  const calculatedHours = calculateVacationHours(employee.startDate);
+  return employee.pto.vacation.beginningBalance + 
+         employee.pto.vacation.ongoingBalance + 
+         calculatedHours;
 }
 
-export function getSickLeaveBalance(employee: Employee, timesheets: TimesheetEntry[], rules?: PTORules): number {
-  // Check if employee has manual allocation
-  if (employee.ptoAllocation?.sickLeave?.type === 'manual') {
-    return employee.ptoAllocation.sickLeave.hours || 0;
-  }
-  return calculateAutoSickLeave(timesheets, rules);
+export function getSickLeaveBalance(employee: Employee, timesheets: TimesheetEntry[]): number {
+  const calculatedHours = calculateSickLeaveHours(timesheets, employee.startDate);
+  return employee.pto.sickLeave.beginningBalance + calculatedHours;
 }
 
 export function getVacationAllocationText(employee: Employee): string {
-  // Check if employee has manual allocation
-  if (employee.ptoAllocation?.vacation?.type === 'manual') {
-    return `Manual allocation (${employee.ptoAllocation.vacation.hours} hours)`;
-  }
-  
   const yearsOfService = differenceInYears(new Date(), new Date(employee.startDate));
   
-  if (yearsOfService < 1) return '1 week per year (pro-rated)';
-  if (yearsOfService < 2) return '2 weeks per year';
-  return '3 weeks per year';
+  if (yearsOfService < 1) {
+    return '5 days (40 hours) per year, pro-rated based on months worked';
+  }
+  return '10 days (80 hours) per year';
 }
 
-export function getSickLeaveAllocationText(employee: Employee): string {
-  // Check if employee has manual allocation
-  if (employee.ptoAllocation?.sickLeave?.type === 'manual') {
-    return `Manual allocation (${employee.ptoAllocation.sickLeave.hours} hours)`;
-  }
+export function getSickLeaveAllocationText(): string {
   return '1 hour per 40 hours worked';
 }

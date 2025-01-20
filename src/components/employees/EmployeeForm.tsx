@@ -25,7 +25,17 @@ export default function EmployeeForm({
     role: 'employee' as Employee['role'],
     department: '',
     status: 'active' as 'active' | 'inactive',
-    startDate: getTodayForInput()
+    startDate: getTodayForInput(),
+    pto: {
+      vacation: {
+        beginningBalance: 0,
+        ongoingBalance: 0,
+        firstYearRule: 40, // Default 5 days (40 hours)
+      },
+      sickLeave: {
+        beginningBalance: 0,
+      },
+    },
   });
 
   // Reset form data when initialData changes or form opens/closes
@@ -39,7 +49,17 @@ export default function EmployeeForm({
         role: initialData?.role || 'employee',
         department: initialData?.department || '',
         status: initialData?.status || 'active',
-        startDate: initialData?.startDate ? formatDateForInput(initialData.startDate) : getTodayForInput()
+        startDate: initialData?.startDate ? formatDateForInput(initialData.startDate) : getTodayForInput(),
+        pto: initialData?.pto || {
+          vacation: {
+            beginningBalance: 0,
+            ongoingBalance: 0,
+            firstYearRule: 40,
+          },
+          sickLeave: {
+            beginningBalance: 0,
+          },
+        },
       });
     }
   }, [isOpen, initialData]);
@@ -161,6 +181,100 @@ export default function EmployeeForm({
                 onChange={e => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               />
+            </div>
+          </div>
+
+          {/* PTO Section */}
+          <div className="border-t pt-4 mt-4">
+            <h4 className="text-lg font-medium text-gray-900 mb-4">PTO Settings</h4>
+            
+            {/* Vacation Section */}
+            <div className="space-y-4 mb-6">
+              <h5 className="text-sm font-medium text-gray-700">Vacation</h5>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Beginning Balance (hours)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.pto.vacation.beginningBalance}
+                    onChange={e => setFormData(prev => ({
+                      ...prev,
+                      pto: {
+                        ...prev.pto,
+                        vacation: {
+                          ...prev.pto.vacation,
+                          beginningBalance: Number(e.target.value)
+                        }
+                      }
+                    }))}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Ongoing Balance (hours)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.pto.vacation.ongoingBalance}
+                    onChange={e => setFormData(prev => ({
+                      ...prev,
+                      pto: {
+                        ...prev.pto,
+                        vacation: {
+                          ...prev.pto.vacation,
+                          ongoingBalance: Number(e.target.value)
+                        }
+                      }
+                    }))}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">First Year Rule (hours)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.pto.vacation.firstYearRule}
+                  onChange={e => setFormData(prev => ({
+                    ...prev,
+                    pto: {
+                      ...prev.pto,
+                      vacation: {
+                        ...prev.pto.vacation,
+                        firstYearRule: Number(e.target.value)
+                      }
+                    }
+                  }))}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+                <p className="mt-1 text-sm text-gray-500">Default: 40 hours (5 days)</p>
+              </div>
+            </div>
+
+            {/* Sick Leave Section */}
+            <div className="space-y-4">
+              <h5 className="text-sm font-medium text-gray-700">Sick Leave</h5>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Beginning Balance (hours)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.pto.sickLeave.beginningBalance}
+                  onChange={e => setFormData(prev => ({
+                    ...prev,
+                    pto: {
+                      ...prev.pto,
+                      sickLeave: {
+                        ...prev.pto.sickLeave,
+                        beginningBalance: Number(e.target.value)
+                      }
+                    }
+                  }))}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+              </div>
             </div>
           </div>
 
