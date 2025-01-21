@@ -36,17 +36,17 @@ export function PTOProvider({ children }: { children: React.ReactNode }) {
       ? getVacationBalance(employee)
       : getSickLeaveBalance(employee, mockTimesheets);
 
-    // Get all used hours (both pending and approved)
-    const usedHours = state.pendingRequests
+    // Get all used hours from pending requests
+    const pendingHours = state.pendingRequests
       .filter(req => 
         req.userId === employee.id && 
         req.type === type && 
-        (req.status === 'pending' || req.status === 'approved')
+        req.status === 'pending'
       )
       .reduce((total, req) => total + req.hours, 0);
 
-    // Return available balance
-    return Math.max(0, baseBalance - usedHours); // Ensure balance never goes negative
+    // Return available balance minus pending hours
+    return Math.max(0, baseBalance - pendingHours); // Ensure balance never goes negative
   }, [state.pendingRequests]);
 
   const addPTORequest = useCallback((request: Omit<PTORequest, 'id' | 'status' | 'createdAt'>) => {

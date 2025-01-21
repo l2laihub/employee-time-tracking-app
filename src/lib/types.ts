@@ -64,14 +64,16 @@ export interface Employee {
   status: 'active' | 'inactive';
   department?: string;
   startDate: string;
-  pto: {
+  pto?: {
     vacation: {
       beginningBalance: number;
       ongoingBalance: number; // for transfers from other systems
       firstYearRule: number; // default 40 hours
+      used?: number;
     };
     sickLeave: {
       beginningBalance: number;
+      used?: number;
     };
   };
 }

@@ -140,17 +140,17 @@ function calculateSickLeaveHours(timesheets: TimesheetEntry[], startDate: string
 }
 
 export function getVacationBalance(employee: Employee): number {
-  // Get beginning balance
-  const beginningBalance = employee.pto?.vacation?.beginningBalance || 0;
+  if (!employee.pto?.vacation) {
+    return 0;
+  }
+
+  const { beginningBalance = 0, ongoingBalance = 0, used = 0 } = employee.pto.vacation;
   
   // Calculate accrued vacation based on time
   const accruedBalance = calculateVacationHours(employee.startDate);
   
-  // Get used hours
-  const usedHours = employee.pto?.vacation?.used || 0;
-  
-  // Total balance is beginning balance + accrued - used
-  return Math.max(0, beginningBalance + accruedBalance - usedHours);
+  // Total balance is beginning balance + ongoing balance + accrued - used
+  return Math.max(0, beginningBalance + ongoingBalance + accruedBalance - used);
 }
 
 export function getSickLeaveBalance(employee: Employee, timesheets: TimesheetEntry[]): number {
