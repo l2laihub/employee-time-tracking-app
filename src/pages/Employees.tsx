@@ -6,6 +6,7 @@ import EmployeeFilters from '../components/employees/EmployeeFilters';
 import EmployeeTable from '../components/employees/EmployeeTable';
 import type { Employee } from '../lib/types';
 import { useEmployees } from '../contexts/EmployeeContext';
+import { PTOProvider } from '../contexts/PTOContext';
 
 export default function Employees() {
   const { employees, addEmployee, updateEmployee, deleteEmployee } = useEmployees();
@@ -53,13 +54,49 @@ export default function Employees() {
   };
 
   const handleImportEmployees = (importedEmployees: Omit<Employee, 'id'>[]) => {
-    const newEmployees = importedEmployees.map((emp, index) => ({
-      ...emp,
-      id: `imported-${Date.now()}-${index}`,
-      status: 'active' as const
-    }));
-    newEmployees.forEach(emp => addEmployee(emp));
-    setIsImportOpen(false);
+    // Generate unique timestamp for this batch
+    const batchTimestamp = Date.now();
+    
+    console.log('Importing employees:', importedEmployees);
+    
+    const newEmployees = importedEmployees.map((emp, index) => {
+      // Get PTO balances from imported data
+      const vacationBalance = emp.pto?.vacation?.beginningBalance || 0;
+      const sickLeaveBalance = emp.pto?.sickLeave?.beginningBalance || 0;
+      
+      console.log('PTO Balances:', { vacationBalance, sickLeaveBalance });
+      
+      const newEmployee = {
+        ...emp,
+        id: `emp-${batchTimestamp}-${index}`,
+        status: 'active' as const,
+        pto: {
+          vacation: {
+            beginningBalance: vacationBalance,
+            ongoingBalance: 0,
+            firstYearRule: 40
+          },
+          sickLeave: {  
+            beginningBalance: sickLeaveBalance,
+            used: 0
+          }
+        }
+      };
+      
+      console.log('Created new employee:', newEmployee);
+      return newEmployee;
+    });
+    
+    // Add employees one by one to avoid React state batching issues
+    newEmployees.forEach((emp, index) => {
+      setTimeout(() => {
+        console.log('Adding employee to state:', emp);
+        addEmployee(emp);
+        if (index === newEmployees.length - 1) {
+          setIsImportOpen(false);
+        }
+      }, index * 100);
+    });
   };
 
   const handleUpdateStartDate = useCallback((employeeId: string, startDate: string) => {
@@ -99,15 +136,17 @@ export default function Employees() {
         onFilterChange={handleFilterChange}
       />
 
-      <EmployeeTable
-        employees={filteredEmployees}
-        onEdit={(emp) => {
-          setSelectedEmployee(emp);
-          setIsFormOpen(true);
-        }}
-        onDelete={handleDeleteEmployee}
-        onUpdateStartDate={handleUpdateStartDate}
-      />
+      <PTOProvider>
+        <EmployeeTable
+          employees={filteredEmployees}
+          onEdit={(emp) => {
+            setSelectedEmployee(emp);
+            setIsFormOpen(true);
+          }}
+          onDelete={handleDeleteEmployee}
+          onUpdateStartDate={handleUpdateStartDate}
+        />
+      </PTOProvider>
 
       <EmployeeForm
         isOpen={isFormOpen}

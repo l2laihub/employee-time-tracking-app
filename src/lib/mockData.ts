@@ -144,96 +144,199 @@ export const mockTimeEntries: TimeEntry[] = [
   }
 ];
 
-// Create mock timesheets with consistent hours for proper PTO calculation
-const employeeNames: { [key: string]: string } = {
+// Employee start dates mapping
+export const employeeStartDates: { [key: string]: string } = {
+  '2': '2023-06-15', // Employee User
+  '4': '2022-08-20', // John Smith
+  '5': '2023-01-10', // Sarah Wilson
+  '6': '2023-09-01', // Mike Johnson
+  '7': '2021-11-15', // Lisa Brown
+  'huy-test': '2024-10-20' // Huy Test - Started 3 months ago
+};
+
+// Employee names mapping
+export const employeeNames: { [key: string]: string } = {
   '2': 'John Doe',
   '4': 'Jane Smith',
   '5': 'Mike Johnson',
-  '6': 'Sarah Wilson'
+  '6': 'Sarah Wilson',
+  '7': 'Lisa Brown',
+  'huy-test': 'Huy Test'
 };
 
 const createEmployeeTimesheet = (userId: string, weekOffset: number): TimesheetEntry => {
   const employeeName = employeeNames[userId] || 'Unknown Employee';
-  // Calculate hours based on start date to avoid excessive sick leave accrual
-  const now = new Date();
-  const weekStartDate = subDays(now, (weekOffset + 1) * 7);
+  const now = new Date('2025-01-20T23:59:59.999Z'); // Use consistent now time
+  const startDate = new Date(employeeStartDates[userId] || new Date());
   
-  // Only give hours for dates after employee start date
-  const employeeStartDates: { [key: string]: string } = {
-    '2': '2023-06-15', // Employee User
-    '4': '2022-08-20', // John Smith
-    '5': '2023-01-10', // Sarah Wilson
-    '6': '2023-09-01'  // Mike Johnson
-  };
-
-  const startDate = new Date(employeeStartDates[userId]);
+  // Calculate week dates from start date
+  const weekStartDate = addDays(startDate, weekOffset * 7);
+  const weekEndDate = addDays(weekStartDate, 7);
   
-  // Randomize hours between 32-40 to make sick leave accrual more realistic
-  const hours = weekStartDate >= startDate ? Math.floor(Math.random() * (40 - 32 + 1)) + 32 : 0;
-
+  // Ensure dates are at midnight for consistent comparison
+  startDate.setHours(0, 0, 0, 0);
+  weekStartDate.setHours(0, 0, 0, 0);
+  weekEndDate.setHours(0, 0, 0, 0);
+  
+  console.log('\n=== Creating Timesheet ===');
+  console.log('Employee:', employeeName);
+  console.log('Week Start:', weekStartDate.toISOString());
+  console.log('Week End:', weekEndDate.toISOString());
+  console.log('Employee Start Date:', startDate.toISOString());
+  console.log('Week Offset:', weekOffset);
+  
+  // For timesheets in the future
+  if (weekStartDate > now) {
+    console.log('Skipping: Future week');
+    return {
+      id: `ts-${userId}-${weekOffset}`,
+      userId,
+      employeeName,
+      weekStartDate: weekStartDate.toISOString(),
+      weekEndDate: weekEndDate.toISOString(),
+      status: 'pending',
+      notes: 'Future timesheet - no hours yet',
+      timeEntries: [],
+      totalHours: 0,
+      submittedAt: null,
+      reviewedBy: null,
+      reviewedAt: null
+    };
+  }
+  
+  // For current employees, calculate hours based on time since start
+  let hours = 0;
+  const monthsSinceStart = (now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30);
+  
+  console.log('Months since start:', monthsSinceStart.toFixed(2));
+  
+  // Only assign hours if this timesheet's week has already occurred
+  if (weekEndDate <= now) {
+    if (monthsSinceStart <= 1) {
+      // First month: 15-20 hours per week (training period)
+      hours = Math.floor(Math.random() * (20 - 15 + 1)) + 15;
+      console.log('Training period - hours:', hours);
+    } else {
+      // After first month: 32-40 hours per week
+      hours = Math.floor(Math.random() * (40 - 32 + 1)) + 32;
+      console.log('Regular period - hours:', hours);
+    }
+  }
+  
+  // For partial weeks (when week crosses month boundary)
+  if (monthsSinceStart <= 1 && weekEndDate > addDays(startDate, 30)) {
+    const daysInTraining = Math.max(0, Math.min(5, Math.floor((addDays(startDate, 30).getTime() - weekStartDate.getTime()) / (1000 * 60 * 60 * 24))));
+    const daysAfterTraining = 5 - daysInTraining;
+    
+    const trainingHours = Math.floor(Math.random() * (20 - 15 + 1)) + 15;
+    const regularHours = Math.floor(Math.random() * (40 - 32 + 1)) + 32;
+    
+    hours = Math.floor((trainingHours * daysInTraining + regularHours * daysAfterTraining) / 5);
+    console.log(`Mixed week - ${daysInTraining} training days, ${daysAfterTraining} regular days - hours: ${hours}`);
+  }
+  
   // Generate time entries for this timesheet
   const timeEntries: TimeEntry[] = [];
-  const daysInWeek = 5; // Monday to Friday
-  const baseHours = hours / daysInWeek;
-  
-  for (let i = 0; i < daysInWeek; i++) {
-    const entryDate = addDays(weekStartDate, i);
-    const clockIn = new Date(entryDate);
-    clockIn.setHours(8, 0, 0, 0); // 8:00 AM
-    const clockOut = new Date(clockIn);
-    clockOut.setHours(clockIn.getHours() + Math.floor(baseHours));
+  if (hours > 0) {
+    const daysInWeek = 5; // Monday to Friday
+    const baseHours = Math.ceil(hours / daysInWeek);
+    let remainingHours = hours;
     
-    timeEntries.push({
-      id: `te-${userId}-${weekOffset}-${i}`,
-      userId,
-      jobLocationId: mockJobLocations[i % mockJobLocations.length].id,
-      clockIn: clockIn.toISOString(),
-      clockOut: clockOut.toISOString(),
-      serviceType: mockJobLocations[i % mockJobLocations.length].serviceType,
-      workDescription: `Daily work at ${mockJobLocations[i % mockJobLocations.length].name}`,
-      status: 'completed'
-    });
+    for (let i = 0; i < daysInWeek && remainingHours > 0; i++) {
+      const entryDate = addDays(weekStartDate, i);
+      // Skip entries after today
+      if (entryDate > now) {
+        console.log(`Skipping day ${i + 1}: ${entryDate.toISOString()}`);
+        continue;
+      }
+      
+      const hoursForDay = Math.min(baseHours, remainingHours);
+      const clockIn = new Date(entryDate);
+      clockIn.setHours(9, 0, 0, 0); // 9:00 AM
+      const clockOut = new Date(clockIn);
+      clockOut.setHours(clockIn.getHours() + hoursForDay);
+      
+      console.log(`Day ${i + 1}: ${entryDate.toISOString()} - ${hoursForDay} hours`);
+      
+      timeEntries.push({
+        id: `te-${userId}-${weekOffset}-${i}`,
+        userId,
+        jobLocationId: mockJobLocations[i % mockJobLocations.length].id,
+        clockIn: clockIn.toISOString(),
+        clockOut: clockOut.toISOString(),
+        serviceType: mockJobLocations[i % mockJobLocations.length].serviceType,
+        workDescription: `Daily work at ${mockJobLocations[i % mockJobLocations.length].name}`,
+        status: 'completed'
+      });
+      
+      remainingHours -= hoursForDay;
+    }
   }
-
-  return {
+  
+  const finalTimesheet = {
     id: `ts-${userId}-${weekOffset}`,
     userId,
     employeeName,
     weekStartDate: weekStartDate.toISOString(),
-    weekEndDate: subDays(now, weekOffset * 7).toISOString(),
-    status: 'approved',
-    notes: 'Regular work week',
+    weekEndDate: weekEndDate.toISOString(),
+    status: hours > 0 ? 'approved' : 'pending',
+    notes: hours > 0 ? 'Regular work week' : 'No hours worked',
     timeEntries,
     totalHours: hours,
-    submittedAt: subDays(now, weekOffset * 7 - 1).toISOString(),
-    reviewedBy: '1',
-    reviewedAt: subDays(now, weekOffset * 7 - 2).toISOString()
+    submittedAt: hours > 0 ? subDays(now, 1).toISOString() : null,
+    reviewedBy: hours > 0 ? '1' : null,
+    reviewedAt: hours > 0 ? now.toISOString() : null
   };
+  
+  console.log('\nFinal Timesheet:', {
+    id: finalTimesheet.id,
+    startDate: finalTimesheet.weekStartDate,
+    endDate: finalTimesheet.weekEndDate,
+    status: finalTimesheet.status,
+    hours: finalTimesheet.totalHours,
+    entries: finalTimesheet.timeEntries.length,
+    weekOffset
+  });
+  
+  return finalTimesheet;
 };
 
-// Generate 16 weeks of timesheets for each employee (4 months of history)
+// Generate timesheets for each employee
 const generateEmployeeTimesheets = (userId: string): TimesheetEntry[] => {
-  return Array.from({ length: 16 }, (_, i) => {
-    const timesheet = createEmployeeTimesheet(userId, i);
-    
-    // Add more status variations
-    if (i % 4 === 0) {
-      timesheet.status = 'submitted';
-      timesheet.reviewedBy = null;
-      timesheet.reviewedAt = null;
-    }
-    
-    // Add more detailed notes
-    if (i % 5 === 0) {
-      timesheet.notes = 'Overtime hours for special project';
-      timesheet.totalHours = 45;
-    } else if (i % 3 === 0) {
-      timesheet.notes = 'Short week due to holiday';
-      timesheet.totalHours = 32;
-    }
-    
-    return timesheet;
+  // Only generate timesheets from employee start date
+  const startDate = new Date(employeeStartDates[userId] || new Date());
+  const now = new Date('2025-01-20T23:59:59.999Z'); // Use consistent now time
+  
+  // Ensure dates are at midnight for consistent comparison
+  startDate.setHours(0, 0, 0, 0);
+  
+  // Calculate how many weeks to generate
+  const weeksSinceStart = Math.floor((now.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  const weeksToGenerate = Math.min(16, Math.max(0, weeksSinceStart));
+  
+  console.log('\n=== Generating Timesheets ===');
+  console.log('Employee:', employeeNames[userId]);
+  console.log('Start Date:', startDate.toISOString());
+  console.log('Today:', now.toISOString());
+  console.log('Weeks Since Start:', weeksSinceStart);
+  console.log('Weeks to Generate:', weeksToGenerate);
+  
+  // If employee hasn't started yet, return empty timesheets
+  if (startDate > now) {
+    console.log('Employee has not started yet');
+    return [];
+  }
+  
+  // Generate timesheets starting from the employee's start date
+  const timesheets = Array.from({ length: weeksToGenerate }, (_, i) => {
+    return createEmployeeTimesheet(userId, i);
   });
+  
+  const totalHours = timesheets.reduce((total, ts) => total + ts.totalHours, 0);
+  console.log('\nTotal hours generated:', totalHours);
+  console.log('Expected sick leave hours:', Math.floor(totalHours / 40));
+  
+  return timesheets;
 };
 
 // Create timesheets for all employees
@@ -248,5 +351,11 @@ export const mockTimesheets: TimesheetEntry[] = [
   ...generateEmployeeTimesheets('5'),
   
   // Mike Johnson (id: '6') - Started 2023-09-01
-  ...generateEmployeeTimesheets('6')
+  ...generateEmployeeTimesheets('6'),
+  
+  // Lisa Brown (id: '7') - Started 2021-11-15
+  ...generateEmployeeTimesheets('7'),
+  
+  // Huy Test - Started 2024-10-20
+  ...generateEmployeeTimesheets('huy-test')
 ];

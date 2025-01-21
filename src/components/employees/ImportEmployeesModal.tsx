@@ -25,10 +25,20 @@ export default function ImportEmployeesModal({ isOpen, onClose, onImport }: Impo
   };
 
   const downloadTemplate = () => {
-    const headers = ['first_name', 'last_name', 'email', 'phone', 'role', 'department'];
+    const headers = [
+      'first_name',
+      'last_name',
+      'email',
+      'phone',
+      'role',
+      'department',
+      'start_date',
+      'sick_leave_beginning_balance',
+      'vacation_beginning_balance'
+    ];
     const sampleData = [
-      'John,Doe,john@example.com,123-456-7890,employee,Sales',
-      'Jane,Smith,jane@example.com,123-456-7891,manager,Engineering'
+      'John,Doe,john@example.com,123-456-7890,employee,Sales,2024-01-15,0,0',
+      'Jane,Smith,jane@example.com,123-456-7891,manager,Engineering,2023-12-01,8,24'
     ];
     
     const csvContent = [headers.join(','), ...sampleData].join('\n');
@@ -52,20 +62,46 @@ export default function ImportEmployeesModal({ isOpen, onClose, onImport }: Impo
       const lines = text.split('\n');
       const headers = lines[0].toLowerCase().split(',');
       
+      console.log('Headers:', headers); // Debug headers
+      
       const employees: EmployeeImport[] = lines
         .slice(1)
         .filter(line => line.trim())
         .map(line => {
           const values = line.split(',');
-          return {
+          
+          // Debug values
+          console.log('Row values:', values);
+          console.log('Sick leave index:', headers.indexOf('sick_leave_beginning_balance'));
+          console.log('Sick leave value:', values[headers.indexOf('sick_leave_beginning_balance')]);
+          
+          const employee = {
             first_name: values[headers.indexOf('first_name')].trim(),
             last_name: values[headers.indexOf('last_name')].trim(),
             email: values[headers.indexOf('email')].trim(),
             phone: values[headers.indexOf('phone')]?.trim(),
             role: values[headers.indexOf('role')].trim() as EmployeeImport['role'],
-            department: values[headers.indexOf('department')]?.trim()
+            department: values[headers.indexOf('department')]?.trim(),
+            startDate: values[headers.indexOf('start_date')]?.trim(),
+            pto: {
+              vacation: {
+                beginningBalance: Number(values[headers.indexOf('vacation_beginning_balance')]?.trim() || '0'),
+                ongoingBalance: 0,
+                firstYearRule: 40
+              },
+              sickLeave: {
+                beginningBalance: Number(values[headers.indexOf('sick_leave_beginning_balance')]?.trim() || '0')
+              }
+            }
           };
+          
+          // Debug final employee object
+          console.log('Created employee:', employee);
+          return employee;
         });
+
+      // Debug final employees array
+      console.log('Final employees array:', employees);
 
       // Validate employees
       const errors = employees.flatMap((emp, index) => {
@@ -76,6 +112,26 @@ export default function ImportEmployeesModal({ isOpen, onClose, onImport }: Impo
         if (!['admin', 'manager', 'employee'].includes(emp.role)) {
           validationErrors.push(`Row ${index + 2}: Invalid role`);
         }
+        
+        // Validate start date
+        if (emp.startDate) {
+          const startDate = new Date(emp.startDate);
+          if (isNaN(startDate.getTime())) {
+            validationErrors.push(`Row ${index + 2}: Invalid start date format. Use YYYY-MM-DD`);
+          }
+        }
+        
+        // Validate PTO balances
+        const sickLeaveBalance = emp.pto?.sickLeave?.beginningBalance;
+        if (sickLeaveBalance !== undefined && (isNaN(sickLeaveBalance) || sickLeaveBalance < 0)) {
+          validationErrors.push(`Row ${index + 2}: Invalid sick leave balance. Must be a non-negative number`);
+        }
+        
+        const vacationBalance = emp.pto?.vacation?.beginningBalance;
+        if (vacationBalance !== undefined && (isNaN(vacationBalance) || vacationBalance < 0)) {
+          validationErrors.push(`Row ${index + 2}: Invalid vacation balance. Must be a non-negative number`);
+        }
+        
         return validationErrors;
       });
 
@@ -86,6 +142,7 @@ export default function ImportEmployeesModal({ isOpen, onClose, onImport }: Impo
 
       onImport(employees);
     } catch (err) {
+      console.error('Import error:', err);
       setError('Failed to parse CSV file. Please check the format.');
     } finally {
       setImporting(false);

@@ -10,7 +10,7 @@ The PTO (Paid Time Off) feature helps manage employee time off, including both v
    - See available vacation hours
    - Track sick leave balance
    - View upcoming time off
-   - See manual allocation overrides
+   - See beginning balances for transfers
 
 2. **Request Time Off**
    - Select dates
@@ -28,31 +28,44 @@ The PTO (Paid Time Off) feature helps manage employee time off, including both v
 
 2. **Track Balances**
    - Monitor team PTO usage
-   - View individual balances with manual overrides
+   - View individual balances with beginning balances
+   - Import employee PTO data
    - Manage employment dates
-   - Set manual allocations when needed
 
 ## How PTO is Calculated
 
 ### Vacation Time
-- Automatic accrual based on years of service:
-  - First year: 1 week (40 hours)
-  - Second year: 2 weeks (80 hours)
-  - Third year onwards: 3 weeks (120 hours)
-- Manual override capability for special cases
+- First year: Pro-rated 40 hours (5 days)
+  - Example: 6 months worked = 20 hours allocation
+- Second year onwards: 80 hours (10 days)
+- Total Balance = Beginning Balance + Accrued Hours - Used Hours
+- Beginning balance can be imported for transfers
 - Tracks used hours across pending and approved requests
 - Ensures balances never go negative
 
 ### Sick Leave
-- Automatic accrual:
-  - Earns 1 hour for every 40 hours worked
-  - Calculated from work hours
-  - No maximum cap
-- Manual override capability for special cases
+- Accrual rate: 1 hour per 40 hours worked
+- Total Balance = Beginning Balance + Accrued Hours - Used Hours
+- Beginning balance can be imported for transfers
+- Based on actual worked hours from timesheets
 - Tracks used hours across pending and approved requests
 - Ensures balances never go negative
 
 ## Common Workflows
+
+### Importing Employee PTO Data
+```mermaid
+flowchart TD
+    A[Admin] -->|Open Import| B[Import Modal]
+    B -->|Select CSV| C[File Selection]
+    C -->|Parse Data| D[Validation]
+    D -->|Check Format| E{Valid?}
+    E -->|Yes| F[Process Import]
+    E -->|No| G[Show Errors]
+    F -->|For Each Employee| H[Create/Update]
+    H -->|Set Balances| I[Update Display]
+    G -->|Fix| C
+```
 
 ### Requesting Time Off
 ```mermaid
@@ -87,16 +100,13 @@ flowchart TD
 ### Balance Calculation
 ```mermaid
 flowchart TD
-    A[Employee Record] -->|Get Start Date| B[Years of Service]
-    B -->|Calculate| C{Service Duration}
-    C -->|< 1 Year| D[40 Hours]
-    C -->|1-2 Years| E[80 Hours]
-    C -->|2+ Years| F[120 Hours]
-    D -->|Set Balance| G[Available Hours]
-    E -->|Set Balance| G
-    F -->|Set Balance| G
-    G -->|Subtract| H[Pending Requests]
-    H -->|Show| I[Final Balance]
+    A[Employee Record] -->|Get Start Date| B[Service Duration]
+    B -->|Calculate| C{First Year?}
+    C -->|Yes| D[Pro-rate 40 Hours]
+    C -->|No| E[80 Hours]
+    D & E -->|Add| F[Beginning Balance]
+    F -->|Subtract| G[Used Hours]
+    G -->|Show| H[Final Balance]
 ```
 
 ### Employment Date Update
@@ -112,38 +122,51 @@ flowchart TD
 
 ## Business Rules
 
-### Request Rules
-- Cannot request more time than available
-- Must provide reason for request
-- Cannot request past dates
-- Minimum half-day increments
+### Import Rules
+- CSV format must match template
+- All balances must be non-negative
+- Start date required for calculations
+- Email and names are required
+- Role must be valid (admin/manager/employee)
 
 ### Balance Rules
-- Vacation time allocated based on service years
-- Sick leave earned through worked hours
+- Vacation time pro-rated in first year
+- Sick leave based on worked hours (1:40 ratio)
+- Beginning balances respected for transfers
 - Pending requests counted against balance
 - Balance updates immediately upon approval
+
+## Import Template Format
+```csv
+first_name,last_name,email,phone,role,department,start_date,sick_leave_beginning_balance,vacation_beginning_balance
+```
+
+Example:
+```csv
+John,Doe,john@example.com,123-456-7890,employee,Sales,2024-01-15,0,0
+Jane,Smith,jane@example.com,123-456-7891,manager,Engineering,2023-12-01,24,8
+```
 
 ## Reports and Views
 
 ### Employee View
-- Current balances
+- Current balances with beginning balance
 - Request history
 - Pending requests
 - Upcoming time off
 
 ### Manager View
 - Team calendar
-- Balance summary
+- Balance summary with beginning balances
 - Request queue
-- Usage reports
+- Import/Export capabilities
 
-## Recent Updates (v1.2.0)
+## Recent Updates (v1.3.0)
 
 ### New Features
-- Manual PTO allocation overrides
-- Enhanced request tracking with creator/reviewer info
-- Improved balance calculations with manual override support
+- Employee PTO data import with beginning balances
+- Pro-rated first year vacation calculation
+- Improved balance calculations
 - Better date handling and validation
 - Loading states for async operations
 
@@ -152,7 +175,7 @@ flowchart TD
 - Balance carryover rules
 - Mobile app support
 - Team calendar view
-- Enhanced reporting with manual allocation tracking
+- Enhanced reporting
 
 ## Support
 For technical issues or questions about using the PTO feature, please contact your system administrator or the IT support team.

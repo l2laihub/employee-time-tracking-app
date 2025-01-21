@@ -50,14 +50,14 @@ export default function EmployeeForm({
         department: initialData?.department || '',
         status: initialData?.status || 'active',
         startDate: initialData?.startDate ? formatDateForInput(initialData.startDate) : getTodayForInput(),
-        pto: initialData?.pto || {
+        pto: {
           vacation: {
-            beginningBalance: 0,
-            ongoingBalance: 0,
-            firstYearRule: 40,
+            beginningBalance: initialData?.pto?.vacation?.beginningBalance || 0,
+            ongoingBalance: initialData?.pto?.vacation?.ongoingBalance || 0,
+            firstYearRule: initialData?.pto?.vacation?.firstYearRule || 40,
           },
           sickLeave: {
-            beginningBalance: 0,
+            beginningBalance: initialData?.pto?.sickLeave?.beginningBalance || 0,
           },
         },
       });
@@ -66,7 +66,21 @@ export default function EmployeeForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    // Ensure PTO structure is complete before submitting
+    const employeeData = {
+      ...formData,
+      pto: {
+        vacation: {
+          beginningBalance: Number(formData.pto.vacation.beginningBalance) || 0,
+          ongoingBalance: Number(formData.pto.vacation.ongoingBalance) || 0,
+          firstYearRule: Number(formData.pto.vacation.firstYearRule) || 40,
+        },
+        sickLeave: {
+          beginningBalance: Number(formData.pto.sickLeave.beginningBalance) || 0,
+        },
+      },
+    };
+    onSubmit(employeeData);
   };
 
   if (!isOpen) return null;
@@ -197,7 +211,7 @@ export default function EmployeeForm({
                   <input
                     type="number"
                     min="0"
-                    value={formData.pto.vacation.beginningBalance}
+                    value={formData.pto?.vacation?.beginningBalance || 0}
                     onChange={e => setFormData(prev => ({
                       ...prev,
                       pto: {
@@ -216,7 +230,7 @@ export default function EmployeeForm({
                   <input
                     type="number"
                     min="0"
-                    value={formData.pto.vacation.ongoingBalance}
+                    value={formData.pto?.vacation?.ongoingBalance || 0}
                     onChange={e => setFormData(prev => ({
                       ...prev,
                       pto: {
@@ -236,7 +250,7 @@ export default function EmployeeForm({
                 <input
                   type="number"
                   min="0"
-                  value={formData.pto.vacation.firstYearRule}
+                  value={formData.pto?.vacation?.firstYearRule || 40}
                   onChange={e => setFormData(prev => ({
                     ...prev,
                     pto: {
@@ -261,7 +275,7 @@ export default function EmployeeForm({
                 <input
                   type="number"
                   min="0"
-                  value={formData.pto.sickLeave.beginningBalance}
+                  value={formData.pto?.sickLeave?.beginningBalance || 0}
                   onChange={e => setFormData(prev => ({
                     ...prev,
                     pto: {

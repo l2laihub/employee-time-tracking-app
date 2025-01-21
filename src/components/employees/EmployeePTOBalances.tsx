@@ -5,6 +5,7 @@ import { Briefcase, Stethoscope, Clock } from 'lucide-react';
 import EmployeeStartDateForm from '../pto/EmployeeStartDateForm';
 import { getVacationAllocationText, getVacationBalance, getSickLeaveBalance } from '../../utils/ptoCalculations';
 import { formatDateForDisplay } from '../../utils/dateUtils';
+import { mockTimesheets } from '../../lib/mockData';
 
 interface EmployeePTOBalancesProps {
   employees: Employee[];
@@ -13,6 +14,10 @@ interface EmployeePTOBalancesProps {
 
 export default function EmployeePTOBalances({ employees, onUpdateStartDate }: EmployeePTOBalancesProps) {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+
+  const getEmployeeTimesheets = (employeeId: string): TimesheetEntry[] => {
+    return mockTimesheets.filter(timesheet => timesheet.userId === employeeId);
+  };
 
   return (
     <div className="bg-white rounded-lg shadow mt-8">
@@ -32,7 +37,7 @@ export default function EmployeePTOBalances({ employees, onUpdateStartDate }: Em
         <div className="space-y-4">
           {employees.map(employee => {
             const vacationBalance = getVacationBalance(employee);
-            const sickLeaveBalance = getSickLeaveBalance(employee, []); // TODO: Pass actual timesheets
+            const sickLeaveBalance = getSickLeaveBalance(employee, getEmployeeTimesheets(employee.id));
             
             return (
               <div key={employee.id} className="border rounded-lg p-4">

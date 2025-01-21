@@ -40,29 +40,131 @@ function calculateVacationHours(startDate: string, rules: VacationRules = DEFAUL
 
 function calculateSickLeaveHours(timesheets: TimesheetEntry[], startDate: string): number {
   const employeeStartDate = new Date(startDate);
+  const today = new Date();
   
-  const totalWorkedHours = timesheets.reduce((total, timesheet) => {
-    // Only count approved timesheets after employee start date
-    if (timesheet.status === 'approved' && new Date(timesheet.weekStartDate) >= employeeStartDate) {
-      return total + timesheet.totalHours;
+  // Ensure dates are at midnight for consistent comparison
+  employeeStartDate.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  
+  console.log('\n=== Calculating Sick Leave Hours ===');
+  console.log('Start Date:', employeeStartDate.toISOString());
+  console.log('Today:', today.toISOString());
+  console.log('Total Timesheets:', timesheets.length);
+  
+  // If start date is in the future, return 0
+  if (employeeStartDate > today) {
+    console.log('Start date is in the future, returning 0');
+    return 0;
+  }
+  
+  // Calculate weeks between start date and today
+  const weeksSinceStart = Math.floor((today.getTime() - employeeStartDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  console.log('Weeks since start:', weeksSinceStart);
+  
+  // Sort timesheets by start date to process them in order
+  const sortedTimesheets = [...timesheets].sort((a, b) => 
+    new Date(a.weekStartDate).getTime() - new Date(b.weekStartDate).getTime()
+  );
+  
+  // Only count approved timesheets after employee start date and before today
+  const totalWorkedHours = sortedTimesheets.reduce((total, timesheet, index) => {
+    const timesheetStartDate = new Date(timesheet.weekStartDate);
+    const timesheetEndDate = new Date(timesheet.weekEndDate);
+    
+    // Ensure dates are at midnight for consistent comparison
+    timesheetStartDate.setHours(0, 0, 0, 0);
+    timesheetEndDate.setHours(0, 0, 0, 0);
+    
+    console.log('\nProcessing Timesheet:', {
+      index,
+      id: timesheet.id,
+      startDate: timesheetStartDate.toISOString(),
+      endDate: timesheetEndDate.toISOString(),
+      status: timesheet.status,
+      hours: timesheet.totalHours,
+      entries: timesheet.timeEntries.length
+    });
+    
+    // Skip timesheets that:
+    // 1. Are not approved
+    if (timesheet.status !== 'approved') {
+      console.log('Skipping: Not approved');
+      return total;
     }
-    return total;
+    
+    // 2. Start before employee's start date
+    if (timesheetStartDate < employeeStartDate) {
+      console.log('Skipping: Before employee start date');
+      return total;
+    }
+    
+    // 3. End after today
+    if (timesheetEndDate > today) {
+      console.log('Skipping: Future timesheet');
+      return total;
+    }
+    
+    // 4. Have no hours or time entries
+    if (timesheet.totalHours <= 0 || timesheet.timeEntries.length === 0) {
+      console.log('Skipping: No hours or entries');
+      return total;
+    }
+    
+    // Validate time entries
+    let validatedHours = 0;
+    timesheet.timeEntries.forEach((entry, i) => {
+      const entryDate = new Date(entry.clockIn);
+      const clockInTime = new Date(entry.clockIn);
+      const clockOutTime = new Date(entry.clockOut);
+      
+      // Set entry date to midnight for date comparison
+      entryDate.setHours(0, 0, 0, 0);
+      
+      if (entryDate >= employeeStartDate && entryDate <= today) {
+        const entryHours = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
+        validatedHours += entryHours;
+        console.log(`Entry ${i + 1}: ${entryDate.toISOString()} - ${entryHours} hours`);
+      } else {
+        console.log(`Entry ${i + 1}: Skipped - invalid date ${entryDate.toISOString()}`);
+      }
+    });
+    
+    console.log(`Timesheet validated hours: ${validatedHours}`);
+    return total + validatedHours;
   }, 0);
   
-  // 1 hour of sick leave per 40 hours worked
-  return Math.floor(totalWorkedHours / 40);
+  console.log('\nTotal worked hours:', totalWorkedHours.toFixed(2));
+  const sickLeaveHours = Math.floor(totalWorkedHours / 40);
+  console.log('Calculated sick leave hours:', sickLeaveHours);
+  return sickLeaveHours;
 }
 
 export function getVacationBalance(employee: Employee): number {
-  const calculatedHours = calculateVacationHours(employee.startDate);
-  return employee.pto.vacation.beginningBalance + 
-         employee.pto.vacation.ongoingBalance + 
-         calculatedHours;
+  // Get beginning balance
+  const beginningBalance = employee.pto?.vacation?.beginningBalance || 0;
+  
+  // Calculate accrued vacation based on time
+  const accruedBalance = calculateVacationHours(employee.startDate);
+  
+  // Get used hours
+  const usedHours = employee.pto?.vacation?.used || 0;
+  
+  // Total balance is beginning balance + accrued - used
+  return Math.max(0, beginningBalance + accruedBalance - usedHours);
 }
 
 export function getSickLeaveBalance(employee: Employee, timesheets: TimesheetEntry[]): number {
-  const calculatedHours = calculateSickLeaveHours(timesheets, employee.startDate);
-  return employee.pto.sickLeave.beginningBalance + calculatedHours;
+  // Get beginning balance
+  const beginningBalance = employee.pto?.sickLeave?.beginningBalance || 0;
+  
+  // Calculate accrued sick leave
+  const accruedBalance = calculateSickLeaveHours(timesheets, employee.startDate);
+  
+  // Get used hours (if we implement this feature later)
+  const usedHours = employee.pto?.sickLeave?.used || 0;
+  
+  // Total balance is beginning balance + accrued - used
+  return Math.max(0, beginningBalance + accruedBalance - usedHours);
 }
 
 export function getVacationAllocationText(employee: Employee): string {

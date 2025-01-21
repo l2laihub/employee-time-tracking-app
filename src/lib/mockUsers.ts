@@ -93,5 +93,16 @@ export const mockUsers: Employee[] = [
     phone: '480-555-0104',
     startDate: '2021-11-15', // >2 years
     pto: defaultPTO
+  },
+  {
+    id: 'huy-test',
+    email: 'h@test.com',
+    first_name: 'Huy',
+    last_name: 'Test',
+    role: 'employee',
+    department: 'Field Work',
+    status: 'active',
+    startDate: '2024-10-20', // Future start date
+    pto: defaultPTO
   }
 ];

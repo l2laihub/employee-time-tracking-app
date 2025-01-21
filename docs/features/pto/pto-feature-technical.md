@@ -95,14 +95,11 @@ flowchart TD
     
     subgraph PTOContext
         K[Rules] --> L[Accrual Calculations]
-        M[Allocations] --> N[Manual Overrides]
-        O[Requests] --> P[Tracking]
-        P --> Q[createdBy]
-        P --> R[reviewedBy]
-        S[Loading States]
+        M[Allocations] --> N[PTO Requests]
+        O[Loading States]
     end
     
-    I --> K & M & O & S
+    I --> K & M & O
 ```
 
 ## Core Components
@@ -112,117 +109,177 @@ flowchart TD
 #### 1. PTO Page (`/src/pages/PTO.tsx`)
 - Main PTO management interface
 - Features:
-  - PTO request creation/editing with creator tracking
+  - PTO request creation/editing
   - Request list viewing with review status
   - Request filtering by type/status
-  - Personal balance viewing with manual override support
+  - Personal balance viewing
   - Detailed accrual rules display
 - Key States:
-  - `requests`: List of PTO requests with tracking metadata
+  - `requests`: List of PTO requests
   - `filters`: Current filter settings
   - `selectedRequest`: Currently selected request for review
   - `editingRequest`: Request being edited
-  - `manualAllocations`: Map of manual PTO overrides
   - `loadingRules`: State for accrual rules updates
 
 #### 2. Employees Page (`/src/pages/Employees.tsx`)
 - Integrated PTO management features:
   - Employee PTO balances viewing
-  - PTO allocation management
+  - PTO data import
   - Start date tracking for PTO accrual
 - Key States:
   - `ptoBalances`: Map of employee PTO balances
-  - `allocations`: Current PTO allocations
   - `selectedEmployee`: Employee being managed
+  - `isImportOpen`: Import modal state
 
-[Rest of the technical documentation from pto-feature.md...]
+### Components
+
+#### ImportEmployeesModal (`/src/components/employees/ImportEmployeesModal.tsx`)
+- Handles employee data import with PTO balances
+- Features:
+  - CSV file upload and parsing
+  - Data validation
+  - PTO balance initialization
+- Key States:
+  - `file`: Selected CSV file
+  - `importing`: Import progress state
+  - `error`: Validation error messages
+
+#### EmployeePTOBalances (`/src/components/employees/EmployeePTOBalances.tsx`)
+- Displays employee PTO balances
+- Features:
+  - Vacation and sick leave balance display
+  - Beginning balance display
+  - Accrual information
+- Props:
+  ```typescript
+  interface Props {
+    employee: Employee;
+    startDate: string;
+  }
+  ```
+
+## Data Structures
+
+### Employee PTO Structure
+```typescript
+interface Employee {
+  pto: {
+    vacation: {
+      beginningBalance: number;
+      ongoingBalance: number;
+      firstYearRule: number;
+    };
+    sickLeave: {
+      beginningBalance: number;
+    };
+  };
+}
+```
+
+### Import Data Structure
+```typescript
+interface EmployeeImport {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone?: string;
+  role: 'admin' | 'manager' | 'employee';
+  department?: string;
+  startDate: string;
+  pto: {
+    vacation: {
+      beginningBalance: number;
+      ongoingBalance: number;
+      firstYearRule: number;
+    };
+    sickLeave: {
+      beginningBalance: number;
+    };
+  };
+}
+```
 
 ## Implementation Notes
 
 ### Balance Calculation Strategy
-- Uses debounced effect (300ms) to prevent rapid successive updates
-- Only updates balances when they've actually changed
-- Uses stable dependencies (rules and employees.length)
-- Properly cleans up pending timeouts
-- Prevents infinite re-render cycles while maintaining functionality
-- Supports manual allocation overrides for vacation and sick leave:
+- Vacation time calculation:
   ```typescript
-  const calculateBalance = (type: PTOType) => {
-    const baseBalance = calculateAccruedHours(type);
-    const manualAdjustment = getManualAdjustment(employeeId, type);
-    return Math.max(0, baseBalance + manualAdjustment);
+  const calculateVacationBalance = (employee: Employee) => {
+    const yearsOfService = differenceInYears(today, startDate);
+    let accrued = 0;
+    
+    if (yearsOfService < 1) {
+      // Pro-rate first year allocation
+      const monthsWorked = differenceInMonths(today, startDate);
+      accrued = Math.floor((40 * monthsWorked) / 12);
+    } else {
+      // Second year onwards: 80 hours
+      accrued = 80;
+    }
+    
+    return employee.pto.vacation.beginningBalance + accrued - usedVacationHours;
   };
   ```
-- Tracks used hours across pending and approved requests:
+
+- Sick leave calculation:
   ```typescript
-  const getUsedHours = (type: PTOType) => {
-    return requests
-      .filter(r => r.type === type && r.status !== 'denied')
-      .reduce((sum, r) => sum + r.hours, 0);
+  const calculateSickLeaveBalance = (employee: Employee) => {
+    // 1 hour per 40 hours worked
+    const accrued = Math.floor(totalWorkedHours / 40);
+    return employee.pto.sickLeave.beginningBalance + accrued - usedSickLeaveHours;
   };
   ```
-- Ensures balances never go negative through max(0, balance) protection
-- Handles both automatic accrual and manual allocation scenarios
-- Integrates with request tracking system to:
-  - Track creator/reviewer info
-  - Maintain audit trail of changes
-  - Provide detailed balance history
+
+### Import Process
+```typescript
+const processImport = async (file: File) => {
+  const text = await file.text();
+  const lines = text.split('\n');
+  const headers = lines[0].toLowerCase().split(',');
+  
+  return lines.slice(1)
+    .filter(line => line.trim())
+    .map(line => {
+      const values = line.split(',');
+      return {
+        first_name: values[headers.indexOf('first_name')].trim(),
+        last_name: values[headers.indexOf('last_name')].trim(),
+        email: values[headers.indexOf('email')].trim(),
+        phone: values[headers.indexOf('phone')]?.trim(),
+        role: values[headers.indexOf('role')].trim(),
+        department: values[headers.indexOf('department')]?.trim(),
+        startDate: values[headers.indexOf('start_date')]?.trim(),
+        pto: {
+          vacation: {
+            beginningBalance: Number(values[headers.indexOf('vacation_beginning_balance')] || '0'),
+            ongoingBalance: 0,
+            firstYearRule: 40
+          },
+          sickLeave: {
+            beginningBalance: Number(values[headers.indexOf('sick_leave_beginning_balance')] || '0')
+          }
+        }
+      };
+    });
+};
+```
 
 ### State Management Strategy
-- PTOContext for global PTO state including:
-  - PTO requests and their status with tracking metadata
-  - PTO allocations and balances with manual override support
-  - Request tracking (creator/reviewer info with timestamps)
-  - Accrual rules with loading states
-  - Manual allocation overrides stored as:
-    ```typescript
-    {
-      employeeId: string;
-      type: 'vacation' | 'sickLeave';
-      hours: number;
-      reason: string;
-      createdBy: string;
-      createdAt: Date;
-    }
-    ```
-  - Request tracking implemented as:
-    ```typescript
-    {
-      requestId: string;
-      createdBy: string;
-      createdAt: Date;
-      reviewedBy?: string;
-      reviewedAt?: Date;
-      status: 'pending' | 'approved' | 'denied';
-    }
-    ```
-- EmployeeContext for employee data
-- Local state for form handling and UI states
-- Props for component-specific data
-- Loading states for async operations
-- Error states for failed operations
+- Uses React Context for global PTO state
+- Local state for form handling and UI
+- Proper type definitions for all data structures
+- Validation at data entry points
+- Error handling for edge cases
 
-### Data Flow
-1. User actions trigger component handlers
-2. Handlers validate input and calculate balances
-3. Updates are sent to PTOContext
-4. Context updates trigger re-renders
-5. Components reflect updated state with:
-   - Current balances
-   - Request status
-   - Validation feedback
-
-### Code Organization
-- Components grouped by feature
-- Utilities separated by function
-- Types centralized in types.ts
-- Constants in separate files
-
-### Testing Considerations
-- Component isolation
-- Context mocking
-- Date handling edge cases
-- Balance calculation accuracy
+## Best Practices
+1. Always validate imported data
+2. Use proper type checking
+3. Handle loading states
+4. Provide meaningful error messages
+5. Keep calculations consistent
+6. Document all changes
+7. Test edge cases
+8. Follow naming conventions
 
 ## API Integration Points
 (For future implementation)

@@ -27,14 +27,21 @@ A comprehensive employee time tracking application built with React, TypeScript,
   - Location-based assignments
 
 - 🏖️ **PTO Management**
-  - PTO request submission
-  - Request review system
-  - Leave tracking
+  - Vacation and Sick Leave tracking
+  - Automatic balance calculations based on:
+    - Years of service (Vacation)
+    - Hours worked (Sick Leave)
+  - Beginning balance import support
+  - First year pro-rated vacation hours
+  - PTO request submission and approval workflow
+  - Detailed balance history
+  - Import/Export capabilities
 
 - 👥 **Employee Management**
-  - Employee profiles
-  - Department filtering
-  - Bulk import capabilities
+  - Employee profiles with PTO settings
+  - Department and role management
+  - Bulk import with PTO balances
+  - Start date tracking for PTO calculations
 
 ## Tech Stack
 
@@ -275,3 +282,27 @@ The database comes with initial test users:
 ## License
 
 This project is private and proprietary.
+
+## PTO Rules
+
+### Vacation Time
+- First year: Pro-rated 40 hours (5 days)
+- Second year onwards: 80 hours (10 days)
+- Beginning balance can be imported for transfers
+- Balance calculated as: Beginning Balance + Accrued - Used
+
+### Sick Leave
+- Accrues at 1 hour per 40 hours worked
+- Beginning balance can be imported
+- Balance calculated as: Beginning Balance + Accrued - Used
+
+### Import Template Format
+The employee import template supports the following fields:
+```csv
+first_name,last_name,email,phone,role,department,start_date,sick_leave_beginning_balance,vacation_beginning_balance
+```
+
+Example:
+```csv
+John,Doe,john@example.com,123-456-7890,employee,Sales,2024-01-15,0,0
+Jane,Smith,jane@example.com,123-456-7891,manager,Engineering,2023-12-01,24,8
