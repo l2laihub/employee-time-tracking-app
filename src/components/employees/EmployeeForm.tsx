@@ -38,6 +38,11 @@ export default function EmployeeForm({
     },
   });
 
+  const [firstYearRuleInput, setFirstYearRuleInput] = useState<string>('40');
+  const [beginningBalanceInput, setBeginningBalanceInput] = useState<string>('0');
+  const [ongoingBalanceInput, setOngoingBalanceInput] = useState<string>('0');
+  const [sickLeaveBalanceInput, setSickLeaveBalanceInput] = useState<string>('0');
+
   // Reset form data when initialData changes or form opens/closes
   useEffect(() => {
     if (isOpen) {
@@ -61,6 +66,10 @@ export default function EmployeeForm({
           },
         },
       });
+      setFirstYearRuleInput(String(initialData?.pto?.vacation?.firstYearRule || 40));
+      setBeginningBalanceInput(String(initialData?.pto?.vacation?.beginningBalance || 0));
+      setOngoingBalanceInput(String(initialData?.pto?.vacation?.ongoingBalance || 0));
+      setSickLeaveBalanceInput(String(initialData?.pto?.sickLeave?.beginningBalance || 0));
     }
   }, [isOpen, initialData]);
 
@@ -211,18 +220,24 @@ export default function EmployeeForm({
                   <input
                     type="number"
                     min="0"
-                    value={formData.pto?.vacation?.beginningBalance || 0}
-                    onChange={e => setFormData(prev => ({
-                      ...prev,
-                      pto: {
-                        ...prev.pto,
-                        vacation: {
-                          ...prev.pto.vacation,
-                          beginningBalance: Number(e.target.value)
+                    step="any"
+                    inputMode="numeric"
+                    value={beginningBalanceInput}
+                    onChange={e => {
+                      const newValue = e.target.value;
+                      setBeginningBalanceInput(newValue);
+                      setFormData(prev => ({
+                        ...prev,
+                        pto: {
+                          ...prev.pto,
+                          vacation: {
+                            ...prev.pto.vacation,
+                            beginningBalance: newValue === '' ? 0 : Number(newValue)
+                          }
                         }
-                      }
-                    }))}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                      }));
+                    }}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm h-10 px-3 py-2 touch-manipulation"
                   />
                 </div>
                 <div>
@@ -230,18 +245,24 @@ export default function EmployeeForm({
                   <input
                     type="number"
                     min="0"
-                    value={formData.pto?.vacation?.ongoingBalance || 0}
-                    onChange={e => setFormData(prev => ({
-                      ...prev,
-                      pto: {
-                        ...prev.pto,
-                        vacation: {
-                          ...prev.pto.vacation,
-                          ongoingBalance: Number(e.target.value)
+                    step="any"
+                    inputMode="numeric"
+                    value={ongoingBalanceInput}
+                    onChange={e => {
+                      const newValue = e.target.value;
+                      setOngoingBalanceInput(newValue);
+                      setFormData(prev => ({
+                        ...prev,
+                        pto: {
+                          ...prev.pto,
+                          vacation: {
+                            ...prev.pto.vacation,
+                            ongoingBalance: newValue === '' ? 0 : Number(newValue)
+                          }
                         }
-                      }
-                    }))}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                      }));
+                    }}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm h-10 px-3 py-2 touch-manipulation"
                   />
                 </div>
               </div>
@@ -250,18 +271,24 @@ export default function EmployeeForm({
                 <input
                   type="number"
                   min="0"
-                  value={formData.pto?.vacation?.firstYearRule || 40}
-                  onChange={e => setFormData(prev => ({
-                    ...prev,
-                    pto: {
-                      ...prev.pto,
-                      vacation: {
-                        ...prev.pto.vacation,
-                        firstYearRule: Number(e.target.value)
+                  step="any"
+                  inputMode="numeric"
+                  value={firstYearRuleInput}
+                  onChange={e => {
+                    const newValue = e.target.value;
+                    setFirstYearRuleInput(newValue);
+                    setFormData(prev => ({
+                      ...prev,
+                      pto: {
+                        ...prev.pto,
+                        vacation: {
+                          ...prev.pto.vacation,
+                          firstYearRule: newValue === '' ? 40 : Number(newValue)
+                        }
                       }
-                    }
-                  }))}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    }));
+                  }}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm h-10 px-3 py-2 touch-manipulation"
                 />
                 <p className="mt-1 text-sm text-gray-500">Default: 40 hours (5 days)</p>
               </div>
@@ -275,18 +302,24 @@ export default function EmployeeForm({
                 <input
                   type="number"
                   min="0"
-                  value={formData.pto?.sickLeave?.beginningBalance || 0}
-                  onChange={e => setFormData(prev => ({
-                    ...prev,
-                    pto: {
-                      ...prev.pto,
-                      sickLeave: {
-                        ...prev.pto.sickLeave,
-                        beginningBalance: Number(e.target.value)
+                  step="any"
+                  inputMode="numeric"
+                  value={sickLeaveBalanceInput}
+                  onChange={e => {
+                    const newValue = e.target.value;
+                    setSickLeaveBalanceInput(newValue);
+                    setFormData(prev => ({
+                      ...prev,
+                      pto: {
+                        ...prev.pto,
+                        sickLeave: {
+                          ...prev.pto.sickLeave,
+                          beginningBalance: newValue === '' ? 0 : Number(newValue)
+                        }
                       }
-                    }
-                  }))}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    }));
+                  }}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm h-10 px-3 py-2 touch-manipulation"
                 />
               </div>
             </div>
