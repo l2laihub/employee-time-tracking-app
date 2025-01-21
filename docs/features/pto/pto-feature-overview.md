@@ -18,6 +18,8 @@ The PTO (Paid Time Off) feature helps manage employee time off, including both v
    - Provide reason
    - See status of requests with tracking info
    - View request history with timestamps
+   - Edit pending requests
+   - Delete pending requests
 
 ### For Managers/Admins
 1. **Manage Requests**
@@ -25,6 +27,7 @@ The PTO (Paid Time Off) feature helps manage employee time off, including both v
    - Approve or deny with comments and timestamps
    - View team calendar
    - Track request review history
+   - Delete admin-created requests
 
 2. **Track Balances**
    - Monitor team PTO usage
@@ -81,6 +84,7 @@ flowchart TD
     H -->|No| J[Request Denied]
     I -->|Update Balance| K[Balance Updated]
     J -->|Notify Employee| L[Try Again]
+    G -->|Delete| M[Request Deleted]
 ```
 
 ### Reviewing Requests (Managers)
@@ -90,11 +94,13 @@ flowchart TD
     B -->|Select Request| C[Review Form]
     C -->|Check Balance| D[Balance Check]
     D -->|Review Calendar| E[Calendar Check]
-    E -->|Make Decision| F{Approve/Deny}
+    E -->|Make Decision| F{Action}
     F -->|Approve| G[Update Status]
     F -->|Deny| H[Add Comments]
-    G -->|Notify| I[Employee Notified]
-    H -->|Notify| I
+    F -->|Delete| I[Delete Request]
+    G -->|Notify| J[Employee Notified]
+    H -->|Notify| J
+    I -->|If Admin Created| K[Remove Request]
 ```
 
 ### Balance Calculation

@@ -48,35 +48,37 @@ graph TD
     subgraph Context
         J[PTOContext]
         K[EmployeeContext]
+        J -->|Manage State| L[PTO Actions]
+        L -->|CRUD Operations| M[Request Management]
     end
     
     subgraph Utils
-        L[dateUtils]
-        M[ptoCalculations]
+        N[dateUtils]
+        O[ptoCalculations]
     end
     
     B -.-> J
     C -.-> K
-    D -.-> L & M
-    H -.-> L & M
+    D -.-> N & O
+    H -.-> N & O
 ```
-
-Note: Employee PTO balances management has been moved to the Employees Management page for better organization and integration with employee data.
 
 ### Data Flow
 ```mermaid
 sequenceDiagram
     participant U as User
     participant C as Component
+    participant PC as PTOContext
     participant EC as EmployeeContext
-    participant U as Utils
+    participant UT as Utils
     
-    U->>C: Action
-    C->>EC: Get State
-    C->>U: Calculate Values
+    U->>C: Action (Request/Edit/Delete)
+    C->>PC: Get State
+    C->>EC: Get Employee Data
+    C->>UT: Calculate Values
     Note over C: Debounce (300ms)
-    C->>EC: Update State
-    EC-->>C: New State
+    C->>PC: Update State
+    PC-->>C: New State
     C-->>U: UI Update
 ```
 
@@ -97,9 +99,8 @@ flowchart TD
         K[Rules] --> L[Accrual Calculations]
         M[Allocations] --> N[PTO Requests]
         O[Loading States]
+        P[Request Actions] --> Q[Create/Edit/Delete]
     end
-    
-    I --> K & M & O
 ```
 
 ## Core Components
@@ -270,6 +271,33 @@ const processImport = async (file: File) => {
 - Proper type definitions for all data structures
 - Validation at data entry points
 - Error handling for edge cases
+
+## PTO Request Actions
+```typescript
+interface PTOContextType {
+  getPTOBalance: (employee: Employee, type: 'vacation' | 'sick_leave') => number;
+  pendingRequests: PTORequest[];
+  addPTORequest: (request: Omit<PTORequest, 'id' | 'status' | 'createdAt'>) => void;
+  updatePTORequest: (requestId: string, status: 'approved' | 'rejected', reviewedBy: string) => void;
+  deletePTORequest: (requestId: string) => void;
+}
+
+interface PTORequest {
+  id: string;
+  userId: string;
+  startDate: string;
+  endDate: string;
+  type: PTOType;
+  hours: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  notes?: string;
+  createdAt: string;
+  createdBy?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+}
+```
 
 ## Best Practices
 1. Always validate imported data
