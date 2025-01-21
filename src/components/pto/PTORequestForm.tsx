@@ -231,36 +231,37 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {isAdmin && (
+    <form onSubmit={handleSubmit}>
+      <div className="p-4 sm:p-6 space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+        {isAdmin && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Employee</label>
+            <select
+              required
+              value={selectedEmployee?.id || ''}
+              onChange={(e) => {
+                const employee = employees.find((u: Employee) => u.id === e.target.value);
+                setSelectedEmployee(employee || null);
+                onEmployeeSelect?.(employee || null);
+                // Reset error when employee changes
+                setError(null);
+              }}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            >
+              <option value="">Select Employee (Required)</option>
+              {employees
+                .filter(u => u.role === 'employee' || u.id === user?.id)
+                .map(emp => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.first_name} {emp.last_name}
+                  </option>
+                ))
+              }
+            </select>
+          </div>
+        )}
         <div>
-          <label className="block text-sm font-medium text-gray-700">Employee</label>
-          <select
-            required
-            value={selectedEmployee?.id || ''}
-            onChange={(e) => {
-              const employee = employees.find((u: Employee) => u.id === e.target.value);
-              setSelectedEmployee(employee || null);
-              onEmployeeSelect?.(employee || null);
-              // Reset error when employee changes
-              setError(null);
-            }}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          >
-            <option value="">Select Employee (Required)</option>
-            {employees
-              .filter(u => u.role === 'employee' || u.id === user?.id)
-              .map(emp => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.first_name} {emp.last_name}
-                </option>
-              ))
-            }
-          </select>
-        </div>
-      )}
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Start Date</label>
+          <label className="block text-sm font-medium text-gray-700">Start Date</label>
           <input
             type="date"
             required
@@ -274,10 +275,10 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
                 : 'border-gray-300'
             }`}
           />
-      </div>
+        </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700">End Date</label>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">End Date</label>
           <input
             type="date"
             required
@@ -291,10 +292,10 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
                 : 'border-gray-300'
             }`}
           />
-      </div>
+        </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Type</label>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Type</label>
           <select
             required
             disabled={isAdmin && !currentUser}
@@ -306,98 +307,102 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
                 : 'border-gray-300'
             }`}
           >
-          <option value="vacation">Vacation</option>
-          <option value="sick_leave">Sick Leave</option>
-        </select>
+            <option value="vacation">Vacation</option>
+            <option value="sick_leave">Sick Leave</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Hours</label>
+          <input
+            type="number"
+            required
+            disabled={isAdmin && !currentUser}
+            min="1"
+            max={currentUser ? getTotalAllocation(type) - getUsedHours(type) : 0}
+            value={hours}
+            onChange={(e) => {
+              const newHours = Number(e.target.value);
+              setHours(newHours);
+              
+              // Validate hours against date range immediately
+              const expectedHours = calculateExpectedHours(startDate, endDate);
+              const availableHours = getAvailableHours(type);
+
+              if (newHours > availableHours) {
+                setError(
+                  `Insufficient ${type.replace('_', ' ')} balance. ` +
+                  `Available: ${availableHours} hours ` +
+                  `(Total: ${getTotalAllocation(type)} - Used: ${getUsedHours(type)})`
+                );
+              } else if (newHours !== expectedHours) {
+                setError(`Hours must match the selected date range (${expectedHours} hours for ${expectedHours/8} business days)`);
+              } else {
+                setError(null);
+              }
+            }}
+            className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 ${
+              isAdmin && !currentUser 
+                ? 'bg-gray-100 cursor-not-allowed border-gray-300'
+                : error 
+                  ? 'border-red-300 focus:border-red-500' 
+                  : 'border-gray-300 focus:border-blue-500'
+            }`}
+          />
+          {error ? (
+            <p className="mt-1 text-sm text-red-600">{error}</p>
+          ) : (
+            <p className="mt-1 text-sm text-gray-500">
+              <>
+                Total Allocation: {getTotalAllocation(type)} hours
+                <div className="text-sm mt-1">
+                  <span className="text-gray-600">Used: {getUsedHours(type)} hours</span>
+                  <br />
+                  <span className="text-green-600">Available: {getAvailableHours(type)} hours</span>
+                </div>
+                {type === 'sick_leave' && currentUser?.ptoAllocation?.sickLeave?.type === 'auto' && (
+                  <> (Accrues at 1 hour per 40 hours worked)</>
+                )}
+              </>
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Reason</label>
+          <textarea
+            required
+            disabled={isAdmin && !currentUser}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 ${
+              isAdmin && !currentUser 
+                ? 'bg-gray-100 cursor-not-allowed border-gray-300'
+                : 'border-gray-300'
+            }`}
+            placeholder="Please provide a reason for your PTO request"
+          />
+        </div>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Hours</label>
-        <input
-          type="number"
-          required
-          disabled={isAdmin && !currentUser}
-          min="1"
-          max={currentUser ? getTotalAllocation(type) - getUsedHours(type) : 0}
-          value={hours}
-          onChange={(e) => {
-            const newHours = Number(e.target.value);
-            setHours(newHours);
-            
-            // Validate hours against date range immediately
-            const expectedHours = calculateExpectedHours(startDate, endDate);
-            const availableHours = getAvailableHours(type);
-
-            if (newHours > availableHours) {
-              setError(
-                `Insufficient ${type.replace('_', ' ')} balance. ` +
-                `Available: ${availableHours} hours ` +
-                `(Total: ${getTotalAllocation(type)} - Used: ${getUsedHours(type)})`
-              );
-            } else if (newHours !== expectedHours) {
-              setError(`Hours must match the selected date range (${expectedHours} hours for ${expectedHours/8} business days)`);
-            } else {
-              setError(null);
-            }
-          }}
-          className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 ${
-            isAdmin && !currentUser 
-              ? 'bg-gray-100 cursor-not-allowed border-gray-300'
-              : error 
-                ? 'border-red-300 focus:border-red-500' 
-                : 'border-gray-300 focus:border-blue-500'
-          }`}
-        />
-        {error ? (
-          <p className="mt-1 text-sm text-red-600">{error}</p>
-        ) : (
-          <p className="mt-1 text-sm text-gray-500">
-            <>
-              Total Allocation: {getTotalAllocation(type)} hours
-              <div className="text-sm mt-1">
-                <span className="text-gray-600">Used: {getUsedHours(type)} hours</span>
-                <br />
-                <span className="text-green-600">Available: {getAvailableHours(type)} hours</span>
-              </div>
-              {type === 'sick_leave' && currentUser?.ptoAllocation?.sickLeave?.type === 'auto' && (
-                <> (Accrues at 1 hour per 40 hours worked)</>
-              )}
-            </>
-          </p>
-        )}
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Reason</label>
-        <textarea
-          required
-          disabled={isAdmin && !currentUser}
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          rows={3}
-          className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 ${
-            isAdmin && !currentUser 
-              ? 'bg-gray-100 cursor-not-allowed border-gray-300'
-              : 'border-gray-300'
-          }`}
-          placeholder="Please provide a reason for your PTO request"
-        />
-      </div>
-
-      <div className="flex justify-end space-x-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
-        >
-          {isEdit ? 'Save Changes' : isAdmin ? 'Create Pending Request' : 'Submit Request'}
-        </button>
+      {/* Fixed bottom action buttons */}
+      <div className="border-t p-4 sm:p-6 bg-white sticky bottom-0 rounded-b-lg">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3 space-y-3 space-y-reverse sm:space-y-0">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            {isEdit ? 'Save Changes' : isAdmin ? 'Create Pending Request' : 'Submit Request'}
+          </button>
+        </div>
       </div>
     </form>
   );
