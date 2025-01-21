@@ -151,7 +151,7 @@ export const employeeStartDates: { [key: string]: string } = {
   '5': '2023-01-10', // Sarah Wilson
   '6': '2023-09-01', // Mike Johnson
   '7': '2021-11-15', // Lisa Brown
-  'huy-test': '2024-10-20' // Huy Test - Started 3 months ago
+  '8': '2024-10-20' // Bon Bon - Started 3 months ago
 };
 
 // Employee names mapping
@@ -161,7 +161,7 @@ export const employeeNames: { [key: string]: string } = {
   '5': 'Mike Johnson',
   '6': 'Sarah Wilson',
   '7': 'Lisa Brown',
-  'huy-test': 'Huy Test'
+  '8': 'Bon Bon'
 };
 
 const createEmployeeTimesheet = (userId: string, weekOffset: number): TimesheetEntry => {
@@ -356,6 +356,6 @@ export const mockTimesheets: TimesheetEntry[] = [
   // Lisa Brown (id: '7') - Started 2021-11-15
   ...generateEmployeeTimesheets('7'),
   
-  // Huy Test - Started 2024-10-20
-  ...generateEmployeeTimesheets('huy-test')
+  // Bon Bon - Started 2024-10-20
+  ...generateEmployeeTimesheets('8')
 ];

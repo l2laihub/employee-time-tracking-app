@@ -95,10 +95,10 @@ export const mockUsers: Employee[] = [
     pto: defaultPTO
   },
   {
-    id: 'huy-test',
+    id: '8',
     email: 'h@test.com',
-    first_name: 'Huy',
-    last_name: 'Test',
+    first_name: 'Bon',
+    last_name: 'Bon',
     role: 'employee',
     department: 'Field Work',
     status: 'active',
