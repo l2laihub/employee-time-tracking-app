@@ -1,17 +1,18 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { PTORequest } from '../../lib/types';
-import { Calendar, Clock, Edit2, User, Briefcase, Stethoscope, Timer } from 'lucide-react';
+import { Calendar, Clock, Edit2, User, Briefcase, Stethoscope, Timer, Trash2 } from 'lucide-react';
 import { mockUsers } from '../../lib/mockUsers';
 
 interface PTORequestListProps {
   requests: PTORequest[];
   onReview?: (request: PTORequest) => void;
   onEdit?: (request: PTORequest) => void;
+  onDelete?: (requestId: string) => void;
   isAdmin?: boolean;
 }
 
-export default function PTORequestList({ requests, onReview, onEdit, isAdmin }: PTORequestListProps) {
+export default function PTORequestList({ requests, onReview, onEdit, onDelete, isAdmin }: PTORequestListProps) {
   const getStatusBadge = (status: PTORequest['status']) => {
     switch (status) {
       case 'approved':
@@ -84,21 +85,49 @@ export default function PTORequestList({ requests, onReview, onEdit, isAdmin }: 
               {getStatusBadge(request.status)}
               <div className="flex space-x-2 mt-2 sm:mt-0">
                 {!isAdmin && request.status === 'pending' && (
-                  <button
-                    onClick={() => onEdit?.(request)}
-                    className="text-sm text-gray-600 hover:text-gray-800 flex items-center"
-                  >
-                    <Edit2 className="w-4 h-4 mr-1" />
-                    Edit
-                  </button>
+                  <>
+                    <button
+                      onClick={() => onEdit?.(request)}
+                      className="text-sm text-gray-600 hover:text-gray-800 flex items-center"
+                    >
+                      <Edit2 className="w-4 h-4 mr-1" />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to delete this PTO request?')) {
+                          onDelete?.(request.id);
+                        }
+                      }}
+                      className="text-sm text-red-600 hover:text-red-800 flex items-center"
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      Delete
+                    </button>
+                  </>
                 )}
                 {isAdmin && request.status === 'pending' && (
-                  <button
-                    onClick={() => onReview?.(request)}
-                    className="text-sm text-blue-600 hover:text-blue-700"
-                  >
-                    Review Request
-                  </button>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => onReview?.(request)}
+                      className="text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      Review Request
+                    </button>
+                    {request.createdBy && (mockUsers.find(u => u.id === request.createdBy)?.role === 'admin' || mockUsers.find(u => u.id === request.createdBy)?.role === 'manager') && (
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Are you sure you want to delete this admin-created PTO request?')) {
+                            onDelete?.(request.id);
+                          }
+                        }}
+                        className="text-sm text-red-600 hover:text-red-800 flex items-center"
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

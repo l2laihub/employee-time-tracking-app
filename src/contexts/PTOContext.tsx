@@ -9,6 +9,7 @@ interface PTOContextType {
   pendingRequests: PTORequest[];
   addPTORequest: (request: Omit<PTORequest, 'id' | 'status' | 'createdAt'>) => void;
   updatePTORequest: (requestId: string, status: 'approved' | 'rejected', reviewedBy: string) => void;
+  deletePTORequest: (requestId: string) => void;
 }
 
 const PTOContext = createContext<PTOContextType | undefined>(undefined);
@@ -77,12 +78,20 @@ export function PTOProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const deletePTORequest = useCallback((requestId: string) => {
+    setState(prev => ({
+      ...prev,
+      pendingRequests: prev.pendingRequests.filter(req => req.id !== requestId),
+    }));
+  }, []);
+
   return (
     <PTOContext.Provider value={{
       getPTOBalance,
       pendingRequests: state.pendingRequests,
       addPTORequest,
       updatePTORequest,
+      deletePTORequest,
     }}>
       {children}
     </PTOContext.Provider>

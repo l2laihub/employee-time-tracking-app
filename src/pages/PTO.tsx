@@ -6,6 +6,7 @@ import PTORequestList from '../components/pto/PTORequestList';
 import PTOReviewForm from '../components/pto/PTOReviewForm';
 import { mockPTORequests } from '../lib/mockPTOData';
 import { useEmployees } from '../contexts/EmployeeContext';
+import { usePTO } from '../contexts/PTOContext';
 import type { PTORequest, PTOType, Employee } from '../lib/types';
 import UserPTOBalance from '../components/pto/UserPTOBalance';
 import { Link } from 'react-router-dom';
@@ -13,6 +14,7 @@ import toast from 'react-hot-toast';
 
 export default function PTO() {
   const { user } = useAuth();
+  const { deletePTORequest } = usePTO();
   const [requests, setRequests] = useState(mockPTORequests);
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<PTORequest | null>(null);
@@ -125,6 +127,12 @@ export default function PTO() {
     setRequests(updatedRequests);
     setEditingRequest(null);
     toast.success('PTO request updated successfully');
+  };
+
+  const handleDeleteRequest = (requestId: string) => {
+    setRequests(prev => prev.filter(req => req.id !== requestId));
+    deletePTORequest(requestId);
+    toast.success('PTO request deleted successfully');
   };
 
   const handleReviewRequest = (data: { status: 'approved' | 'rejected'; notes: string }) => {
@@ -291,6 +299,7 @@ export default function PTO() {
         requests={filteredRequests}
         onReview={setSelectedRequest}
         onEdit={setEditingRequest}
+        onDelete={handleDeleteRequest}
         isAdmin={isAdmin}
       />
 
