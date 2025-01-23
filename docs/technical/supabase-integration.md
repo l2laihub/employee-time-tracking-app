@@ -1,6 +1,6 @@
 # Supabase Integration Plan
 
-This document outlines the implementation plan for integrating ClockFlow with Supabase for data storage, authentication, and real-time features.
+This document outlines the implementation plan for integrating ClockFlow with Supabase for data storage, authentication, and real-time features with multi-tenant support.
 
 ## 1. Project Setup
 
@@ -25,6 +25,35 @@ export const supabase = createClient<Database>(
   supabaseUrl,
   supabaseAnonKey
 );
+
+// Organization-aware client wrapper
+export class OrganizationClient {
+  private organizationId: string;
+
+  constructor(organizationId: string) {
+    this.organizationId = organizationId;
+  }
+
+  // Automatically inject organization_id in queries
+  from(table: string) {
+    return supabase
+      .from(table)
+      .select()
+      .eq('organization_id', this.organizationId);
+  }
+
+  // Organization-specific real-time subscriptions
+  subscribe(table: string, callback: (payload: any) => void) {
+    return supabase
+      .from(table)
+      .on('*', payload => {
+        if (payload.new.organization_id === this.organizationId) {
+          callback(payload);
+        }
+      })
+      .subscribe();
+  }
+}
 ```
 
 ## 2. Database Schema
@@ -32,9 +61,36 @@ export const supabase = createClient<Database>(
 ### 2.1 Core Tables
 
 ```sql
+-- Organizations (Tenants)
+CREATE TABLE organizations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  plan_type TEXT NOT NULL DEFAULT 'basic',
+  subscription_status TEXT NOT NULL DEFAULT 'trial',
+  settings JSONB DEFAULT '{}',
+  branding JSONB DEFAULT '{}',
+  stripe_customer_id TEXT,
+  stripe_subscription_id TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Organization Members
+CREATE TABLE organization_members (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL,
+  permissions JSONB DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(organization_id, user_id)
+);
+
 -- Users and Authentication
 CREATE TABLE profiles (
   id UUID REFERENCES auth.users PRIMARY KEY,
+  organization_id UUID REFERENCES organizations(id),
   first_name TEXT,
   last_name TEXT,
   avatar_url TEXT,
@@ -47,6 +103,7 @@ CREATE TABLE profiles (
 -- Time Entries
 CREATE TABLE time_entries (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id),
   user_id UUID REFERENCES auth.users NOT NULL,
   start_time TIMESTAMP WITH TIME ZONE NOT NULL,
   end_time TIMESTAMP WITH TIME ZONE,
@@ -59,17 +116,19 @@ CREATE TABLE time_entries (
 -- Job Locations
 CREATE TABLE job_locations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id),
   name TEXT NOT NULL,
   address TEXT,
   latitude NUMERIC,
   longitude NUMERIC,
-  radius INTEGER, -- Geofencing radius in meters
+  radius INTEGER,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- PTO Requests
 CREATE TABLE pto_requests (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id),
   user_id UUID REFERENCES auth.users NOT NULL,
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
@@ -82,6 +141,7 @@ CREATE TABLE pto_requests (
 -- Timesheets
 CREATE TABLE timesheets (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id),
   user_id UUID REFERENCES auth.users NOT NULL,
   period_start DATE NOT NULL,
   period_end DATE NOT NULL,
@@ -91,17 +151,70 @@ CREATE TABLE timesheets (
   submitted_at TIMESTAMP WITH TIME ZONE,
   approved_at TIMESTAMP WITH TIME ZONE
 );
+
+-- API Keys
+CREATE TABLE api_keys (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id),
+  name TEXT NOT NULL,
+  key_hash TEXT NOT NULL,
+  scope TEXT[] DEFAULT '{}',
+  last_used_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  expires_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Organization Metrics
+CREATE TABLE organization_metrics (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id),
+  active_users INTEGER DEFAULT 0,
+  time_entries INTEGER DEFAULT 0,
+  storage_used BIGINT DEFAULT 0,
+  api_calls INTEGER DEFAULT 0,
+  timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 ```
 
 ### 2.2 Row Level Security (RLS)
 
 ```sql
+-- Organizations RLS
+ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their organization"
+  ON organizations FOR SELECT
+  USING (
+    id IN (
+      SELECT organization_id 
+      FROM organization_members 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Only admins can update organization"
+  ON organizations FOR UPDATE
+  USING (
+    id IN (
+      SELECT organization_id 
+      FROM organization_members 
+      WHERE user_id = auth.uid()
+      AND role = 'admin'
+    )
+  );
+
 -- Profiles RLS
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view own profile"
+CREATE POLICY "Users can view profiles in their organization"
   ON profiles FOR SELECT
-  USING (auth.uid() = id);
+  USING (
+    organization_id IN (
+      SELECT organization_id 
+      FROM organization_members 
+      WHERE user_id = auth.uid()
+    )
+  );
 
 CREATE POLICY "Users can update own profile"
   ON profiles FOR UPDATE
@@ -110,353 +223,597 @@ CREATE POLICY "Users can update own profile"
 -- Time Entries RLS
 ALTER TABLE time_entries ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view own time entries"
+CREATE POLICY "Users can view organization time entries"
   ON time_entries FOR SELECT
-  USING (auth.uid() = user_id);
+  USING (
+    organization_id IN (
+      SELECT organization_id 
+      FROM organization_members 
+      WHERE user_id = auth.uid()
+      AND role IN ('admin', 'manager')
+    )
+    OR user_id = auth.uid()
+  );
 
 CREATE POLICY "Users can insert own time entries"
   ON time_entries FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK (
+    auth.uid() = user_id
+    AND
+    organization_id IN (
+      SELECT organization_id 
+      FROM organization_members 
+      WHERE user_id = auth.uid()
+    )
+  );
 
 -- Similar policies for other tables...
 ```
 
 ## 3. Implementation Phases
 
-### Phase 1: Authentication & User Management
-1. **Setup Auth UI**
+### Phase 1: Authentication & Organization Setup
+1. **Organization Creation**
    ```typescript
-   // src/components/auth/AuthUI.tsx
-   import { Auth } from '@supabase/auth-ui-react';
-   import { ThemeSupa } from '@supabase/auth-ui-shared';
-   
-   export function AuthUI() {
-     return (
-       <Auth
-         supabaseClient={supabase}
-         appearance={{ theme: ThemeSupa }}
-         providers={['google']}
-       />
-     );
-   }
-   ```
-
-2. **User Context**
-   ```typescript
-   // src/contexts/UserContext.tsx
-   export function UserProvider({ children }: Props) {
-     const [user, setUser] = useState<User | null>(null);
-     
-     useEffect(() => {
-       // Get initial session
-       supabase.auth.getSession().then(({ data: { session } }) => {
-         setUser(session?.user ?? null);
-       });
-       
-       // Listen for auth changes
-       const { data: { subscription } } = supabase.auth.onAuthStateChange(
-         (_event, session) => {
-           setUser(session?.user ?? null);
-         }
-       );
-       
-       return () => subscription.unsubscribe();
-     }, []);
-     
-     return (
-       <UserContext.Provider value={{ user }}>
-         {children}
-       </UserContext.Provider>
-     );
-   }
-   ```
-
-### Phase 2: Time Entry System
-1. **Time Entry Service**
-   ```typescript
-   // src/services/timeEntries.ts
-   export async function createTimeEntry(entry: TimeEntry) {
-     const { data, error } = await supabase
-       .from('time_entries')
+   async function createOrganization(data: OrganizationData) {
+     const { organization, error } = await supabase
+       .from('organizations')
        .insert({
-         user_id: entry.userId,
-         start_time: entry.startTime,
-         end_time: entry.endTime,
-         break_duration: entry.breakDuration,
-         job_location_id: entry.jobLocationId,
-         notes: entry.notes
-       });
-       
+         name: data.name,
+         slug: generateSlug(data.name),
+         plan_type: 'trial',
+         subscription_status: 'active'
+       })
+       .select()
+       .single();
+
      if (error) throw error;
-     return data;
-   }
-   ```
 
-2. **Real-time Updates**
-   ```typescript
-   // src/hooks/useTimeEntries.ts
-   export function useTimeEntries(userId: string) {
-     const [entries, setEntries] = useState<TimeEntry[]>([]);
-     
-     useEffect(() => {
-       // Initial fetch
-       fetchTimeEntries();
-       
-       // Subscribe to changes
-       const subscription = supabase
-         .from('time_entries')
-         .on('*', payload => {
-           handleTimeEntryChange(payload);
-         })
-         .subscribe();
-         
-       return () => {
-         subscription.unsubscribe();
-       };
-     }, [userId]);
-     
-     return entries;
-   }
-   ```
-
-### Phase 3: Job Locations & Geofencing
-1. **Location Service**
-   ```typescript
-   // src/services/locations.ts
-   export async function createJobLocation(location: JobLocation) {
-     const { data, error } = await supabase
-       .from('job_locations')
-       .insert(location);
-       
-     if (error) throw error;
-     return data;
-   }
-   
-   export function checkInGeofence(
-     userLat: number,
-     userLng: number,
-     location: JobLocation
-   ): boolean {
-     const distance = calculateDistance(
-       userLat,
-       userLng,
-       location.latitude,
-       location.longitude
-     );
-     return distance <= location.radius;
-   }
-   ```
-
-### Phase 4: PTO Management
-1. **PTO Service**
-   ```typescript
-   // src/services/pto.ts
-   export async function submitPTORequest(request: PTORequest) {
-     const { data, error } = await supabase
-       .from('pto_requests')
-       .insert(request);
-       
-     if (error) throw error;
-     
-     // Notify approvers
-     await notifyApprovers(data);
-     
-     return data;
-   }
-   ```
-
-### Phase 5: Timesheet System
-1. **Timesheet Generation**
-   ```typescript
-   // src/services/timesheets.ts
-   export async function generateTimesheet(userId: string, period: Period) {
-     // Get time entries for period
-     const { data: entries } = await supabase
-       .from('time_entries')
-       .select('*')
-       .eq('user_id', userId)
-       .gte('start_time', period.start)
-       .lte('end_time', period.end);
-       
-     // Calculate totals
-     const totalHours = calculateTotalHours(entries);
-     
-     // Create timesheet
-     const { data, error } = await supabase
-       .from('timesheets')
+     // Add creator as admin
+     await supabase
+       .from('organization_members')
        .insert({
-         user_id: userId,
-         period_start: period.start,
-         period_end: period.end,
-         total_hours: totalHours
+         organization_id: organization.id,
+         user_id: auth.user()?.id,
+         role: 'admin'
        });
-       
-     if (error) throw error;
-     return data;
+
+     return organization;
    }
    ```
 
-## 4. Data Migration Plan
+2. **User Invitation**
+   ```typescript
+   async function inviteUser(email: string, role: string) {
+     // Generate invite
+     const { data: invite } = await supabase
+       .from('invites')
+       .insert({
+         email,
+         organization_id: currentOrganization.id,
+         role,
+         invited_by: auth.user()?.id
+       })
+       .select()
+       .single();
 
-### 4.1 Migration Steps
-1. Export existing data to JSON format
-2. Transform data to match new schema
-3. Import data using Supabase's REST API
-4. Verify data integrity
+     // Send invitation email
+     await sendInviteEmail(invite);
+   }
+   ```
 
+### Phase 2: Organization Context
 ```typescript
-// scripts/migrate.ts
-async function migrateData() {
-  // 1. Export existing data
-  const existingData = await exportExistingData();
+// src/contexts/OrganizationContext.tsx
+export function OrganizationProvider({ children }: Props) {
+  const [organization, setOrganization] = useState<Organization | null>(null);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      // Get user's organization
+      const { data } = await supabase
+        .from('organization_members')
+        .select('organizations (*)')
+        .eq('user_id', user.id)
+        .single();
+
+      setOrganization(data?.organizations);
+    }
+  }, [user]);
+
+  return (
+    <OrganizationContext.Provider value={{ organization }}>
+      {children}
+    </OrganizationContext.Provider>
+  );
+}
+```
+
+### Phase 3: Feature Management
+```typescript
+// src/hooks/useOrganizationFeature.ts
+export function useOrganizationFeature(featureKey: string) {
+  const { organization } = useOrganization();
   
-  // 2. Transform data
-  const transformedData = transformData(existingData);
-  
-  // 3. Import to Supabase
-  for (const table of Object.keys(transformedData)) {
+  const isEnabled = useMemo(() => {
+    const plan = PLAN_FEATURES[organization?.plan_type];
+    return plan?.features.includes(featureKey) ?? false;
+  }, [organization, featureKey]);
+
+  return isEnabled;
+}
+```
+
+### Phase 4: Data Migration
+```typescript
+async function migrateToMultiTenant() {
+  // Get all existing data
+  const { data: timeEntries } = await supabase
+    .from('time_entries')
+    .select('*');
+
+  // Create default organization
+  const { data: organization } = await createOrganization({
+    name: 'Default Organization',
+    plan_type: 'enterprise'
+  });
+
+  // Update all records with organization_id
+  for (const table of TABLES_TO_MIGRATE) {
     await supabase
       .from(table)
-      .insert(transformedData[table]);
+      .update({ organization_id: organization.id })
+      .is('organization_id', null);
   }
-  
-  // 4. Verify
-  await verifyMigration(transformedData);
 }
 ```
 
-## 5. Testing Strategy
+## 4. Testing Strategy
 
-### 5.1 Unit Tests
+### 4.1 Multi-tenant Tests
 ```typescript
-// src/services/__tests__/timeEntries.test.ts
-describe('Time Entry Service', () => {
-  it('should create time entry', async () => {
-    const entry = mockTimeEntry();
-    const result = await createTimeEntry(entry);
-    expect(result).toMatchObject(entry);
+describe('Organization Isolation', () => {
+  it('should only access organization data', async () => {
+    const org1 = await createTestOrganization();
+    const org2 = await createTestOrganization();
+
+    const client1 = new OrganizationClient(org1.id);
+    const client2 = new OrganizationClient(org2.id);
+
+    // Create data in org1
+    await client1.from('time_entries').insert(mockEntry);
+
+    // Verify org2 cannot access org1's data
+    const { data } = await client2.from('time_entries').select('*');
+    expect(data).toHaveLength(0);
   });
 });
 ```
 
-### 5.2 Integration Tests
+## 5. Security Considerations
+
+### 5.1 Data Isolation
 ```typescript
-// src/tests/integration/supabase.test.ts
-describe('Supabase Integration', () => {
-  it('should handle auth flow', async () => {
-    const { user, error } = await supabase.auth.signUp({
-      email: 'test@example.com',
-      password: 'password123'
+// src/middleware/organizationContext.ts
+export async function withOrganization(req: Request, res: Response) {
+  const organizationId = req.headers['x-organization-id'];
+  
+  if (!organizationId) {
+    return res.status(400).json({
+      error: 'Organization ID required'
     });
-    expect(error).toBeNull();
-    expect(user).toBeDefined();
-  });
-});
-```
+  }
 
-## 6. Security Considerations
+  // Verify user belongs to organization
+  const { data } = await supabase
+    .from('organization_members')
+    .select()
+    .eq('organization_id', organizationId)
+    .eq('user_id', req.user.id)
+    .single();
 
-### 6.1 Environment Variables
-```env
-# .env.example
-VITE_SUPABASE_URL=your_project_url
-VITE_SUPABASE_ANON_KEY=your_anon_key
-```
+  if (!data) {
+    return res.status(403).json({
+      error: 'Not a member of this organization'
+    });
+  }
 
-### 6.2 Security Headers
-```typescript
-// src/middleware/security.ts
-export const securityHeaders = {
-  'Content-Security-Policy': 
-    "default-src 'self'; connect-src 'self' https://*.supabase.co;",
-  'X-Frame-Options': 'DENY',
-  'X-Content-Type-Options': 'nosniff'
-};
-```
-
-## 7. Monitoring and Maintenance
-
-### 7.1 Error Tracking
-```typescript
-// src/lib/errorTracking.ts
-export function trackSupabaseError(error: any) {
-  console.error('Supabase Error:', error);
-  
-  // Send to error tracking service
-  Sentry.captureException(error, {
-    tags: {
-      source: 'supabase'
-    }
-  });
+  req.organizationId = organizationId;
+  next();
 }
 ```
 
-### 7.2 Performance Monitoring
+## 6. Monitoring Setup
+
+### 6.1 Usage Tracking
 ```typescript
-// src/lib/performance.ts
-export function trackQueryPerformance(
-  queryName: string,
-  startTime: number
+// src/services/usage.ts
+export async function trackOrganizationUsage(
+  organizationId: string,
+  metric: string,
+  value: number
 ) {
-  const duration = performance.now() - startTime;
-  
-  // Log to monitoring service
-  logQueryMetric(queryName, duration);
+  await supabase
+    .from('organization_metrics')
+    .insert({
+      organization_id: organizationId,
+      metric,
+      value,
+      timestamp: new Date()
+    });
 }
 ```
 
-## 8. Rollout Plan
+## 7. Success Metrics
 
-### Phase 1 (Week 1-2)
-- Set up Supabase project
-- Implement authentication
-- Create core database schema
-- Set up RLS policies
+- Multi-tenant data isolation verification
+- Cross-organization access attempts: 0
+- Organization creation success rate: > 99%
+- User invitation acceptance rate: > 80%
+- Feature access control effectiveness: 100%
+- Data migration success rate: 100%
 
-### Phase 2 (Week 3-4)
-- Implement time entry system
-- Set up real-time subscriptions
-- Create location services
-- Begin data migration
+## 8. Implementation Phases
 
-### Phase 3 (Week 5-6)
-- Implement PTO management
-- Create timesheet system
-- Complete data migration
-- Conduct testing
+### Phase 1: Core Multi-tenancy (Week 1-2)
+1. Set up Supabase project
+2. Create organization tables and RLS policies
+3. Implement organization context and client wrapper
+4. Update authentication flow
 
-### Phase 4 (Week 7-8)
-- Deploy to staging
-- Conduct user acceptance testing
-- Fix issues and optimize
-- Deploy to production
+### Phase 2: Data Migration (Week 3)
+1. Create migration scripts
+2. Test data migration
+3. Plan production migration
+4. Execute migration with minimal downtime
 
-## 9. Rollback Plan
+### Phase 3: Feature Implementation (Week 4-6)
+1. Organization management
+2. Member invitations
+3. Role-based access
+4. Real-time features
 
-### 9.1 Database Backup
-```sql
--- Before major changes
-CREATE EXTENSION IF NOT EXISTS pg_dump;
-SELECT pg_dump_all();
-```
+### Phase 4: Enterprise Features (Week 7-8)
+1. API key management
+2. Usage tracking
+3. Custom domain support
+4. Advanced security features
 
-### 9.2 Version Control
-```typescript
-// Keep track of migrations
-const MIGRATION_VERSION = '1.0.0';
+## 12. Rollout Plan
 
-async function rollback() {
-  await revertMigration(MIGRATION_VERSION);
-  await restoreBackup();
-}
-```
+### Phase 1: Development Environment (Week 1)
 
-## 10. Success Metrics
+1. **Initial Setup**
+   ```bash
+   # Create new Supabase project for development
+   supabase init
+   supabase start
 
-- Authentication success rate > 99.9%
-- Query performance < 100ms
-- Real-time sync delay < 500ms
-- Zero data loss during migration
-- All existing features functional
-- User session persistence
-- Successful geolocation tracking
+   # Set up environment variables
+   cp .env.example .env.local
+   # Add Supabase credentials to .env.local
+   ```
+
+2. **Database Schema Migration**
+   ```bash
+   # Create migration files
+   supabase migration new init_schema
+
+   # Apply migrations
+   supabase db reset
+   ```
+
+3. **Local Development Testing**
+   - Set up test data
+   - Verify RLS policies
+   - Test real-time subscriptions
+
+### Phase 2: Staging Environment (Week 2)
+
+1. **Staging Environment Setup**
+   ```bash
+   # Create staging Supabase project
+   # Configure staging environment
+   cp .env.example .env.staging
+   # Add staging credentials
+   ```
+
+2. **Data Migration Testing**
+   ```typescript
+   // scripts/test-migration.ts
+   async function testMigration() {
+     // 1. Export sample production data
+     const sampleData = await exportSampleData();
+     
+     // 2. Run migration on staging
+     await migrateData(sampleData);
+     
+     // 3. Verify data integrity
+     await verifyDataIntegrity();
+     
+     // 4. Performance testing
+     await runPerformanceTests();
+   }
+   ```
+
+3. **Integration Testing**
+   - End-to-end testing
+   - Load testing
+   - Security testing
+
+### Phase 3: Production Preparation (Week 3)
+
+1. **Production Environment Setup**
+   ```bash
+   # Create production Supabase project
+   # Configure production environment
+   cp .env.example .env.production
+   # Add production credentials
+   ```
+
+2. **Backup Strategy**
+   ```sql
+   -- Create backup of existing data
+   CREATE EXTENSION IF NOT EXISTS pg_dump;
+   SELECT pg_dump_all();
+   ```
+
+3. **Rollback Plan**
+   ```typescript
+   // scripts/rollback.ts
+   async function rollback() {
+     // 1. Stop application
+     await stopApplication();
+     
+     // 2. Restore database backup
+     await restoreBackup();
+     
+     // 3. Revert code changes
+     await revertCodeChanges();
+     
+     // 4. Restart application
+     await startApplication();
+   }
+   ```
+
+4. **Monitoring Setup**
+   ```typescript
+   // src/monitoring/supabase.ts
+   export function setupMonitoring() {
+     // 1. Set up error tracking
+     Sentry.init({
+       dsn: process.env.SENTRY_DSN,
+       integrations: [
+         new Sentry.Integrations.Postgres()
+       ]
+     });
+     
+     // 2. Set up performance monitoring
+     setupAPM({
+       serviceName: 'clockflow',
+       environment: process.env.NODE_ENV
+     });
+     
+     // 3. Set up alerts
+     setupAlerts([
+       {
+         name: 'High Latency',
+         threshold: 1000, // ms
+         action: notifyTeam
+       },
+       {
+         name: 'Error Rate',
+         threshold: 0.01, // 1%
+         action: notifyTeam
+       }
+     ]);
+   }
+   ```
+
+### Phase 4: Production Deployment (Week 4)
+
+1. **Pre-deployment Checklist**
+   ```markdown
+   - [ ] All staging tests passing
+   - [ ] Backup strategy verified
+   - [ ] Rollback plan tested
+   - [ ] Monitoring tools configured
+   - [ ] Team trained on new system
+   - [ ] Documentation updated
+   ```
+
+2. **Deployment Steps**
+   ```bash
+   # 1. Create maintenance window
+   # 2. Take backup
+   pg_dump -Fc > pre_migration_backup.dump
+
+   # 3. Run migrations
+   supabase db reset --prod
+
+   # 4. Deploy new application version
+   npm run deploy:prod
+
+   # 5. Verify deployment
+   npm run verify:deployment
+   ```
+
+3. **Post-deployment Verification**
+   ```typescript
+   // scripts/verify-deployment.ts
+   async function verifyDeployment() {
+     // 1. Check database connectivity
+     await checkDatabaseConnection();
+     
+     // 2. Verify data migration
+     await verifyDataMigration();
+     
+     // 3. Test critical paths
+     await testCriticalPaths();
+     
+     // 4. Monitor error rates
+     await monitorErrorRates(30); // minutes
+   }
+   ```
+
+### Phase 5: Post-deployment (Week 5)
+
+1. **Monitoring and Optimization**
+   ```typescript
+   // src/monitoring/performance.ts
+   export async function optimizePerformance() {
+     // 1. Identify slow queries
+     const slowQueries = await analyzeQueryPerformance();
+     
+     // 2. Optimize indexes
+     await optimizeIndexes(slowQueries);
+     
+     // 3. Adjust caching strategy
+     await optimizeCaching();
+   }
+   ```
+
+2. **User Support**
+   ```typescript
+   // src/support/migration.ts
+   export function setupSupportSystem() {
+     // 1. Set up help desk
+     setupHelpDesk({
+       category: 'Database Migration',
+       priority: 'high'
+     });
+     
+     // 2. Create user guides
+     createUserGuides();
+     
+     // 3. Train support team
+     trainSupportTeam();
+   }
+   ```
+
+3. **Cleanup**
+   ```sql
+   -- Remove temporary migration tables
+   DROP TABLE IF EXISTS temp_migration_data;
+   
+   -- Remove old unused indexes
+   DROP INDEX IF EXISTS old_index_name;
+   ```
+
+### Rollback Triggers
+
+1. **Performance Issues**
+   - Query latency > 1000ms
+   - Error rate > 1%
+   - Connection pool exhaustion
+
+2. **Data Issues**
+   - Data inconsistency detected
+   - Failed migrations
+   - Data loss reported
+
+3. **Security Issues**
+   - RLS policy failures
+   - Unauthorized access detected
+   - Data leakage
+
+### Communication Plan
+
+1. **Internal Communication**
+   ```markdown
+   - Daily standup updates
+   - Migration progress reports
+   - Incident response channel
+   ```
+
+2. **User Communication**
+   ```markdown
+   - Maintenance window notification
+   - Progress updates
+   - Post-migration support
+   ```
+
+3. **Stakeholder Updates**
+   ```markdown
+   - Weekly status reports
+   - Performance metrics
+   - ROI analysis
+   ```
+
+### Success Criteria
+
+1. **Technical Metrics**
+   - Zero data loss
+   - Downtime < 30 minutes
+   - Query performance within 10% of baseline
+   - Error rate < 0.1%
+
+2. **User Impact**
+   - No major user-reported issues
+   - Support ticket volume within normal range
+   - User satisfaction maintained
+
+3. **Business Metrics**
+   - All critical business functions operational
+   - No revenue impact
+   - Improved system scalability verified
+
+### Contingency Plans
+
+1. **Technical Issues**
+   ```typescript
+   // scripts/contingency.ts
+   export async function handleTechnicalIssue(
+     issue: TechnicalIssue
+   ) {
+     switch (issue.type) {
+       case 'performance':
+         await scaleResources();
+         break;
+       case 'data':
+         await restoreFromBackup();
+         break;
+       case 'security':
+         await lockdownSystem();
+         break;
+     }
+   }
+   ```
+
+2. **Resource Constraints**
+   ```typescript
+   // scripts/resource-management.ts
+   export async function handleResourceConstraint(
+     constraint: ResourceConstraint
+   ) {
+     switch (constraint.type) {
+       case 'database':
+         await scaleDatabaseResources();
+         break;
+       case 'memory':
+         await optimizeMemoryUsage();
+         break;
+       case 'cpu':
+         await adjustComputeResources();
+         break;
+     }
+   }
+   ```
+
+3. **Support Escalation**
+   ```typescript
+   // src/support/escalation.ts
+   export async function escalateIssue(
+     issue: SupportIssue
+   ) {
+     // 1. Notify relevant team
+     await notifyTeam(issue);
+     
+     // 2. Create incident report
+     await createIncidentReport(issue);
+     
+     // 3. Track resolution
+     await trackResolution(issue);
+   }
+   ```

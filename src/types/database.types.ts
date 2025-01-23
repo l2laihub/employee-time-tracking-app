@@ -1,3 +1,5 @@
+import { UserRole } from './custom.types';
+
 export type Json =
   | string
   | number
@@ -9,9 +11,107 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      organizations: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          name: string
+          slug: string
+          settings: Json
+          branding: {
+            primary_color: string
+            secondary_color: string
+            logo_url: string | null
+            favicon_url: string | null
+            company_name: string | null
+            company_website: string | null
+          }
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          name: string
+          slug: string
+          settings?: Json
+          branding?: Json
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          name?: string
+          slug?: string
+          settings?: Json
+          branding?: Json
+        }
+      }
+      organization_members: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          organization_id: string
+          user_id: string
+          role: string
+          permissions: Json
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          organization_id: string
+          user_id: string
+          role?: string
+          permissions?: Json
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          organization_id?: string
+          user_id?: string
+          role?: string
+          permissions?: Json
+        }
+      }
+      organization_invites: {
+        Row: {
+          id: string
+          organization_id: string
+          email: string
+          role: UserRole
+          invite_code: string
+          created_at: string
+          expires_at: string
+          status: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          email: string
+          role: UserRole
+          invite_code?: string
+          created_at?: string
+          expires_at?: string
+          status?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          email?: string
+          role?: UserRole
+          invite_code?: string
+          created_at?: string
+          expires_at?: string
+          status?: string
+        }
+      }
       profiles: {
         Row: {
           id: string
+          organization_id: string
           first_name: string | null
           last_name: string | null
           avatar_url: string | null
@@ -22,6 +122,7 @@ export interface Database {
         }
         Insert: {
           id: string
+          organization_id: string
           first_name?: string | null
           last_name?: string | null
           avatar_url?: string | null
@@ -32,6 +133,7 @@ export interface Database {
         }
         Update: {
           id?: string
+          organization_id?: string
           first_name?: string | null
           last_name?: string | null
           avatar_url?: string | null
@@ -44,6 +146,7 @@ export interface Database {
       time_entries: {
         Row: {
           id: string
+          organization_id: string
           user_id: string
           start_time: string
           end_time: string | null
@@ -54,6 +157,7 @@ export interface Database {
         }
         Insert: {
           id?: string
+          organization_id: string
           user_id: string
           start_time: string
           end_time?: string | null
@@ -64,6 +168,7 @@ export interface Database {
         }
         Update: {
           id?: string
+          organization_id?: string
           user_id?: string
           start_time?: string
           end_time?: string | null
@@ -76,6 +181,7 @@ export interface Database {
       job_locations: {
         Row: {
           id: string
+          organization_id: string
           name: string
           address: string | null
           latitude: number | null
@@ -85,6 +191,7 @@ export interface Database {
         }
         Insert: {
           id?: string
+          organization_id: string
           name: string
           address?: string | null
           latitude?: number | null
@@ -94,6 +201,7 @@ export interface Database {
         }
         Update: {
           id?: string
+          organization_id?: string
           name?: string
           address?: string | null
           latitude?: number | null
@@ -105,6 +213,7 @@ export interface Database {
       pto_requests: {
         Row: {
           id: string
+          organization_id: string
           user_id: string
           start_date: string
           end_date: string
@@ -115,6 +224,7 @@ export interface Database {
         }
         Insert: {
           id?: string
+          organization_id: string
           user_id: string
           start_date: string
           end_date: string
@@ -125,6 +235,7 @@ export interface Database {
         }
         Update: {
           id?: string
+          organization_id?: string
           user_id?: string
           start_date?: string
           end_date?: string
@@ -137,6 +248,7 @@ export interface Database {
       timesheets: {
         Row: {
           id: string
+          organization_id: string
           user_id: string
           period_start: string
           period_end: string
@@ -148,6 +260,7 @@ export interface Database {
         }
         Insert: {
           id?: string
+          organization_id: string
           user_id: string
           period_start: string
           period_end: string
@@ -159,6 +272,7 @@ export interface Database {
         }
         Update: {
           id?: string
+          organization_id?: string
           user_id?: string
           period_start?: string
           period_end?: string
@@ -169,6 +283,67 @@ export interface Database {
           approved_at?: string | null
         }
       }
+      api_keys: {
+        Row: {
+          id: string
+          organization_id: string
+          name: string
+          key_hash: string
+          scope: string[]
+          last_used_at: string | null
+          created_at: string
+          expires_at: string | null
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          name: string
+          key_hash: string
+          scope?: string[]
+          last_used_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          name?: string
+          key_hash?: string
+          scope?: string[]
+          last_used_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+        }
+      }
+      organization_metrics: {
+        Row: {
+          id: string
+          organization_id: string
+          active_users: number
+          time_entries: number
+          storage_used: number
+          api_calls: number
+          timestamp: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          active_users?: number
+          time_entries?: number
+          storage_used?: number
+          api_calls?: number
+          timestamp?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          active_users?: number
+          time_entries?: number
+          storage_used?: number
+          api_calls?: number
+          timestamp?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -177,7 +352,7 @@ export interface Database {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      user_role: 'admin' | 'member'
     }
   }
 }

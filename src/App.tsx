@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
+import { OrganizationProvider } from './contexts/OrganizationContext';
+import { BrandingProvider } from './contexts/BrandingContext';
 import { TimeEntryProvider } from './contexts/TimeEntryContext';
 import { EmployeeProvider } from './contexts/EmployeeContext';
 import { PTOProvider } from './contexts/PTOContext';
@@ -11,14 +13,18 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <TimeEntryProvider>
-          <EmployeeProvider>
-            <PTOProvider>
-              <Toaster position="top-right" />
-              <AppRoutes />
-            </PTOProvider>
-          </EmployeeProvider>
-        </TimeEntryProvider>
+        <OrganizationProvider>
+          <BrandingProvider>
+            <TimeEntryProvider>
+              <EmployeeProvider>
+                <PTOProvider>
+                  <Toaster position="top-right" />
+                  <AppRoutes />
+                </PTOProvider>
+              </EmployeeProvider>
+            </TimeEntryProvider>
+          </BrandingProvider>
+        </OrganizationProvider>
       </AuthProvider>
     </BrowserRouter>
   );

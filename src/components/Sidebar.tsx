@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useOrganization } from '../contexts/OrganizationContext';
 import { 
   LayoutDashboard, 
   Clock, 
@@ -10,7 +11,9 @@ import {
   Users,
   Calendar,
   LogOut,
-  X 
+  X,
+  Settings,
+  UserPlus
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -19,8 +22,9 @@ interface SidebarProps {
 
 export default function Sidebar({ onClose }: SidebarProps) {
   const location = useLocation();
-  const { signOut, user } = useAuth();
-  const isAdmin = user?.role === 'admin' || user?.role === 'manager';
+  const { signOut } = useAuth();
+  const { userRole } = useOrganization();
+  const isAdmin = userRole === 'admin' || userRole === 'manager';
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -31,7 +35,11 @@ export default function Sidebar({ onClose }: SidebarProps) {
       { name: 'Employees', href: '/employees', icon: Users }
     ] : []),
     { name: 'Timesheets', href: '/timesheets', icon: FileText },
-    ...(isAdmin ? [{ name: 'Reports', href: '/reports', icon: BarChart2 }] : []),
+    ...(isAdmin ? [
+      { name: 'Reports', href: '/reports', icon: BarChart2 },
+      { name: 'Organization Settings', href: '/settings', icon: Settings },
+      { name: 'Manage Invites', href: '/invites', icon: UserPlus }
+    ] : []),
   ];
 
   const isActive = (path: string) => {
@@ -86,8 +94,8 @@ export default function Sidebar({ onClose }: SidebarProps) {
         <div className="flex-shrink-0 w-full group">
           <div className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50">
             <div className="truncate">
-              <p className="text-sm font-medium text-gray-700">{user?.first_name} {user?.last_name}</p>
-              <p className="text-xs font-medium text-gray-500 truncate capitalize">{user?.role}</p>
+              <p className="text-sm font-medium text-gray-700">{userRole}</p>
+              <p className="text-xs font-medium text-gray-500 truncate capitalize">{userRole}</p>
             </div>
             <button
               onClick={() => signOut()}
