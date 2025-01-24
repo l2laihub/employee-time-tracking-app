@@ -37,6 +37,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     console.log('fetchUserOrganization called:', {
       authLoading,
       userId: user?.id,
+      userEmail: user?.email?.toLowerCase(),
       currentOrg: organization?.id,
       currentRole: userRole
     });
@@ -58,56 +59,74 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       console.log('Fetching organization for user:', user.id);
       setIsLoading(true);
 
-      // Get user's organization membership and organization details
-      const { data: memberData, error: memberError } = await supabase
-        .from('organization_members')
-        .select(`
-          id,
-          organization_id,
-          user_id,
-          role::text,
-          permissions,
-          created_at,
-          organization:organizations!organization_id (
+      // Get user's organization membership and organization details with retries
+      let memberData = null;
+      let retryCount = 0;
+      const maxRetries = 3;
+      const retryDelay = 1000; // 1 second
+
+      while (!memberData && retryCount < maxRetries) {
+        const { data, error } = await supabase
+          .from('organization_members')
+          .select(`
             id,
-            name,
-            slug,
+            organization_id,
+            user_id,
+            role::text,
+            permissions,
             created_at,
-            updated_at,
-            branding,
-            settings
-          )
-        `)
-        .eq('user_id', user.id)
-        .maybeSingle();
+            organization:organizations (
+              id,
+              name,
+              slug,
+              created_at,
+              updated_at,
+              branding,
+              settings
+            )
+          `)
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-      console.log('Organization member data:', memberData);
-      console.log('Organization member error:', memberError);
+        console.log(`Member data check (attempt ${retryCount + 1}/${maxRetries}):`, { data, error });
 
-      // Only throw error if it's not a "no rows" error
-      if (memberError && memberError.code !== 'PGRST116') {
-        console.error('Member error details:', {
-          code: memberError.code,
-          message: memberError.message,
-          details: memberError.details,
-          hint: memberError.hint
-        });
-        throw memberError;
+        // Only throw error if it's not a "no rows" error
+        if (error && error.code !== 'PGRST116') {
+          console.error('Member error details:', {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint
+          });
+          throw error;
+        }
+
+        if (data) {
+          memberData = data;
+          break;
+        }
+
+        retryCount++;
+        if (retryCount < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
       }
 
       if (memberData) {
-        console.log('Setting organization:', memberData.organization);
-        console.log('Setting user role:', memberData.role);
+        console.log('Setting organization and role from membership:', {
+          org: memberData.organization,
+          role: memberData.role
+        });
         setOrganization(memberData.organization);
         setUserRole(memberData.role as UserRole);
+        setError(null);
       } else {
-        console.log('No organization found for user');
+        console.log('No organization found after retries');
         setOrganization(null);
         setUserRole(null);
       }
-      setError(null);
     } catch (err) {
-      console.error('Error fetching organization:', err);
+      console.error('Error in fetchUserOrganization:', err);
       if (err instanceof Error) {
         console.error('Error details:', {
           name: err.name,
@@ -168,7 +187,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           role::text,
           permissions,
           created_at,
-          organization:organizations!organization_id (
+          organization:organizations (
             id,
             name,
             slug,
@@ -287,7 +306,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       // Get invite details
       const { data: invite, error: inviteError } = await supabase
         .from('organization_invites')
-        .select('*, organizations(*)')
+        .select('*, organization:organizations (*)')
         .eq('invite_code', inviteCode)
         .single();
 
@@ -323,10 +342,10 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
       await sendWelcomeEmail({
         to: user.email,
-        organizationName: invite.organizations.name,
+        organizationName: invite.organization.name,
       });
 
-      setOrganization(invite.organizations);
+      setOrganization(invite.organization);
       setUserRole(invite.role);
     } catch (err) {
       throw err instanceof Error ? err : new Error('Failed to accept invite');

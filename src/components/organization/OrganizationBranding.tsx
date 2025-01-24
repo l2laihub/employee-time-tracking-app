@@ -49,25 +49,62 @@ export function OrganizationBranding() {
     setError(null);
 
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${type}-${organization.id}.${fileExt}`;
-      const filePath = `organizations/${organization.id}/${fileName}`;
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        throw new Error('File size must be less than 2MB');
+      }
 
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/svg+xml'];
+      if (!validTypes.includes(file.type)) {
+        throw new Error('File must be an image (JPEG, PNG, GIF, or SVG)');
+      }
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${organization.id}/${type}/${type}-${Date.now()}.${fileExt}`;
+
+      // First, try to delete the old file if it exists
+      if (formData[type === 'logo' ? 'logo_url' : 'favicon_url']) {
+        try {
+          const oldUrl = formData[type === 'logo' ? 'logo_url' : 'favicon_url']!;
+          const oldPath = oldUrl.split('/').slice(-3).join('/'); // Get org_id/type/filename
+          await supabase.storage
+            .from('branding')
+            .remove([oldPath]);
+        } catch (err) {
+          console.warn('Failed to delete old file:', err);
+          // Continue with upload even if delete fails
+        }
+      }
+
+      // Upload the new file
       const { error: uploadError, data } = await supabase.storage
         .from('branding')
-        .upload(filePath, file, { upsert: true });
+        .upload(fileName, file, { 
+          upsert: true,
+          contentType: file.type,
+          cacheControl: '3600'
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw new Error(uploadError.message);
+      }
 
+      // Get the public URL
       const { data: { publicUrl } } = supabase.storage
         .from('branding')
-        .getPublicUrl(filePath);
+        .getPublicUrl(fileName);
 
+      // Update the form data with the new URL
       setFormData(prev => ({
         ...prev,
         [type === 'logo' ? 'logo_url' : 'favicon_url']: publicUrl,
       }));
+
+      setSuccess(`${type.charAt(0).toUpperCase() + type.slice(1)} uploaded successfully`);
     } catch (err) {
+      console.error('Upload error:', err);
       setError(err instanceof Error ? err.message : 'Failed to upload file');
     } finally {
       setIsUploading(false);

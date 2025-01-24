@@ -8,7 +8,9 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
+  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{
+    error: Error | null;
+  }>;
   signOut: () => Promise<void>;
 }
 
@@ -67,10 +69,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) throw error;
-      toast.success('Check your email for the confirmation link!');
-      navigate('/login');
+      return { error: null };
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error signing up');
+      console.error('Sign up error:', error);
+      return { error: error instanceof Error ? error : new Error('Error signing up') };
     } finally {
       setLoading(false);
     }

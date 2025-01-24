@@ -37,8 +37,8 @@ export default function Sidebar({ onClose }: SidebarProps) {
     { name: 'Timesheets', href: '/timesheets', icon: FileText },
     ...(isAdmin ? [
       { name: 'Reports', href: '/reports', icon: BarChart2 },
-      { name: 'Organization Settings', href: '/settings', icon: Settings },
-      { name: 'Manage Invites', href: '/invites', icon: UserPlus }
+      { name: 'Organization Settings', href: '/admin/settings', icon: Settings },
+      { name: 'Manage Invites', href: '/admin/invites', icon: UserPlus }
     ] : []),
   ];
 

@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { useOrganization } from '../contexts/OrganizationContext';
-import { ManageInvites } from '../components/organization/ManageInvites';
 import { OrganizationMetrics } from '../components/organization/OrganizationMetrics';
 import { OrganizationBranding } from '../components/organization/OrganizationBranding';
 
 export default function OrganizationSettings() {
   const { organization, userRole } = useOrganization();
-  const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'metrics' | 'branding'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'metrics' | 'branding'>('overview');
 
   if (!organization || userRole !== 'admin') {
     return <div>You don't have permission to access this page.</div>;
@@ -35,16 +34,6 @@ export default function OrganizationSettings() {
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
             >
               Overview
-            </button>
-            <button
-              onClick={() => setActiveTab('members')}
-              className={`${
-                activeTab === 'members'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
-              Members
             </button>
             <button
               onClick={() => setActiveTab('metrics')}
@@ -100,18 +89,8 @@ export default function OrganizationSettings() {
               </div>
             </div>
           )}
-
-          {activeTab === 'members' && (
-            <ManageInvites />
-          )}
-
-          {activeTab === 'metrics' && (
-            <OrganizationMetrics />
-          )}
-
-          {activeTab === 'branding' && (
-            <OrganizationBranding />
-          )}
+          {activeTab === 'metrics' && <OrganizationMetrics />}
+          {activeTab === 'branding' && <OrganizationBranding />}
         </div>
       </div>
     </div>
