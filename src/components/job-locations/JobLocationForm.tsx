@@ -1,170 +1,250 @@
 import React from 'react';
-import { X } from 'lucide-react';
-import type { JobLocation } from '../../lib/types';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import * as Dialog from '@radix-ui/react-dialog';
+import type { JobLocationFormData } from '../../lib/types';
+
+const formSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  type: z.enum(['commercial', 'residential']),
+  service_type: z.enum(['hvac', 'plumbing', 'both']),
+  is_active: z.boolean(),
+  address: z.string(),
+  city: z.string(),
+  state: z.string(),
+  zip: z.string(),
+});
 
 interface JobLocationFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (location: Omit<JobLocation, 'id'>) => void;
-  initialData?: JobLocation;
+  onSubmit: (data: JobLocationFormData) => void;
+  initialData?: JobLocationFormData;
 }
 
-export default function JobLocationForm({ 
-  isOpen, 
-  onClose, 
-  onSubmit,
-  initialData 
-}: JobLocationFormProps) {
-  const [formData, setFormData] = React.useState({
-    name: initialData?.name || '',
-    type: initialData?.type || 'commercial',
-    address: initialData?.address || '',
-    city: initialData?.city || '',
-    state: initialData?.state || '',
-    zip: initialData?.zip || '',
-    serviceType: initialData?.serviceType || 'hvac',
-    isActive: initialData?.isActive ?? true
+export default function JobLocationForm({ isOpen, onClose, onSubmit, initialData }: JobLocationFormProps) {
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<JobLocationFormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: '',
+      type: 'commercial',
+      service_type: 'both',
+      is_active: true,
+      address: '',
+      city: '',
+      state: '',
+      zip: '',
+      ...initialData,
+    },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(formData);
+  const onSubmitForm = (data: JobLocationFormData) => {
+    onSubmit(data);
+    reset();
   };
 
-  if (!isOpen) return null;
+  React.useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        console.log('Setting form values with initial data:', initialData);
+        reset(initialData);
+      } else {
+        console.log('Resetting form to default values');
+        reset({
+          name: '',
+          type: 'commercial',
+          service_type: 'both',
+          is_active: true,
+          address: '',
+          city: '',
+          state: '',
+          zip: '',
+        });
+      }
+    }
+  }, [isOpen, initialData, reset]);
+
+  const description = initialData 
+    ? 'Update the details of this job location.' 
+    : 'Fill in the details to add a new job location.';
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg w-full max-w-lg">
-        <div className="flex justify-between items-center p-4 sm:p-6 border-b">
-          <h3 className="text-lg font-semibold">
-            {initialData ? 'Edit' : 'Add New'} Job Location
-          </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/50" />
+        <Dialog.Content 
+          className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] bg-white rounded-lg p-6 w-full max-w-md"
+          aria-describedby="location-form-description"
+        >
+          <Dialog.Description className="sr-only">
+            {initialData 
+              ? 'Form to edit an existing job location.' 
+              : 'Form to add a new job location.'
+            }
+          </Dialog.Description>
 
-        <form onSubmit={handleSubmit}>
-          <div className="p-4 sm:p-6 space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Name</label>
+          <div className="flex justify-between items-center mb-4">
+            <Dialog.Title className="text-lg font-semibold">
+              {initialData ? 'Edit' : 'Add'} Job Location
+            </Dialog.Title>
+            <Dialog.Close className="text-gray-400 hover:text-gray-600">
+              <span className="sr-only">Close</span>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </Dialog.Close>
+          </div>
+
+          <p id="location-form-description" className="text-sm text-gray-500 mb-4">
+            {description}
+          </p>
+          
+          <form onSubmit={handleSubmit(onSubmitForm)} className="space-y-4">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Name
+              </label>
               <input
                 type="text"
-                value={formData.name}
-                onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                required
+                {...register('name')}
+                className="w-full px-3 py-2 border rounded-md"
+                placeholder="Enter location name"
               />
+              {errors.name && (
+                <p className="text-sm text-red-500">{errors.name.message}</p>
+              )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Type</label>
-                <select
-                  value={formData.type}
-                  onChange={e => setFormData(prev => ({ ...prev, type: e.target.value as 'commercial' | 'residential' }))}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                >
-                  <option value="commercial">Commercial</option>
-                  <option value="residential">Residential</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Service Type</label>
-                <select
-                  value={formData.serviceType}
-                  onChange={e => setFormData(prev => ({ ...prev, serviceType: e.target.value as 'hvac' | 'plumbing' | 'both' }))}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                >
-                  <option value="hvac">HVAC</option>
-                  <option value="plumbing">Plumbing</option>
-                  <option value="both">Both</option>
-                </select>
-              </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Type
+              </label>
+              <select
+                {...register('type')}
+                className="w-full px-3 py-2 border rounded-md"
+              >
+                <option value="commercial">Commercial</option>
+                <option value="residential">Residential</option>
+              </select>
+              {errors.type && (
+                <p className="text-sm text-red-500">{errors.type.message}</p>
+              )}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Address</label>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Service Type
+              </label>
+              <select
+                {...register('service_type')}
+                className="w-full px-3 py-2 border rounded-md"
+              >
+                <option value="hvac">HVAC</option>
+                <option value="plumbing">Plumbing</option>
+                <option value="both">Both</option>
+              </select>
+              {errors.service_type && (
+                <p className="text-sm text-red-500">{errors.service_type.message}</p>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                {...register('is_active')}
+                className="rounded border-gray-300"
+              />
+              <label className="text-sm font-medium text-gray-700">
+                Active
+              </label>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Address
+              </label>
               <input
                 type="text"
-                value={formData.address}
-                onChange={e => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                required
+                {...register('address')}
+                className="w-full px-3 py-2 border rounded-md"
+                placeholder="Enter address"
               />
+              {errors.address && (
+                <p className="text-sm text-red-500">{errors.address.message}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">City</label>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  City
+                </label>
                 <input
                   type="text"
-                  value={formData.city}
-                  onChange={e => setFormData(prev => ({ ...prev, city: e.target.value }))}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  required
+                  {...register('city')}
+                  className="w-full px-3 py-2 border rounded-md"
+                  placeholder="City"
                 />
+                {errors.city && (
+                  <p className="text-sm text-red-500">{errors.city.message}</p>
+                )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">State</label>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  State
+                </label>
                 <input
                   type="text"
-                  value={formData.state}
-                  onChange={e => setFormData(prev => ({ ...prev, state: e.target.value }))}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  required
+                  {...register('state')}
+                  className="w-full px-3 py-2 border rounded-md"
+                  placeholder="State"
                 />
+                {errors.state && (
+                  <p className="text-sm text-red-500">{errors.state.message}</p>
+                )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">ZIP</label>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  ZIP
+                </label>
                 <input
                   type="text"
-                  value={formData.zip}
-                  onChange={e => setFormData(prev => ({ ...prev, zip: e.target.value }))}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  required
+                  {...register('zip')}
+                  className="w-full px-3 py-2 border rounded-md"
+                  placeholder="ZIP"
                 />
+                {errors.zip && (
+                  <p className="text-sm text-red-500">{errors.zip.message}</p>
+                )}
               </div>
             </div>
 
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="isActive"
-                checked={formData.isActive}
-                onChange={e => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
-                Active Location
-              </label>
-            </div>
-          </div>
-
-          {/* Fixed bottom action buttons */}
-          <div className="border-t p-4 sm:p-6 bg-white sticky bottom-0 rounded-b-lg">
-            <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3 space-y-3 space-y-reverse sm:space-y-0">
+            <div className="flex justify-end space-x-4 pt-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
               >
-                {initialData ? 'Save Changes' : 'Add Location'}
+                {initialData ? 'Update' : 'Add'} Location
               </button>
             </div>
-          </div>
-        </form>
-      </div>
-    </div>
+          </form>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

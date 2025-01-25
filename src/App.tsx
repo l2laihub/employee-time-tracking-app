@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
+import { Toaster } from 'sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import { OrganizationProvider } from './contexts/OrganizationContext';
 import { BrandingProvider } from './contexts/BrandingContext';
@@ -18,7 +18,7 @@ export default function App() {
             <TimeEntryProvider>
               <EmployeeProvider>
                 <PTOProvider>
-                  <Toaster position="top-right" />
+                  <Toaster position="top-right" expand={true} richColors />
                   <AppRoutes />
                 </PTOProvider>
               </EmployeeProvider>

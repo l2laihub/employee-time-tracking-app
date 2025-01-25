@@ -67,20 +67,20 @@ export default function JobLocationList({ locations, onEdit, onDelete }: JobLoca
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                  location.serviceType === 'both'
+                  location.service_type === 'both'
                     ? 'bg-purple-100 text-purple-800'
-                    : location.serviceType === 'hvac'
+                    : location.service_type === 'hvac'
                     ? 'bg-blue-100 text-blue-800'
                     : 'bg-green-100 text-green-800'
                 }`}>
-                  {location.serviceType === 'both' ? 'HVAC & Plumbing' : location.serviceType.toUpperCase()}
+                  {location.service_type === 'both' ? 'HVAC & Plumbing' : location.service_type.toUpperCase()}
                 </span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                  location.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  location.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                 }`}>
-                  {location.isActive ? 'Active' : 'Inactive'}
+                  {location.is_active ? 'Active' : 'Inactive'}
                 </span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

@@ -23,9 +23,10 @@ interface OrganizationContextType {
   acceptInvite: (inviteCode: string) => Promise<void>;
 }
 
-const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
+export const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
 
 export function OrganizationProvider({ children }: { children: React.ReactNode }) {
+  console.log('Initializing OrganizationProvider...');
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);

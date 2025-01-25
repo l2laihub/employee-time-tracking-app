@@ -1,13 +1,24 @@
-export interface TimeEntry {
-  id: string;
-  userId: string;
-  jobLocationId: string;
-  clockIn: string;
-  clockOut: string | null;
-  serviceType: 'hvac' | 'plumbing' | 'both';
-  workDescription: string;
-  status: 'completed' | 'in-progress';
-}
+import type { Database } from './database.types';
+
+export type JobLocation = Database['public']['Tables']['job_locations']['Row'];
+export type TimeEntry = Database['public']['Tables']['time_entries']['Row'];
+export type Organization = Database['public']['Tables']['organizations']['Row'];
+export type OrganizationMember = Database['public']['Tables']['organization_members']['Row'];
+export type OrganizationInvite = Database['public']['Tables']['organization_invites']['Row'];
+export type Profile = Database['public']['Tables']['profiles']['Row'];
+
+export type UserRole = 'owner' | 'admin' | 'member';
+
+export type JobLocationFormData = {
+  name: string;
+  type: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  service_type: string;
+  is_active: boolean;
+};
 
 export interface TimesheetEntry {
   id: string;
@@ -22,18 +33,6 @@ export interface TimesheetEntry {
   submittedAt?: string;
   reviewedBy: string | null;
   reviewedAt: string | null;
-}
-
-export interface JobLocation {
-  id: string;
-  name: string;
-  type: 'commercial' | 'residential';
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  serviceType: 'hvac' | 'plumbing' | 'both';
-  isActive: boolean;
 }
 
 export type PTOType = 'vacation' | 'sick_leave';

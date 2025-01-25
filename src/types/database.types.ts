@@ -143,71 +143,86 @@ export interface Database {
           updated_at?: string
         }
       }
-      time_entries: {
-        Row: {
-          id: string
-          organization_id: string
-          user_id: string
-          start_time: string
-          end_time: string | null
-          break_duration: number
-          job_location_id: string | null
-          notes: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          organization_id: string
-          user_id: string
-          start_time: string
-          end_time?: string | null
-          break_duration?: number
-          job_location_id?: string | null
-          notes?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          organization_id?: string
-          user_id?: string
-          start_time?: string
-          end_time?: string | null
-          break_duration?: number
-          job_location_id?: string | null
-          notes?: string | null
-          created_at?: string
-        }
-      }
       job_locations: {
         Row: {
           id: string
           organization_id: string
           name: string
+          type: string
           address: string | null
-          latitude: number | null
-          longitude: number | null
-          radius: number | null
+          city: string | null
+          state: string | null
+          zip: string | null
+          service_type: string
+          is_active: boolean
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           organization_id: string
           name: string
+          type: string
           address?: string | null
-          latitude?: number | null
-          longitude?: number | null
-          radius?: number | null
+          city?: string | null
+          state?: string | null
+          zip?: string | null
+          service_type: string
+          is_active?: boolean
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           organization_id?: string
           name?: string
+          type?: string
           address?: string | null
-          latitude?: number | null
-          longitude?: number | null
-          radius?: number | null
+          city?: string | null
+          state?: string | null
+          zip?: string | null
+          service_type?: string
+          is_active?: boolean
           created_at?: string
+          updated_at?: string
+        }
+      }
+      time_entries: {
+        Row: {
+          id: string
+          organization_id: string
+          user_id: string
+          job_location_id: string
+          start_time: string
+          end_time: string | null
+          break_duration: number | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          user_id: string
+          job_location_id: string
+          start_time: string
+          end_time?: string | null
+          break_duration?: number | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          user_id?: string
+          job_location_id?: string
+          start_time?: string
+          end_time?: string | null
+          break_duration?: number | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
         }
       }
       pto_requests: {

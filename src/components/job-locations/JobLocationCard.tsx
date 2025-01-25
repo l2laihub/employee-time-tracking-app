@@ -28,7 +28,7 @@ export default function JobLocationCard({ location, onEdit, onDelete }: JobLocat
           }`}>
             {location.type}
           </span>
-          {!location.isActive && (
+          {!location.is_active && (
             <span className="px-3 py-1 rounded-full text-xs bg-red-100 text-red-800">
               Inactive
             </span>
@@ -47,9 +47,9 @@ export default function JobLocationCard({ location, onEdit, onDelete }: JobLocat
         <div className="flex items-center">
           <Wrench className="w-4 h-4 text-gray-400 mr-2" />
           <p className="text-gray-600 capitalize">
-            {location.serviceType === 'both' 
+            {location.service_type === 'both' 
               ? 'HVAC & Plumbing' 
-              : location.serviceType.toUpperCase()}
+              : location.service_type.toUpperCase()}
           </p>
         </div>
       </div>

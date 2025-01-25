@@ -18,19 +18,29 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
 // Organization-aware client wrapper
 export class OrganizationClient {
   private client: SupabaseClient<Database>;
-  private organizationId: string;
+  private _organizationId: string;
 
   constructor(organizationId: string) {
     this.client = supabase;
-    this.organizationId = organizationId;
+    this._organizationId = organizationId;
+  }
+
+  get organizationId() {
+    return this._organizationId;
   }
 
   // Helper to automatically inject organization_id in queries
   from<T extends keyof Database['public']['Tables']>(table: T) {
     return this.client
       .from(table)
-      .select()
-      .eq('organization_id', this.organizationId);
+      .select('*')
+      .eq('organization_id', this._organizationId);
+  }
+
+  // Helper for custom select queries
+  query<T extends keyof Database['public']['Tables']>(table: T) {
+    const query = this.client.from(table);
+    return query.eq('organization_id', this._organizationId);
   }
 
   // Insert with automatic organization_id
@@ -38,10 +48,13 @@ export class OrganizationClient {
     table: T,
     data: Omit<Database['public']['Tables'][T]['Insert'], 'organization_id'>
   ) {
-    return this.client.from(table).insert({
+    console.log('Inserting with organization_id:', this._organizationId);
+    const result = await this.client.from(table).insert({
       ...data,
-      organization_id: this.organizationId,
-    });
+      organization_id: this._organizationId,
+    }).select();
+    console.log('Insert result:', result);
+    return result;
   }
 
   // Update with organization_id check
@@ -54,7 +67,8 @@ export class OrganizationClient {
       .from(table)
       .update(data)
       .eq('id', id)
-      .eq('organization_id', this.organizationId);
+      .eq('organization_id', this._organizationId)
+      .select();
   }
 
   // Delete with organization_id check
@@ -63,7 +77,7 @@ export class OrganizationClient {
       .from(table)
       .delete()
       .eq('id', id)
-      .eq('organization_id', this.organizationId);
+      .eq('organization_id', this._organizationId);
   }
 
   // Organization-specific real-time subscriptions
@@ -71,15 +85,16 @@ export class OrganizationClient {
     table: T,
     callback: (payload: any) => void
   ) {
+    console.log('Setting up subscription for:', { table, organizationId: this._organizationId });
     return this.client
-      .channel(`org_${this.organizationId}_${table}`)
+      .channel(`org_${this._organizationId}_${table}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: table,
-          filter: `organization_id=eq.${this.organizationId}`,
+          filter: `organization_id=eq.${this._organizationId}`,
         },
         callback
       )
