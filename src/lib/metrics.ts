@@ -29,16 +29,29 @@ export async function getOrganizationMetrics(organizationId: string, startDate?:
     // Get time entries
     const { data: timeEntries, error: timeEntriesError } = await supabase
       .from('time_entries')
-      .select(`
-        *,
-        job_locations (name),
-        profiles (email)
-      `)
+      .select('*')
       .eq('organization_id', organizationId)
       .gte('start_time', timeRange.gte)
       .lte('end_time', timeRange.lte);
 
     if (timeEntriesError) throw timeEntriesError;
+
+    // Get user emails for the time entries
+    const userIds = [...new Set(timeEntries.map(entry => entry.user_id))];
+    const { data: users } = await supabase
+      .from('users')
+      .select('id, email')
+      .in('id', userIds);
+
+    // Get job locations for the time entries
+    const locationIds = [...new Set(timeEntries.map(entry => entry.job_location_id).filter(Boolean))];
+    const { data: locations } = await supabase
+      .from('job_location')
+      .select('id, name')
+      .in('id', locationIds);
+
+    const userEmailMap = new Map(users?.map(user => [user.id, user.email]) || []);
+    const locationNameMap = new Map(locations?.map(loc => [loc.id, loc.name]) || []);
 
     // Calculate total hours
     const totalHours = timeEntries.reduce((total, entry) => {
@@ -49,7 +62,7 @@ export async function getOrganizationMetrics(organizationId: string, startDate?:
     // Calculate job location distribution
     const locationMap = new Map<string, number>();
     timeEntries.forEach(entry => {
-      const locationName = entry.job_locations?.name || 'Unknown';
+      const locationName = entry.job_location_id ? locationNameMap.get(entry.job_location_id) || 'Unknown' : 'No Location';
       const duration = new Date(entry.end_time).getTime() - new Date(entry.start_time).getTime();
       const hours = duration / (1000 * 60 * 60);
       locationMap.set(locationName, (locationMap.get(locationName) || 0) + hours);
@@ -58,7 +71,7 @@ export async function getOrganizationMetrics(organizationId: string, startDate?:
     // Calculate user activity distribution
     const userMap = new Map<string, number>();
     timeEntries.forEach(entry => {
-      const userEmail = entry.profiles?.email || 'Unknown';
+      const userEmail = userEmailMap.get(entry.user_id) || 'Unknown';
       const duration = new Date(entry.end_time).getTime() - new Date(entry.start_time).getTime();
       const hours = duration / (1000 * 60 * 60);
       userMap.set(userEmail, (userMap.get(userEmail) || 0) + hours);
