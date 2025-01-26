@@ -35,6 +35,32 @@ export async function getCurrentUser() {
   }
 }
 
+export interface InviteValidationResult {
+  valid: boolean
+  orgId?: string
+  error?: string
+}
+
+export async function validateInviteToken(token: string): Promise<InviteValidationResult> {
+  try {
+    const { data, error } = await supabase.rpc('validate_invite_token', {
+      token
+    })
+
+    if (error) {
+      return { valid: false, error: error.message }
+    }
+
+    return { 
+      valid: true,
+      orgId: data?.organization_id
+    }
+  } catch (error) {
+    console.error('Invite validation error:', error)
+    return { valid: false, error: 'Failed to validate invitation' }
+  }
+}
+
 export async function signInUser(email: string, password: string) {
   try {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
