@@ -1,16 +1,18 @@
 import { supabase } from '../lib/supabase'
 
 export interface Location {
-  id: string
-  name: string
-  address: string
-  latitude: number
-  longitude: number
-  radius: number // Geofence radius in meters
-  organization_id: string
-  is_active: boolean
-  created_at: string
-  updated_at: string
+  id: string;
+  name: string;
+  type: 'commercial' | 'residential';
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  service_type: 'hvac' | 'plumbing' | 'both';
+  organization_id: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface LocationAssignment {
@@ -103,14 +105,19 @@ export async function updateLocation(
 
 export async function listLocations(organizationId: string): Promise<LocationResult> {
   try {
+    console.log('Fetching locations for organization:', organizationId);
     const { data, error } = await supabase
       .from('job_locations')
-      .select('*')
+      .select('id, name, type, address, city, state, zip, service_type, organization_id, is_active, created_at, updated_at')
       .eq('organization_id', organizationId)
       .eq('is_active', true);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching locations:', error);
+      throw error;
+    }
 
+    console.log('Fetched locations:', data);
     return {
       success: true,
       data: data as Location[]

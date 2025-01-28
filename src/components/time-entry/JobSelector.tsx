@@ -1,15 +1,16 @@
 import React from 'react';
-import { JobLocation } from '../../lib/types';
+import type { JobLocation } from '../../lib/types';
 import { Building2, Home, MapPin } from 'lucide-react';
 
 interface JobSelectorProps {
   jobs: JobLocation[];
   selectedJobId: string | null;
   onSelect: (jobId: string) => void;
+  disabled?: boolean;
 }
 
-export default function JobSelector({ jobs, selectedJobId, onSelect }: JobSelectorProps) {
-  const activeJobs = jobs.filter(job => job.isActive);
+export default function JobSelector({ jobs, selectedJobId, onSelect, disabled }: JobSelectorProps) {
+  const activeJobs = jobs.filter(job => job.is_active);
 
   return (
     <div className="space-y-4">
@@ -18,7 +19,10 @@ export default function JobSelector({ jobs, selectedJobId, onSelect }: JobSelect
         <select
           value={selectedJobId || ''}
           onChange={(e) => onSelect(e.target.value)}
-          className="block w-full pl-10 pr-4 py-2.5 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-lg"
+          disabled={disabled}
+          className={`block w-full pl-10 pr-4 py-2.5 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-lg ${
+            disabled ? 'bg-gray-100 cursor-not-allowed' : ''
+          }`}
         >
           <option value="">Select a location to clock in...</option>
           {activeJobs.map(job => (
@@ -49,20 +53,14 @@ export default function JobSelector({ jobs, selectedJobId, onSelect }: JobSelect
                   <h4 className="font-medium text-gray-900">{selectedJob.name}</h4>
                 </div>
                 <p className="text-sm text-gray-600 ml-7">
-                  {selectedJob.address}, {selectedJob.city}, {selectedJob.state} {selectedJob.zip}
+                  {selectedJob.address}
+                  {selectedJob.city && selectedJob.state && (
+                    <span>
+                      <br />
+                      {selectedJob.city}, {selectedJob.state} {selectedJob.zip}
+                    </span>
+                  )}
                 </p>
-                <div className="ml-7">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize
-                    ${selectedJob.serviceType === 'both' 
-                      ? 'bg-purple-100 text-purple-800'
-                      : selectedJob.serviceType === 'hvac'
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-green-100 text-green-800'
-                    }`}
-                  >
-                    {selectedJob.serviceType === 'both' ? 'HVAC & Plumbing' : selectedJob.serviceType.toUpperCase()}
-                  </span>
-                </div>
               </div>
             );
           })()}

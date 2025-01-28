@@ -161,7 +161,7 @@ describe('job locations service', () => {
       expect(result.success).toBe(true);
       expect(Array.isArray(result.data)).toBe(true);
       expect(result.data).toContainEqual(mockLocation);
-      expect(mockQueryBuilder.select).toHaveBeenCalledWith('*');
+      expect(mockQueryBuilder.select).toHaveBeenCalledWith('id, name, type, address, city, state, zip, service_type, organization_id, is_active, created_at, updated_at');
       expect(mockQueryBuilder.eq).toHaveBeenCalledWith('organization_id', 'org-123');
       expect(mockQueryBuilder.eq).toHaveBeenCalledWith('is_active', true);
     })

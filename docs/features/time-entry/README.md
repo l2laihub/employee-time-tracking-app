@@ -399,3 +399,81 @@ async function generateTimeReport(
   };
 }
 ```
+
+### Time Entry Feature
+
+## Overview
+
+The Time Entry feature enables employees to track their work hours accurately, manage breaks, and associate their time with specific job locations. This feature is fundamental for organizations requiring precise time tracking, break management, and location-based verification of work hours.
+
+## Documentation Structure
+
+1. [Architecture](./architecture.md)
+   - Service design and components
+   - Data structures
+   - Integration points
+
+2. [Core Features](./core-features.md)
+   - Time entry management
+   - Break handling
+   - Location verification
+   - Notes and descriptions
+
+3. [Implementation](./implementation.md)
+   - Code examples
+   - Error handling
+   - Performance considerations
+
+4. [Security & Best Practices](./security.md)
+   - Access control
+   - Data protection
+   - Usage guidelines
+
+## Key Components
+
+### Time Entry Service
+The Time Entry service (`src/services/timeEntries.ts`) handles all time-tracking operations:
+
+```typescript
+interface TimeEntry {
+  id: string;
+  user_id: string;
+  job_location_id: string;
+  start_time: string;
+  end_time?: string;
+  notes?: string;
+  break_duration?: number;
+  status: 'working' | 'break' | 'completed';
+  organization_id: string;
+  created_at: string;
+  updated_at: string;
+}
+```
+
+### Key Features
+1. **Clock In/Out**
+   - One-click time entry
+   - Location verification
+   - Job location association
+
+2. **Break Management**
+   - Start/end breaks
+   - Break duration tracking
+   - Automatic calculations
+
+3. **Time Entry List**
+   - Date-based grouping
+   - Pagination support
+   - Filtering by status and location
+   - Mobile-responsive UI
+
+4. **Notes and Descriptions**
+   - Task descriptions
+   - Work details
+   - Searchable content
+
+## Quick Links
+
+- [Technical Documentation](../../technical/testing/time-entry-service.md)
+- [API Reference](./api-reference.md)
+- [Future Roadmap](./roadmap.md)

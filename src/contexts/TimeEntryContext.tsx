@@ -1,44 +1,79 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { mockTimeEntries } from '../lib/mockData';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { TimeEntry } from '../lib/types';
 import { useAuth } from './AuthContext';
-
-type TimeEntry = typeof mockTimeEntries[0];
+import { getActiveTimeEntry, startBreak as startBreakService, endBreak as endBreakService } from '../services/timeEntries';
 
 interface TimeEntryContextType {
-  activeEntry: TimeEntry | undefined | null;
-  isOnBreak: boolean;
-  setActiveEntry: (entry: TimeEntry | undefined | null) => void;
-  startBreak: () => void;
-  endBreak: () => void;
+  activeEntry: TimeEntry | undefined;
+  isLoading: boolean;
+  error: string | undefined;
+  setActiveEntry: (entry: TimeEntry | undefined) => void;
+  startBreak: () => Promise<void>;
+  endBreak: () => Promise<void>;
 }
-
-export type { TimeEntry };
 
 const TimeEntryContext = createContext<TimeEntryContextType | undefined>(undefined);
 
 export function TimeEntryProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [activeEntry, setActiveEntry] = useState<typeof mockTimeEntries[0] | undefined | null>(
-    mockTimeEntries.find(entry => entry.userId === user?.id && !entry.clockOut)
-  );
-  const [isOnBreak, setIsOnBreak] = useState(false);
+  const [activeEntry, setActiveEntry] = useState<TimeEntry | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string>();
 
-  const startBreak = () => {
-    setIsOnBreak(true);
+  useEffect(() => {
+    async function fetchActiveEntry() {
+      if (!user?.id) {
+        setIsLoading(false);
+        return;
+      }
+
+      const result = await getActiveTimeEntry(user.id);
+      if (result.success) {
+        setActiveEntry(result.data);
+      } else {
+        setError(result.error);
+      }
+      setIsLoading(false);
+    }
+
+    fetchActiveEntry();
+  }, [user?.id]);
+
+  const handleStartBreak = async () => {
+    if (!activeEntry) return;
+    
+    setIsLoading(true);
+    const result = await startBreakService(activeEntry.id);
+    if (result.success) {
+      setActiveEntry(result.data as TimeEntry);
+    } else {
+      setError(result.error);
+    }
+    setIsLoading(false);
   };
 
-  const endBreak = () => {
-    setIsOnBreak(false);
+  const handleEndBreak = async () => {
+    if (!activeEntry) return;
+    
+    setIsLoading(true);
+    const result = await endBreakService(activeEntry.id);
+    if (result.success) {
+      setActiveEntry(result.data as TimeEntry);
+    } else {
+      setError(result.error);
+    }
+    setIsLoading(false);
   };
 
   return (
     <TimeEntryContext.Provider
       value={{
         activeEntry,
-        isOnBreak,
+        isLoading,
+        error,
         setActiveEntry,
-        startBreak,
-        endBreak,
+        startBreak: handleStartBreak,
+        endBreak: handleEndBreak,
       }}
     >
       {children}
@@ -53,3 +88,5 @@ export function useTimeEntry() {
   }
   return context;
 }
+
+export type { TimeEntry };
