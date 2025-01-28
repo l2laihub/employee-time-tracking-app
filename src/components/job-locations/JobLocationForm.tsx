@@ -10,10 +10,10 @@ const formSchema = z.object({
   type: z.enum(['commercial', 'residential']),
   service_type: z.enum(['hvac', 'plumbing', 'both']),
   is_active: z.boolean(),
-  address: z.string(),
-  city: z.string(),
-  state: z.string(),
-  zip: z.string(),
+  address: z.string().transform(str => str || null).nullable(),
+  city: z.string().transform(str => str || null).nullable(),
+  state: z.string().transform(str => str || null).nullable(),
+  zip: z.string().transform(str => str || null).nullable(),
 });
 
 interface JobLocationFormProps {
@@ -36,16 +36,36 @@ export default function JobLocationForm({ isOpen, onClose, onSubmit, initialData
       type: 'commercial',
       service_type: 'both',
       is_active: true,
-      address: '',
-      city: '',
-      state: '',
-      zip: '',
+      address: null,
+      city: null,
+      state: null,
+      zip: null,
       ...initialData,
     },
   });
 
   const onSubmitForm = (data: JobLocationFormData) => {
-    onSubmit(data);
+    console.log('Form raw data:', JSON.stringify(data, null, 2));
+    
+    // Ensure all strings are properly trimmed and empty strings are converted to null
+    const formattedData = {
+      ...data,
+      name: data.name?.trim() || '',  // name is required
+      address: data.address?.trim() || null,
+      city: data.city?.trim() || null,
+      state: data.state?.trim() || null,
+      zip: data.zip?.trim() || null,
+    };
+    
+    console.log('Form formatted data:', JSON.stringify(formattedData, null, 2));
+    
+    // Validate that required fields are not empty
+    if (!formattedData.name) {
+      console.error('Name is required but empty after formatting');
+      return;
+    }
+    
+    onSubmit(formattedData);
     reset();
   };
 
@@ -61,10 +81,10 @@ export default function JobLocationForm({ isOpen, onClose, onSubmit, initialData
           type: 'commercial',
           service_type: 'both',
           is_active: true,
-          address: '',
-          city: '',
-          state: '',
-          zip: '',
+          address: null,
+          city: null,
+          state: null,
+          zip: null,
         });
       }
     }

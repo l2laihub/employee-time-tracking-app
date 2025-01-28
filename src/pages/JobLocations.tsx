@@ -80,7 +80,27 @@ export default function JobLocations() {
     try {
       console.log('Importing locations:', importedLocations);
       
+      // Get existing locations first
+      const { data: existingLocations, error: fetchError } = await getJobLocations();
+      if (fetchError) throw fetchError;
+
+      // Track statistics for user feedback
+      let imported = 0;
+      let skipped = 0;
+      
       for (const loc of importedLocations) {
+        // Check for duplicate based on name and address combination
+        const isDuplicate = existingLocations?.some(existing => 
+          existing.name.toLowerCase() === loc.name.toLowerCase() && 
+          existing.address?.toLowerCase() === loc.address.toLowerCase()
+        );
+
+        if (isDuplicate) {
+          console.log(`Skipping duplicate location: ${loc.name} at ${loc.address}`);
+          skipped++;
+          continue;
+        }
+
         const { error } = await createJobLocation({
           name: loc.name,
           type: loc.type,
@@ -93,14 +113,15 @@ export default function JobLocations() {
         });
 
         if (error) throw error;
+        imported++;
       }
 
       // Reload locations immediately after successful import
       await loadLocations();
 
       toast({
-        title: 'Success',
-        description: 'Locations imported successfully'
+        title: 'Import Complete',
+        description: `Successfully imported ${imported} location${imported !== 1 ? 's' : ''}. ${skipped ? `Skipped ${skipped} duplicate${skipped !== 1 ? 's' : ''}.` : ''}`
       });
       setIsImportModalOpen(false);
     } catch (error) {
@@ -115,20 +136,109 @@ export default function JobLocations() {
 
   const handleAddLocation = async (locationData: JobLocationFormData) => {
     try {
-      console.log('Adding location:', locationData);
+      console.log('Adding location with data:', JSON.stringify(locationData, null, 2));
+
+      // Check for existing locations with same name and address
+      const { data: existingLocations, error: fetchError } = await getJobLocations();
+      if (fetchError) throw fetchError;
+
+      console.log('Found existing locations:', existingLocations?.length);
+
+      // Helper function to normalize strings for comparison
+      const normalizeString = (value: string | null | undefined): string => {
+        if (!value) return '';
+        // Convert to lowercase, trim spaces, and remove extra whitespace
+        return value.toLowerCase()
+          .trim()
+          .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+          .replace(/[.,#-]/g, '') // Remove common address punctuation
+          .replace(/street|st|avenue|ave|boulevard|blvd|road|rd|lane|ln|drive|dr/gi, ''); // Remove common street type variations
+      };
+
+      // Helper function to normalize address fields
+      const normalizeLocation = (location: any) => ({
+        name: normalizeString(location.name),
+        address: normalizeString(location.address),
+        city: normalizeString(location.city),
+        state: normalizeString(location.state),
+        zip: normalizeString(location.zip)
+      });
+
+      // Normalize new location
+      const newLocation = normalizeLocation(locationData);
+      console.log('Normalized new location:', newLocation);
+
+      // Check for duplicates
+      const isDuplicate = existingLocations?.some(existing => {
+        const existingLocation = normalizeLocation(existing);
+        console.log('Comparing with existing location:', {
+          id: existing.id,
+          normalized: existingLocation,
+          original: {
+            name: existing.name,
+            address: existing.address,
+            city: existing.city,
+            state: existing.state,
+            zip: existing.zip
+          }
+        });
+
+        // Compare name first
+        if (existingLocation.name !== newLocation.name) {
+          return false;
+        }
+
+        // If names match, check address fields
+        const addressFieldsMatch = 
+          existingLocation.address === newLocation.address &&
+          existingLocation.city === newLocation.city &&
+          existingLocation.state === newLocation.state &&
+          existingLocation.zip === newLocation.zip;
+
+        if (addressFieldsMatch) {
+          console.log('Found duplicate location:', {
+            existing: existingLocation,
+            new: newLocation
+          });
+        }
+
+        return addressFieldsMatch;
+      });
+
+      if (isDuplicate) {
+        console.log('Duplicate location detected - preventing creation');
+        toast({
+          title: 'Duplicate Location',
+          description: 'A location with this name and address already exists.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      console.log('No duplicate found - creating new location');
       const { data, error } = await createJobLocation(locationData);
-      console.log('Add location response:', { data, error });
-      
-      if (error) throw error;
-      
+      console.log('Create location response:', { data, error });
+
+      if (error) {
+        // Check if it's a unique constraint violation
+        if (error.message?.includes('job_locations_name_address_unique')) {
+          toast({
+            title: 'Duplicate Location',
+            description: 'A location with this name and address already exists.',
+            variant: 'destructive'
+          });
+          return;
+        }
+        throw error;
+      }
+
       toast({
         title: 'Success',
         description: 'Location added successfully'
       });
-      
+
       // Manually reload locations since subscription might be delayed
       loadLocations();
-      
       setIsFormModalOpen(false);
     } catch (error) {
       console.error('Error adding location:', error);
