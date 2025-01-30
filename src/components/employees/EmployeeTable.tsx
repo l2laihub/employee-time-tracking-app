@@ -74,7 +74,7 @@ export default function EmployeeTable({ employees, onEdit, onDelete, onUpdateSta
                   <div className="text-sm text-gray-900">{employee.department}</div>
                   <div className="flex items-center text-sm text-gray-500">
                     <Calendar className="w-4 h-4 mr-1" />
-                    Started {formatDateForDisplay(employee.startDate)}
+                    {employee.start_date ? `Started ${formatDateForDisplay(employee.start_date)}` : 'Start date not set'}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -155,7 +155,7 @@ export default function EmployeeTable({ employees, onEdit, onDelete, onUpdateSta
               </div>
               <div className="flex items-center text-sm text-gray-500">
                 <Calendar className="w-4 h-4 mr-2" />
-                Started {formatDateForDisplay(employee.startDate)}
+                {employee.start_date ? `Started ${formatDateForDisplay(employee.start_date)}` : 'Start date not set'}
               </div>
               <div className="flex items-center text-sm text-gray-500">
                 <Clock className="w-4 h-4 mr-2" />

@@ -147,7 +147,7 @@ export function getVacationBalance(employee: Employee): number {
   const { beginningBalance = 0, ongoingBalance = 0, used = 0 } = employee.pto.vacation;
   
   // Calculate accrued vacation based on time
-  const accruedBalance = calculateVacationHours(employee.startDate);
+  const accruedBalance = calculateVacationHours(employee.start_date);
   
   // Total balance is beginning balance + ongoing balance + accrued - used
   return Math.max(0, beginningBalance + ongoingBalance + accruedBalance - used);
@@ -158,7 +158,7 @@ export function getSickLeaveBalance(employee: Employee, timesheets: TimesheetEnt
   const beginningBalance = employee.pto?.sickLeave?.beginningBalance || 0;
   
   // Calculate accrued sick leave
-  const accruedBalance = calculateSickLeaveHours(timesheets, employee.startDate);
+  const accruedBalance = calculateSickLeaveHours(timesheets, employee.start_date);
   
   // Get used hours (if we implement this feature later)
   const usedHours = employee.pto?.sickLeave?.used || 0;
@@ -168,7 +168,7 @@ export function getSickLeaveBalance(employee: Employee, timesheets: TimesheetEnt
 }
 
 export function getVacationAllocationText(employee: Employee): string {
-  const yearsOfService = differenceInYears(new Date(), new Date(employee.startDate));
+  const yearsOfService = differenceInYears(new Date(), new Date(employee.start_date));
   
   if (yearsOfService < 1) {
     return '5 days (40 hours) per year, pro-rated based on months worked';
@@ -178,4 +178,8 @@ export function getVacationAllocationText(employee: Employee): string {
 
 export function getSickLeaveAllocationText(): string {
   return '1 hour per 40 hours worked';
+}
+
+export function getPTOBalance(employee: Employee, type: 'vacation' | 'sick_leave'): number {
+  return type === 'vacation' ? getVacationBalance(employee) : getSickLeaveBalance(employee, []);
 }

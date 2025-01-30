@@ -1,0 +1,4 @@
+first_name,last_name,email,phone,role,department,start_date,status
+John,Doe,john.doe@example.com,123-456-7890,employee,Engineering,2025-01-01,active
+Jane,Smith,jane.smith@example.com,,manager,Marketing,2025-01-15,
+Bob,Johnson,bob.johnson@example.com,098-765-4321,employee,Sales,2025-02-01,active

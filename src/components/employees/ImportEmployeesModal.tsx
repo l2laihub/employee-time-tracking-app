@@ -1,219 +1,202 @@
-import React, { useState } from 'react';
-import { X, Upload, Download, AlertCircle } from 'lucide-react';
-import type { EmployeeImport } from '../../lib/types';
+import React, { useRef, useState } from 'react';
+import { Upload, Download, X } from 'lucide-react';
+import Button from '../common/Button';
+import { parseCSV } from '../../utils/csvParser';
+import { useEmployees } from '../../contexts/EmployeeContext';
+import { Employee } from '../../lib/types';
+
+type EmployeeImport = Omit<Employee, 'id' | 'organization_id' | 'member_id'>;
 
 interface ImportEmployeesModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImport: (employees: EmployeeImport[]) => void;
+  onImport: (employees: EmployeeImport[]) => Promise<void>;
 }
 
 export default function ImportEmployeesModal({ isOpen, onClose, onImport }: ImportEmployeesModalProps) {
-  const [file, setFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile && selectedFile.type === 'text/csv') {
-      setFile(selectedFile);
-      setError(null);
-    } else {
-      setError('Please select a valid CSV file');
-      setFile(null);
+  const validateEmployee = (employee: any): employee is EmployeeImport => {
+    console.log('Validating employee:', employee);
+    
+    const requiredFields = ['first_name', 'last_name', 'email', 'role', 'start_date'];
+    const missingFields = requiredFields.filter(field => !employee[field]);
+    
+    if (missingFields.length > 0) {
+      throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
     }
-  };
 
-  const downloadTemplate = () => {
-    const headers = [
-      'first_name',
-      'last_name',
-      'email',
-      'phone',
-      'role',
-      'department',
-      'start_date',
-      'sick_leave_beginning_balance',
-      'vacation_beginning_balance'
-    ];
-    const sampleData = [
-      'John,Doe,john@example.com,123-456-7890,employee,Sales,2024-01-15,0,0',
-      'Jane,Smith,jane@example.com,123-456-7891,manager,Engineering,2023-12-01,8,24'
-    ];
-    
-    const csvContent = [headers.join(','), ...sampleData].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'employee_import_template.csv';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+    // Validate role
+    if (!['admin', 'manager', 'employee'].includes(employee.role)) {
+      throw new Error(`Invalid role for employee ${employee.email}: ${employee.role}. Must be one of: admin, manager, employee`);
+    }
 
-  const handleImport = async () => {
-    if (!file) return;
-    
-    setImporting(true);
-    setError(null);
-    
+    // Validate status if provided
+    if (employee.status && !['active', 'inactive'].includes(employee.status)) {
+      throw new Error(`Invalid status for employee ${employee.email}: ${employee.status}. Must be one of: active, inactive`);
+    }
+
+    // Validate date format
     try {
+      const date = new Date(employee.start_date);
+      if (isNaN(date.getTime())) {
+        throw new Error(`Invalid start_date format for employee ${employee.email}: ${employee.start_date}. Use YYYY-MM-DD format`);
+      }
+    } catch {
+      throw new Error(`Invalid start_date for employee ${employee.email}: ${employee.start_date}. Use YYYY-MM-DD format`);
+    }
+
+    return true;
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      console.log('No file selected');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      console.log('Reading file:', file.name);
       const text = await file.text();
-      const lines = text.split('\n');
-      const headers = lines[0].toLowerCase().split(',');
+      console.log('File content:', text);
       
-      console.log('Headers:', headers); // Debug headers
-      
-      const employees: EmployeeImport[] = lines
-        .slice(1)
-        .filter(line => line.trim())
-        .map(line => {
-          const values = line.split(',');
-          
-          // Debug values
-          console.log('Row values:', values);
-          console.log('Sick leave index:', headers.indexOf('sick_leave_beginning_balance'));
-          console.log('Sick leave value:', values[headers.indexOf('sick_leave_beginning_balance')]);
-          
-          const employee = {
-            first_name: values[headers.indexOf('first_name')].trim(),
-            last_name: values[headers.indexOf('last_name')].trim(),
-            email: values[headers.indexOf('email')].trim(),
-            phone: values[headers.indexOf('phone')]?.trim(),
-            role: values[headers.indexOf('role')].trim() as EmployeeImport['role'],
-            department: values[headers.indexOf('department')]?.trim(),
-            startDate: values[headers.indexOf('start_date')]?.trim(),
-            pto: {
-              vacation: {
-                beginningBalance: Number(values[headers.indexOf('vacation_beginning_balance')]?.trim() || '0'),
-                ongoingBalance: 0,
-                firstYearRule: 40
-              },
-              sickLeave: {
-                beginningBalance: Number(values[headers.indexOf('sick_leave_beginning_balance')]?.trim() || '0')
+      const employees = parseCSV<any>(text);
+      console.log('Parsed employees:', employees);
+
+      // Validate each employee
+      const validEmployees: EmployeeImport[] = [];
+      const errors: string[] = [];
+
+      employees.forEach((emp, index) => {
+        try {
+          console.log('Validating employee:', emp);
+          if (validateEmployee(emp)) {
+            // Set default values for optional fields
+            validEmployees.push({
+              ...emp,
+              phone: emp.phone || null,
+              department: emp.department || null,
+              status: emp.status || 'active',
+              pto: {
+                vacation: {
+                  beginningBalance: 0,
+                  ongoingBalance: 0,
+                  firstYearRule: 40,
+                  used: 0
+                },
+                sickLeave: {
+                  beginningBalance: 0,
+                  used: 0
+                }
               }
-            }
-          };
-          
-          // Debug final employee object
-          console.log('Created employee:', employee);
-          return employee;
-        });
-
-      // Debug final employees array
-      console.log('Final employees array:', employees);
-
-      // Validate employees
-      const errors = employees.flatMap((emp, index) => {
-        const validationErrors = [];
-        if (!emp.first_name) validationErrors.push(`Row ${index + 2}: First name is required`);
-        if (!emp.last_name) validationErrors.push(`Row ${index + 2}: Last name is required`);
-        if (!emp.email) validationErrors.push(`Row ${index + 2}: Email is required`);
-        if (!['admin', 'manager', 'employee'].includes(emp.role)) {
-          validationErrors.push(`Row ${index + 2}: Invalid role`);
-        }
-        
-        // Validate start date
-        if (emp.startDate) {
-          const startDate = new Date(emp.startDate);
-          if (isNaN(startDate.getTime())) {
-            validationErrors.push(`Row ${index + 2}: Invalid start date format. Use YYYY-MM-DD`);
+            });
           }
+        } catch (error) {
+          console.error('Validation error for row', index + 2, error);
+          errors.push(`Row ${index + 2}: ${error instanceof Error ? error.message : 'Invalid data'}`);
         }
-        
-        // Validate PTO balances
-        const sickLeaveBalance = emp.pto?.sickLeave?.beginningBalance;
-        if (sickLeaveBalance !== undefined && (isNaN(sickLeaveBalance) || sickLeaveBalance < 0)) {
-          validationErrors.push(`Row ${index + 2}: Invalid sick leave balance. Must be a non-negative number`);
-        }
-        
-        const vacationBalance = emp.pto?.vacation?.beginningBalance;
-        if (vacationBalance !== undefined && (isNaN(vacationBalance) || vacationBalance < 0)) {
-          validationErrors.push(`Row ${index + 2}: Invalid vacation balance. Must be a non-negative number`);
-        }
-        
-        return validationErrors;
       });
 
       if (errors.length > 0) {
-        setError(`Validation errors:\n${errors.join('\n')}`);
-        return;
+        throw new Error(`Failed to import employees:\n${errors.join('\n')}`);
       }
 
-      onImport(employees);
-    } catch (err) {
-      console.error('Import error:', err);
-      setError('Failed to parse CSV file. Please check the format.');
+      if (validEmployees.length === 0) {
+        throw new Error('No valid employees found in the CSV file. Please check the file format and try again.');
+      }
+
+      console.log('Valid employees to import:', validEmployees);
+      await onImport(validEmployees);
+      
+      alert(`Successfully imported ${validEmployees.length} employees`);
+      
+      // Reset the file input and close the modal
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      onClose();
+    } catch (error) {
+      console.error('Error importing employees:', error);
+      alert(error instanceof Error ? error.message : 'Please check the file format and try again');
     } finally {
-      setImporting(false);
+      setIsLoading(false);
+    }
+  };
+
+  const handleDownloadTemplate = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    try {
+      const response = await fetch('/employee_template.csv');
+      if (!response.ok) {
+        e.preventDefault();
+        alert('Template file not found. Please contact support.');
+      }
+    } catch (error) {
+      e.preventDefault();
+      alert('Failed to check template file. Please try again later.');
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg max-w-lg w-full p-6">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-semibold">Import Employees</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button 
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+            aria-label="Close modal"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <button
-              onClick={downloadTemplate}
-              className="flex items-center text-blue-600 hover:text-blue-700"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Download Template
-            </button>
+        <div className="space-y-6">
+          <div className="text-sm text-gray-500">
+            <p>Upload a CSV file containing employee information.</p>
+            <p className="mt-2">
+              Make sure to follow the template format. You can download the template below.
+            </p>
           </div>
 
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+          <div className="flex flex-col gap-4">
+            <a
+              href="/employee_template.csv"
+              download
+              onClick={handleDownloadTemplate}
+              className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800"
+            >
+              <Download className="w-4 h-4" />
+              Download Template
+            </a>
+
             <input
               type="file"
+              ref={fileInputRef}
               accept=".csv"
               onChange={handleFileChange}
               className="hidden"
-              id="file-upload"
+              aria-label="Import employees from CSV"
             />
-            <label
-              htmlFor="file-upload"
-              className="flex flex-col items-center cursor-pointer"
+            
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2"
             >
-              <Upload className="w-8 h-8 text-gray-400 mb-2" />
-              <span className="text-sm text-gray-600">
-                {file ? file.name : 'Click to select CSV file'}
-              </span>
-            </label>
+              <Upload className="w-4 h-4" />
+              {isLoading ? 'Importing...' : 'Select CSV File'}
+            </Button>
           </div>
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4">
-              <div className="flex items-start">
-                <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 mr-2" />
-                <pre className="text-sm text-red-600 whitespace-pre-wrap">{error}</pre>
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-end space-x-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-            >
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              onClick={handleImport}
-              disabled={!file || importing}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {importing ? 'Importing...' : 'Import'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

@@ -55,6 +55,8 @@ export interface PTORequest {
 
 export interface Employee {
   id: string;
+  organization_id: string;
+  member_id?: string;
   first_name: string;
   last_name: string;
   email: string;
@@ -62,17 +64,24 @@ export interface Employee {
   role: 'admin' | 'manager' | 'employee';
   status: 'active' | 'inactive';
   department?: string;
-  startDate: string;
-  pto?: {
+  start_date: string;
+  pto: {
     vacation: {
       beginningBalance: number;
-      ongoingBalance: number; // for transfers from other systems
-      firstYearRule: number; // default 40 hours
-      used?: number;
+      ongoingBalance: number;
+      firstYearRule: number;
+      used: number;
     };
     sickLeave: {
       beginningBalance: number;
-      used?: number;
+      used: number;
     };
   };
+  created_at?: string;
+  updated_at?: string;
+  organization_members?: {
+    id: string;
+    user_id: string;
+    role: UserRole;
+  } | null;
 }

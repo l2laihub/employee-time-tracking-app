@@ -434,3 +434,68 @@ async function generateEmployeeReport(
   };
 }
 ```
+
+# Employee Management Feature
+
+## Overview
+
+The Employee Management feature enables organizations to manage their workforce efficiently through a comprehensive system that handles employee data, roles, and PTO tracking. This feature supports both individual employee management and bulk operations through CSV imports.
+
+## Documentation Structure
+
+1. [Architecture](./architecture.md)
+   - Database schema and relationships
+   - Service layer design
+   - Component hierarchy
+   - Integration with organization system
+
+2. [Core Features](./core-features.md)
+   - Employee CRUD operations
+   - Bulk import via CSV
+   - Role management
+   - PTO tracking
+   - Organization member integration
+
+3. [Implementation](./implementation.md)
+   - Code organization
+   - Error handling
+   - State management
+   - CSV import/export functionality
+
+4. [Security & Best Practices](./security.md)
+   - Row Level Security (RLS)
+   - Access control by role
+   - Data validation
+   - Error handling best practices
+
+## Key Concepts
+
+### Employee vs Organization Member
+- **Employee**: A person who works for the organization (may or may not have app access)
+- **Organization Member**: A user who has access to the organization in the app
+- Relationship: An employee can be linked to an organization member through `member_id`
+
+### Roles and Permissions
+- **Admin**: Full access to employee management
+- **Manager**: Can manage employees under their department
+- **Employee**: Limited access to view their own information
+
+### PTO Management
+- Vacation and sick leave tracking
+- Beginning and ongoing balance management
+- First-year rule implementation
+- Usage tracking
+
+## Quick Links
+
+- [Technical Documentation](../../technical/testing/employee-service.md)
+- [API Reference](./api-reference.md)
+- [CSV Import Template](../../templates/employee_template.csv)
+- [Future Roadmap](./roadmap.md)
+
+## Recent Updates
+
+- Added bulk import functionality via CSV
+- Improved error handling for duplicate employees
+- Enhanced validation for employee data
+- Added relationship between employees and organization members
