@@ -99,19 +99,48 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const results = await employeeService.importEmployees(organization.id, employees);
-      const failedResults = results.filter(result => !result.success);
+      
+      // Filter out non-error messages about skipped employees
+      const failedResults = results.filter(result => 
+        !result.success && !result.error?.startsWith('The following employees were skipped')
+      );
       
       if (failedResults.length > 0) {
         throw new Error(failedResults[0].error || 'Failed to import employees');
       }
 
-      const importedEmployees = results
+      // Get all successful imports (both new and reactivated)
+      const successfulEmployees = results
         .filter((result): result is { success: true; data: Employee } => 
           result.success && !!result.data
         )
         .map(result => result.data);
 
-      setEmployees(prev => [...prev, ...importedEmployees]);
+      // Update state by merging new employees and updating existing ones
+      setEmployees(prev => {
+        const updatedEmployees = [...prev];
+        
+        successfulEmployees.forEach(newEmp => {
+          const existingIndex = updatedEmployees.findIndex(emp => emp.id === newEmp.id);
+          if (existingIndex >= 0) {
+            // Update existing employee
+            updatedEmployees[existingIndex] = newEmp;
+          } else {
+            // Add new employee
+            updatedEmployees.push(newEmp);
+          }
+        });
+        
+        return updatedEmployees;
+      });
+
+      // Show skipped employees message if any
+      const skippedResult = results.find(result => 
+        !result.success && result.error?.startsWith('The following employees were skipped')
+      );
+      if (skippedResult) {
+        console.log(skippedResult.error);
+      }
     } catch (err) {
       throw err instanceof Error ? err : new Error('Failed to import employees');
     }

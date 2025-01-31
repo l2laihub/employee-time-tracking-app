@@ -228,64 +228,142 @@ export async function importEmployees(
 
     // Check for existing employees with the same email
     const emails = employees.map(emp => emp.email);
+    console.log('Checking for existing employees with emails:', emails);
+    
     const { data: existingEmployees, error: existingError } = await supabase
       .from('employees')
-      .select('email')
-      .in('email', emails);
+      .select('id, email, status')
+      .in('email', emails)
+      .eq('organization_id', organizationId);
 
     if (existingError) {
+      console.error('Error checking existing employees:', existingError);
       throw existingError;
     }
 
-    if (existingEmployees && existingEmployees.length > 0) {
-      const duplicateEmails = existingEmployees.map(emp => emp.email);
-      throw new Error(`The following employees already exist: ${duplicateEmails.join(', ')}`);
-    }
+    console.log('Found existing employees:', existingEmployees);
 
-    // Add organization_id and member_id to each employee
-    const employeesWithOrg = employees.map(employee => ({
-      ...employee,
-      organization_id: organizationId,
-      member_id: member.id,
-      status: employee.status || 'active',
-      pto: {
-        vacation: {
-          beginningBalance: employee.pto?.vacation?.beginningBalance || 0,
-          ongoingBalance: 0,
-          firstYearRule: 40,
-          used: 0
-        },
-        sickLeave: {
-          beginningBalance: employee.pto?.sickLeave?.beginningBalance || 0,
-          used: 0
+    // Separate active and inactive employees
+    const activeEmails = existingEmployees
+      ?.filter(emp => emp.status === 'active')
+      .map(emp => emp.email) || [];
+    
+    const inactiveEmployees = existingEmployees
+      ?.filter(emp => emp.status === 'inactive') || [];
+    
+    console.log('Active emails:', activeEmails);
+    console.log('Inactive employees:', inactiveEmployees);
+
+    // Prepare data for insert and update
+    const newEmployees = employees.filter(emp => 
+      !existingEmployees?.some(existing => existing.email === emp.email)
+    );
+
+    const reactivateEmployees = employees.filter(emp =>
+      inactiveEmployees.some(inactive => inactive.email === emp.email)
+    );
+
+    const skippedEmails = activeEmails;
+
+    console.log('New employees to insert:', newEmployees);
+    console.log('Employees to reactivate:', reactivateEmployees);
+    console.log('Skipped employees (already active):', skippedEmails);
+
+    const results: EmployeeResult[] = [];
+
+    // Insert new employees
+    if (newEmployees.length > 0) {
+      const employeesWithOrg = newEmployees.map(employee => ({
+        ...employee,
+        organization_id: organizationId,
+        member_id: member.id,
+        status: 'active',
+        pto: {
+          vacation: {
+            beginningBalance: employee.pto?.vacation?.beginningBalance || 0,
+            ongoingBalance: 0,
+            firstYearRule: 40,
+            used: 0
+          },
+          sickLeave: {
+            beginningBalance: employee.pto?.sickLeave?.beginningBalance || 0,
+            used: 0
+          }
         }
-      }
-    }));
+      }));
 
-    // Insert all employees
-    const { data, error } = await supabase
-      .from('employees')
-      .insert(employeesWithOrg)
-      .select();
+      const { data: insertedData, error: insertError } = await supabase
+        .from('employees')
+        .insert(employeesWithOrg)
+        .select();
 
-    if (error) {
-      // Handle unique constraint violation
-      if (error.code === '23505') {
-        const match = error.message.match(/Key \(email\)=\((.*?)\)/);
-        const email = match ? match[1] : 'unknown';
-        throw new Error(`Employee with email ${email} already exists`);
+      if (insertError) {
+        console.error('Error inserting new employees:', insertError);
+        throw insertError;
       }
-      throw error;
+      console.log('Successfully inserted new employees:', insertedData);
+      results.push(...(insertedData || []).map(emp => ({ success: true, data: emp as Employee })));
     }
 
-    if (!data || !Array.isArray(data)) {
-      throw new Error('Failed to import employees');
+    // Reactivate and update inactive employees
+    for (const employee of reactivateEmployees) {
+      const existingEmployee = inactiveEmployees.find(inactive => inactive.email === employee.email);
+      if (!existingEmployee) continue;
+
+      console.log('Reactivating employee:', existingEmployee.email);
+
+      const { data: updatedData, error: updateError } = await supabase
+        .from('employees')
+        .update({
+          first_name: employee.first_name,
+          last_name: employee.last_name,
+          phone: employee.phone || null,
+          role: employee.role,
+          department: employee.department || null,
+          start_date: employee.start_date,
+          status: 'active',
+          pto: {
+            vacation: {
+              beginningBalance: employee.pto?.vacation?.beginningBalance || 0,
+              ongoingBalance: 0,
+              firstYearRule: 40,
+              used: 0
+            },
+            sickLeave: {
+              beginningBalance: employee.pto?.sickLeave?.beginningBalance || 0,
+              used: 0
+            }
+          }
+        })
+        .eq('id', existingEmployee.id)
+        .eq('organization_id', organizationId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('Error reactivating employee:', updateError);
+        throw updateError;
+      }
+      
+      if (updatedData) {
+        console.log('Successfully reactivated employee:', updatedData);
+        results.push({ success: true, data: updatedData as Employee });
+      }
     }
 
-    return data.map((employee) => ({ 
-      success: true, 
-      data: employee as Employee 
-    }));
+    if (results.length === 0 && skippedEmails.length === 0) {
+      throw new Error('No employees were imported or reactivated');
+    }
+
+    // If we have some successes but also some skipped, add a note about skipped
+    if (skippedEmails.length > 0) {
+      results.push({
+        success: false,
+        error: `The following employees were skipped (already active): ${skippedEmails.join(', ')}`
+      });
+    }
+
+    return results;
   } catch (error) {
     console.error('Failed to import employees:', error);
     return [{
