@@ -12,7 +12,7 @@ interface TimeEntryListProps {
 }
 
 interface FilterOptions {
-  status?: 'working' | 'break' | 'completed';
+  status?: 'active' | 'break' | 'completed';
   locationId?: string;
   dateRange?: { start: Date; end: Date };
 }
@@ -51,7 +51,7 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
     if (filters.status && entry.status !== filters.status) return false;
     if (filters.locationId && entry.job_location_id !== filters.locationId) return false;
     if (filters.dateRange) {
-      const entryDate = startOfDay(parseISO(entry.start_time));
+      const entryDate = startOfDay(parseISO(entry.clock_in));
       if (entryDate < filters.dateRange.start || entryDate > filters.dateRange.end) return false;
     }
     return true;
@@ -59,11 +59,18 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
 
   // Group entries by date
   const groupedEntries = filteredEntries.reduce<{ [date: string]: TimeEntry[] }>((groups, entry) => {
-    const date = format(parseISO(entry.start_time), 'yyyy-MM-dd');
+    const date = format(parseISO(entry.clock_in), 'yyyy-MM-dd');
     if (!groups[date]) groups[date] = [];
     groups[date].push(entry);
     return groups;
   }, {});
+
+  // Sort entries within each group by clock_in time
+  Object.values(groupedEntries).forEach(entries => {
+    entries.sort((a, b) => {
+      return new Date(b.clock_in).getTime() - new Date(a.clock_in).getTime();
+    });
+  });
 
   // Pagination
   const totalPages = Math.ceil(filteredEntries.length / entriesPerPage);
@@ -112,7 +119,7 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
               className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
             >
               <option value="">All Statuses</option>
-              <option value="working">Working</option>
+              <option value="active">Active</option>
               <option value="break">On Break</option>
               <option value="completed">Completed</option>
             </select>
@@ -145,7 +152,7 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
             <div className="space-y-3">
               {groupedEntries[date].map(entry => {
                 const location = locations.find(loc => loc.id === entry.job_location_id);
-                const startTime = parseISO(entry.start_time);
+                const startTime = parseISO(entry.clock_in);
                 const endTime = entry.end_time ? parseISO(entry.end_time) : null;
 
                 return (
@@ -168,7 +175,14 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
                           </span>
                         </div>
                         <div className="flex flex-col text-sm text-gray-500">
-                          <span>Started {formatDistanceToNow(startTime, { addSuffix: true })}</span>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">
+                              {location?.name || 'Unknown Location'}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              Started {formatDistanceToNow(parseISO(entry.clock_in))} ago
+                            </div>
+                          </div>
                           {endTime && (
                             <span>Ended {formatDistanceToNow(endTime, { addSuffix: true })}</span>
                           )}

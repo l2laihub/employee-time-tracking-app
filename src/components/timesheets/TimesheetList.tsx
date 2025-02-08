@@ -1,17 +1,31 @@
 import React from 'react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { FileText, Check, X, Clock, User } from 'lucide-react';
-import type { TimesheetEntry } from '../../lib/types';
-import { mockUsers } from '../../lib/mockUsers';
+import type { Timesheet } from '../../types/custom.types';
+import { useEmployees } from '../../contexts/EmployeeContext';
 
 interface TimesheetListProps {
-  timesheets: TimesheetEntry[];
-  onViewTimesheet: (timesheet: TimesheetEntry) => void;
+  timesheets: Timesheet[];
+  onViewTimesheet: (timesheet: Timesheet) => void;
   isAdmin: boolean;
 }
 
 export default function TimesheetList({ timesheets, onViewTimesheet, isAdmin }: TimesheetListProps) {
-  const getStatusIcon = (status: TimesheetEntry['status']) => {
+  const { employees } = useEmployees();
+
+  const formatDate = (date: Date | string | null | undefined) => {
+    if (!date) return '';
+    const parsedDate = typeof date === 'string' ? parseISO(date) : date;
+    return format(parsedDate, 'MMM d, yyyy');
+  };
+
+  const formatDateTime = (date: Date | string | null | undefined) => {
+    if (!date) return '';
+    const parsedDate = typeof date === 'string' ? parseISO(date) : date;
+    return format(parsedDate, 'MMM d, yyyy h:mm a');
+  };
+
+  const getStatusIcon = (status: Timesheet['status']) => {
     switch (status) {
       case 'approved':
         return <Check className="w-5 h-5 text-green-500" />;
@@ -24,7 +38,7 @@ export default function TimesheetList({ timesheets, onViewTimesheet, isAdmin }: 
     }
   };
 
-  const getStatusClass = (status: TimesheetEntry['status']) => {
+  const getStatusClass = (status: Timesheet['status']) => {
     switch (status) {
       case 'approved':
         return 'bg-green-100 text-green-800';
@@ -37,21 +51,66 @@ export default function TimesheetList({ timesheets, onViewTimesheet, isAdmin }: 
     }
   };
 
-  const getEmployeeName = (userId: string) => {
-    const employee = mockUsers.find(user => user.id === userId);
-    return employee ? `${employee.first_name} ${employee.last_name}` : 'Unknown Employee';
+  const getEmployeeName = (timesheet: Timesheet) => {
+    console.log('Getting employee name for timesheet:', timesheet);
+    
+    // First try to get from nested employee data
+    if (timesheet.employee?.first_name && timesheet.employee?.last_name) {
+      const name = `${timesheet.employee.first_name} ${timesheet.employee.last_name}`;
+      console.log('Found employee name from nested data:', name);
+      return name;
+    }
+    
+    // Fallback to employees context
+    console.log('Falling back to employees context. Available employees:', employees);
+    const employee = employees?.find(emp => emp.id === timesheet.employee_id);
+    const name = employee ? `${employee.first_name} ${employee.last_name}` : 'Unknown Employee';
+    console.log('Found employee name from context:', name);
+    return name;
   };
 
-  const getDepartment = (userId: string) => {
-    const employee = mockUsers.find(user => user.id === userId);
-    return employee?.department || 'N/A';
+  const getDepartment = (timesheet: Timesheet) => {
+    console.log('Getting department for timesheet:', timesheet);
+    
+    // First try to get from nested employee data
+    if (timesheet.employee?.department) {
+      console.log('Found department from nested data:', timesheet.employee.department);
+      return timesheet.employee.department;
+    }
+    
+    // Fallback to employees context
+    console.log('Falling back to employees context');
+    const employee = employees?.find(emp => emp.id === timesheet.employee_id);
+    const department = employee?.department || 'N/A';
+    console.log('Found department from context:', department);
+    return department;
   };
+
+  if (!employees || employees.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-500">Loading employees...</p>
+      </div>
+    );
+  }
+
+  if (timesheets.length === 0) {
+    return (
+      <div className="text-center py-8 bg-white rounded-lg shadow">
+        <FileText className="mx-auto h-12 w-12 text-gray-400" />
+        <h3 className="mt-2 text-sm font-medium text-gray-900">No timesheets found</h3>
+        <p className="mt-1 text-sm text-gray-500">
+          {isAdmin ? 'No timesheets match your current filters.' : 'You haven\'t submitted any timesheets yet.'}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       {timesheets.map((timesheet) => {
-        const employeeName = getEmployeeName(timesheet.userId);
-        const department = getDepartment(timesheet.userId);
+        const employeeName = getEmployeeName(timesheet);
+        const department = getDepartment(timesheet);
 
         return (
           <div
@@ -72,20 +131,20 @@ export default function TimesheetList({ timesheets, onViewTimesheet, isAdmin }: 
                     </div>
                   )}
                   <h3 className="font-medium text-gray-700">
-                    Week of {format(new Date(timesheet.weekStartDate), 'MMM d, yyyy')}
+                    Period: {formatDate(timesheet.period_start_date)} - {formatDate(timesheet.period_end_date)}
                   </h3>
                   <div className="mt-1 space-y-1">
                     <p className="text-sm text-gray-500">
-                      Total Hours: <span className="font-medium">{timesheet.totalHours}</span>
+                      Total Hours: <span className="font-medium">{timesheet.total_hours}</span>
                     </p>
-                    {timesheet.submittedAt && (
+                    {timesheet.submitted_at && (
                       <p className="text-xs text-gray-500">
-                        Submitted: {format(new Date(timesheet.submittedAt), 'MMM d, yyyy h:mm a')}
+                        Submitted: {formatDateTime(timesheet.submitted_at)}
                       </p>
                     )}
-                    {timesheet.reviewedAt && (
+                    {timesheet.reviewed_at && (
                       <p className="text-xs text-gray-500">
-                        Reviewed: {format(new Date(timesheet.reviewedAt), 'MMM d, yyyy h:mm a')}
+                        Reviewed: {formatDateTime(timesheet.reviewed_at)}
                       </p>
                     )}
                   </div>
@@ -97,30 +156,15 @@ export default function TimesheetList({ timesheets, onViewTimesheet, isAdmin }: 
                 </span>
                 <button
                   onClick={() => onViewTimesheet(timesheet)}
-                  className="text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1 rounded-md transition-colors"
+                  className="px-3 py-1 text-sm text-blue-600 hover:text-blue-700 hover:underline"
                 >
-                  {isAdmin ? 'Review Details' : 'View Details'}
+                  View Details
                 </button>
               </div>
             </div>
-            {timesheet.notes && (
-              <div className="mt-3 pt-3 border-t border-gray-100">
-                <p className="text-sm text-gray-600">{timesheet.notes}</p>
-              </div>
-            )}
           </div>
         );
       })}
-
-      {timesheets.length === 0 && (
-        <div className="text-center py-8 bg-white rounded-lg shadow">
-          <FileText className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No timesheets found</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            {isAdmin ? 'No timesheets match your current filters.' : 'You haven\'t submitted any timesheets yet.'}
-          </p>
-        </div>
-      )}
     </div>
   );
 }

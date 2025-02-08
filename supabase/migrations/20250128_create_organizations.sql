@@ -6,16 +6,5 @@ CREATE TABLE IF NOT EXISTS organizations (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Add RLS policies
+-- Add RLS policies (will be added after organization_members table is created)
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
-
--- Policy for organization members to view their organizations
-CREATE POLICY "Organization members can view organizations" ON organizations
-    FOR SELECT
-    USING (
-        id IN (
-            SELECT organization_id 
-            FROM organization_members 
-            WHERE user_id = auth.uid()
-        )
-    );

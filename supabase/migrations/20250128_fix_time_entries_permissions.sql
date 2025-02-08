@@ -14,9 +14,29 @@ END $$;
 -- Ensure the schema is in the search_path
 ALTER DATABASE postgres SET search_path TO "$user", public, extensions;
 
+-- Create helper function to check RLS condition
+CREATE OR REPLACE FUNCTION check_time_entry_access(p_employee_id uuid, p_user_id uuid)
+RETURNS boolean AS $$
+DECLARE
+    v_result boolean;
+BEGIN
+    SELECT EXISTS (
+        SELECT 1 FROM employees e
+        JOIN organization_members om ON e.member_id = om.id
+        WHERE e.id = p_employee_id
+        AND om.user_id = p_user_id
+    ) INTO v_result;
+
+    RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION check_time_entry_access TO authenticated;
+
 -- Drop and recreate RLS policies
 DROP POLICY IF EXISTS "Users can view their own time entries" ON time_entries;
 DROP POLICY IF EXISTS "Users can create their own time entries" ON time_entries;
+DROP POLICY IF EXISTS "Users can insert their own time entries" ON time_entries;
 
 -- Re-apply RLS policies
 ALTER TABLE time_entries ENABLE ROW LEVEL SECURITY;
@@ -24,7 +44,15 @@ ALTER TABLE time_entries ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view their own time entries" ON time_entries
     FOR SELECT
     USING (
-        auth.uid() = user_id OR 
+        -- Allow if the time entry belongs to an employee record linked to the current user
+        EXISTS (
+            SELECT 1 FROM employees e
+            JOIN organization_members om ON e.member_id = om.id
+            WHERE e.id = time_entries.employee_id
+            AND om.user_id = auth.uid()
+        )
+        OR 
+        -- Or if the user is an admin in the organization
         EXISTS (
             SELECT 1 FROM organization_members 
             WHERE user_id = auth.uid() 
@@ -33,33 +61,18 @@ CREATE POLICY "Users can view their own time entries" ON time_entries
         )
     );
 
-CREATE POLICY "Users can create their own time entries" ON time_entries
+CREATE POLICY "Users can insert their own time entries" ON time_entries
     FOR INSERT
     WITH CHECK (
-        auth.uid() = user_id AND
-        EXISTS (
-            SELECT 1 FROM organization_members 
-            WHERE user_id = auth.uid() 
-            AND organization_id = time_entries.organization_id
-        )
+        -- Allow if the time entry is for an employee record linked to the current user
+        check_time_entry_access(employee_id, auth.uid())
     );
 
 -- Add explicit comments to help PostgREST
-DO $$ 
-BEGIN
-    IF EXISTS (
-        SELECT 1 
-        FROM information_schema.columns 
-        WHERE table_name = 'time_entries' 
-        AND column_name = 'start_time'
-    ) THEN
-        COMMENT ON TABLE time_entries IS 'Table for storing employee time entries';
-        COMMENT ON COLUMN time_entries.start_time IS 'Time when employee started work';
-        COMMENT ON COLUMN time_entries.end_time IS 'Time when employee ended work';
-        COMMENT ON COLUMN time_entries.notes IS 'Work description or notes';
-        COMMENT ON COLUMN time_entries.status IS 'Current status of the time entry (active, break, completed)';
-    END IF;
-END $$;
+COMMENT ON TABLE time_entries IS 'Table for storing employee time entries';
+COMMENT ON COLUMN time_entries.start_time IS 'Time when employee started work';
+COMMENT ON COLUMN time_entries.end_time IS 'Time when employee ended work';
+COMMENT ON COLUMN time_entries.notes IS 'Work description or notes';
 
 -- Notify PostgREST to reload schema
 NOTIFY pgrst, 'reload schema';

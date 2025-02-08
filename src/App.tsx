@@ -7,6 +7,7 @@ import { BrandingProvider } from './contexts/BrandingContext';
 import { TimeEntryProvider } from './contexts/TimeEntryContext';
 import { EmployeeProvider } from './contexts/EmployeeContext';
 import { PTOProvider } from './contexts/PTOContext';
+import { TimesheetProvider } from './contexts/TimesheetContext';
 import AppRoutes from './components/routes/AppRoutes';
 
 export default function App() {
@@ -17,10 +18,12 @@ export default function App() {
           <BrandingProvider>
             <TimeEntryProvider>
               <EmployeeProvider>
-                <PTOProvider>
-                  <Toaster position="top-right" expand={true} richColors />
-                  <AppRoutes />
-                </PTOProvider>
+                <TimesheetProvider>
+                  <PTOProvider>
+                    <Toaster position="top-right" expand={true} richColors />
+                    <AppRoutes />
+                  </PTOProvider>
+                </TimesheetProvider>
               </EmployeeProvider>
             </TimeEntryProvider>
           </BrandingProvider>

@@ -58,11 +58,24 @@ CREATE POLICY "Organizations can insert their own employees"
     FOR INSERT
     TO authenticated
     WITH CHECK (
-        organization_id IN (
-            SELECT organization_id 
-            FROM organization_members 
-            WHERE user_id = auth.uid()
-            AND role IN ('admin')
+        -- Allow admins to create any employee
+        (
+            organization_id IN (
+                SELECT organization_id 
+                FROM organization_members 
+                WHERE user_id = auth.uid()
+                AND role = 'admin'
+            )
+        )
+        OR
+        -- Allow users to create their own employee record
+        (
+            organization_id IN (
+                SELECT organization_id 
+                FROM organization_members om
+                WHERE om.user_id = auth.uid()
+                AND om.id = member_id  -- Ensure they can only create for their own member_id
+            )
         )
     );
 
