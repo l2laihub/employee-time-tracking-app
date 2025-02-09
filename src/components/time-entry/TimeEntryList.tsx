@@ -5,6 +5,7 @@ import { formatDistanceToNow, format, parseISO, startOfDay } from 'date-fns';
 import { listTimeEntries } from '../../services/timeEntries';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOrganization } from '../../contexts/OrganizationContext';
+import { useTimeEntry } from '../../contexts/TimeEntryContext';
 
 interface TimeEntryListProps {
   locations: JobLocation[];
@@ -20,6 +21,7 @@ interface FilterOptions {
 export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEntryListProps) {
   const { user } = useAuth();
   const { organization } = useOrganization();
+  const { activeEntry } = useTimeEntry();
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -27,24 +29,48 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
   const [filters, setFilters] = useState<FilterOptions>({});
   const [showFilters, setShowFilters] = useState(false);
 
-  useEffect(() => {
-    async function fetchEntries() {
-      if (!organization?.id || !user?.id) {
-        setIsLoading(false);
-        return;
-      }
-
-      const result = await listTimeEntries(organization.id, user.id);
-      if (result.success) {
-        setEntries(result.data as TimeEntry[]);
-      } else {
-        setError(result.error);
-      }
+  const fetchEntries = async () => {
+    if (!organization?.id || !user?.id) {
       setIsLoading(false);
+      return;
     }
 
+    // Only fetch entries for the current user
+    const result = await listTimeEntries(organization.id, {
+      employeeId: user.id
+    });
+
+    if (result.success) {
+      // Sort entries with active entries first, then break entries, then by clock_in time
+      const sortedEntries = [...(result.data as TimeEntry[])].sort((a, b) => {
+        // First prioritize active entries
+        if (a.status === 'active' && b.status !== 'active') return -1;
+        if (b.status === 'active' && a.status !== 'active') return 1;
+        
+        // Then prioritize break entries
+        if (a.status === 'break' && b.status !== 'break') return -1;
+        if (b.status === 'break' && a.status !== 'break') return 1;
+        
+        // Then sort by clock_in time (most recent first)
+        const dateA = new Date(a.clock_in).getTime();
+        const dateB = new Date(b.clock_in).getTime();
+        return dateB - dateA;
+      });
+      setEntries(sortedEntries);
+    } else {
+      setError(result.error);
+    }
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
     fetchEntries();
   }, [organization?.id, user?.id]);
+
+  // Refresh entries when active entry changes
+  useEffect(() => {
+    fetchEntries();
+  }, [activeEntry]);
 
   // Apply filters
   const filteredEntries = entries.filter(entry => {
@@ -57,8 +83,15 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
     return true;
   });
 
-  // Group entries by date
+  // Group entries by date, but keep active and break entries separate
+  const ongoingEntries: TimeEntry[] = [];
   const groupedEntries = filteredEntries.reduce<{ [date: string]: TimeEntry[] }>((groups, entry) => {
+    // Check for both active and break status (case-insensitive)
+    const status = entry.status?.toLowerCase();
+    if (status === 'active' || status === 'break') {
+      ongoingEntries.push(entry);
+      return groups;
+    }
     const date = format(parseISO(entry.clock_in), 'yyyy-MM-dd');
     if (!groups[date]) groups[date] = [];
     groups[date].push(entry);
@@ -70,6 +103,19 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
     entries.sort((a, b) => {
       return new Date(b.clock_in).getTime() - new Date(a.clock_in).getTime();
     });
+  });
+
+  // Sort ongoing entries by status (active first, then break) and then by clock_in time
+  ongoingEntries.sort((a, b) => {
+    const statusA = a.status?.toLowerCase();
+    const statusB = b.status?.toLowerCase();
+    
+    // Active entries come first
+    if (statusA === 'active' && statusB !== 'active') return -1;
+    if (statusB === 'active' && statusA !== 'active') return 1;
+    
+    // Then sort by clock_in time (most recent first)
+    return new Date(b.clock_in).getTime() - new Date(a.clock_in).getTime();
   });
 
   // Pagination
@@ -144,6 +190,50 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
       )}
 
       <div className="space-y-6">
+        {/* Ongoing Entries Section */}
+        {ongoingEntries.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-gray-500">Ongoing Entries</h3>
+            <div className="space-y-3">
+              {ongoingEntries.map(entry => {
+                const location = locations.find(loc => loc.id === entry.job_location_id);
+                const startTime = parseISO(entry.clock_in);
+                const isActive = entry.status?.toLowerCase() === 'active';
+
+                return (
+                  <div
+                    key={entry.id}
+                    className={`bg-white shadow rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow border-l-4 ${
+                      isActive ? 'border-blue-500' : 'border-orange-500'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between sm:justify-start gap-2">
+                          <h3 className="font-medium text-gray-900 flex-1 sm:flex-none">
+                            {location?.name || 'Unknown Location'}
+                          </h3>
+                          <span className={`inline-flex px-2 py-1 rounded text-xs sm:text-sm whitespace-nowrap ${
+                            isActive ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800'
+                          }`}>
+                            {entry.status === 'active' ? 'Active' : entry.status === 'break' ? 'Break' : 'Completed'}
+                          </span>
+                        </div>
+                        <div className="flex flex-col text-sm text-gray-500">
+                          <div className="text-sm text-gray-500">
+                            Started {formatDistanceToNow(startTime)} ago
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Regular Entries Section */}
         {paginatedDates.map(date => (
           <div key={date} className="space-y-3">
             <h3 className="text-sm font-medium text-gray-500">
@@ -171,7 +261,7 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
                             entry.status === 'break' ? 'bg-orange-100 text-orange-800' :
                             'bg-blue-100 text-blue-800'
                           }`}>
-                            {entry.status}
+                            {entry.status === 'active' ? 'Active' : entry.status === 'break' ? 'Break' : 'Completed'}
                           </span>
                         </div>
                         <div className="flex flex-col text-sm text-gray-500">

@@ -19,7 +19,7 @@ interface TimesheetContextType {
   // Timesheet actions
   refreshTimesheets: () => Promise<void>;
   createTimesheet: (employeeId: string, periodStartDate: Date, periodEndDate: Date) => Promise<void>;
-  updateTimesheetStatus: (timesheetId: string, status: TimesheetStatus, reviewNotes?: string) => Promise<void>;
+  updateTimesheetStatus: (timesheetId: string, status: TimesheetStatus, reviewNotes?: string, totalHours?: number) => Promise<void>;
   selectTimesheet: (timesheet: Timesheet | null) => void;
 
   // Time entry actions
@@ -151,21 +151,30 @@ export function TimesheetProvider({ children }: { children: React.ReactNode }) {
   const updateTimesheetStatus = useCallback(async (
     timesheetId: string,
     status: TimesheetStatus,
-    reviewNotes?: string
+    reviewNotes?: string,
+    totalHours?: number
   ) => {
     try {
-      const result = await timesheetService.updateTimesheetStatus(timesheetId, status, reviewNotes);
-      if (result.success && result.data) {
-        setTimesheets(prev => prev.map(ts => 
-          ts.id === timesheetId ? result.data as Timesheet : ts
-        ));
-        if (selectedTimesheet?.id === timesheetId) {
-          setSelectedTimesheet(result.data as Timesheet);
-        }
-      } else {
+      console.log('TimesheetContext: Updating timesheet status', { timesheetId, status, reviewNotes, totalHours });
+      const result = await timesheetService.updateTimesheetStatus(timesheetId, status, reviewNotes, totalHours);
+      
+      if (!result.success || !result.data) {
+        console.error('TimesheetContext: Failed to update timesheet:', result.error);
         throw new Error(result.error || 'Failed to update timesheet status');
       }
+      
+      console.log('TimesheetContext: Update successful, updating state with data:', result.data);
+      
+      // Use the total hours from the server response
+      setTimesheets(prev => prev.map(ts => 
+        ts.id === timesheetId ? result.data as Timesheet : ts
+      ));
+      
+      if (selectedTimesheet?.id === timesheetId) {
+        setSelectedTimesheet(result.data as Timesheet);
+      }
     } catch (err) {
+      console.error('TimesheetContext: Error in updateTimesheetStatus:', err);
       throw err instanceof Error ? err : new Error('Failed to update timesheet status');
     }
   }, [selectedTimesheet]);

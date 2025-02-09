@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrganization } from '../contexts/OrganizationContext';
 import { useTimesheets } from '../contexts/TimesheetContext';
+import { TimesheetStatus } from '../types/custom.types';
 import AdminTimesheetView from '../components/timesheets/AdminTimesheetView';
 import EmployeeTimesheetView from '../components/timesheets/EmployeeTimesheetView';
 
@@ -27,9 +28,17 @@ export default function Timesheets() {
     refreshTimesheets();
   }, [refreshTimesheets, user, userRole, orgLoading]);
 
-  const handleUpdateTimesheet = async (timesheetId: string, status: string, reviewNotes?: string) => {
-    await updateTimesheetStatus(timesheetId, status as any, reviewNotes);
-    await refreshTimesheets();
+  const handleUpdateTimesheet = async (timesheetId: string, status: string, reviewNotes?: string, totalHours?: number) => {
+    console.log('Updating timesheet:', { timesheetId, status, reviewNotes, totalHours });
+    try {
+      // Call the context's updateTimesheetStatus function
+      await updateTimesheetStatus(timesheetId, status as TimesheetStatus, reviewNotes, totalHours);
+      console.log('Timesheet updated successfully');
+      await refreshTimesheets();
+    } catch (error) {
+      console.error('Failed to update timesheet:', error);
+      throw error;
+    }
   };
 
   if (!user) return null;
@@ -50,12 +59,13 @@ export default function Timesheets() {
         <AdminTimesheetView
           timesheets={timesheets}
           onUpdateTimesheet={handleUpdateTimesheet}
+          isAdmin={isAdmin}
         />
       ) : (
         <EmployeeTimesheetView
           timesheets={timesheets}
-          userId={user.id}
           onUpdateTimesheet={handleUpdateTimesheet}
+          isAdmin={isAdmin}
         />
       )}
     </div>

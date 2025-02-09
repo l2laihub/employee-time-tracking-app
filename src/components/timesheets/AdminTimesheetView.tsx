@@ -7,6 +7,7 @@ import { Search, Calendar, Building2, CheckCircle, X } from 'lucide-react';
 interface AdminTimesheetViewProps {
   timesheets: Timesheet[];
   onUpdateTimesheet: (timesheetId: string, status: string, reviewNotes?: string) => void;
+  isAdmin?: boolean;
 }
 
 interface TimesheetFilters {
@@ -29,7 +30,11 @@ const initialFilters: TimesheetFilters = {
   }
 };
 
-export default function AdminTimesheetView({ timesheets, onUpdateTimesheet }: AdminTimesheetViewProps) {
+export default function AdminTimesheetView({ 
+  timesheets,
+  onUpdateTimesheet,
+  isAdmin = false
+}: AdminTimesheetViewProps) {
   const [filters, setFilters] = useState<TimesheetFilters>(initialFilters);
   const [selectedTimesheet, setSelectedTimesheet] = useState<Timesheet | null>(null);
 
@@ -87,6 +92,11 @@ export default function AdminTimesheetView({ timesheets, onUpdateTimesheet }: Ad
     filters.department !== initialFilters.department ||
     filters.dateRange.startDate !== initialFilters.dateRange.startDate ||
     filters.dateRange.endDate !== initialFilters.dateRange.endDate;
+
+  const handleSubmitTimesheet = (status: string, reviewNotes?: string) => {
+    onUpdateTimesheet(selectedTimesheet!.id, status, reviewNotes);
+    setSelectedTimesheet(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -224,11 +234,9 @@ export default function AdminTimesheetView({ timesheets, onUpdateTimesheet }: Ad
         <div className="fixed inset-0 z-50">
           <TimesheetReviewForm
             timesheet={selectedTimesheet}
+            onSubmit={handleSubmitTimesheet}
             onClose={() => setSelectedTimesheet(null)}
-            onSubmit={(status, notes) => {
-              onUpdateTimesheet(selectedTimesheet.id, status, notes);
-              setSelectedTimesheet(null);
-            }}
+            isAdmin={isAdmin}
           />
         </div>
       )}

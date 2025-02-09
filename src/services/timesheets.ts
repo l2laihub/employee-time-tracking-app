@@ -1,5 +1,4 @@
 import { supabase } from '../lib/supabase'
-import { Database } from '../types/database.types'
 import { Timesheet, TimeEntry, TimesheetStatus } from '../types/custom.types'
 
 export interface TimesheetResult {
@@ -12,6 +11,29 @@ export interface TimeEntryResult {
   success: boolean
   data?: TimeEntry | TimeEntry[]
   error?: string
+}
+
+interface EmployeeDetails {
+  id: string;
+  first_name: string;
+  last_name: string;
+  department: string;
+  member_id: string;
+}
+
+// Helper function to calculate total hours for a timesheet
+function calculateTotalHours(timeEntries: TimeEntry[]): number {
+  return timeEntries.reduce((total, entry) => {
+    if (!entry.clock_in || !entry.clock_out) return total;
+
+    const clockIn = new Date(entry.clock_in);
+    const clockOut = new Date(entry.clock_out);
+    const durationMs = clockOut.getTime() - clockIn.getTime();
+    const durationHours = durationMs / (1000 * 60 * 60); // Convert ms to hours
+    const breakHours = (entry.total_break_minutes || 0) / 60;
+
+    return total + (durationHours - breakHours);
+  }, 0);
 }
 
 export async function createTimesheet(
@@ -84,22 +106,18 @@ export async function listTimesheetsForEmployee(
   try {
     console.log('Fetching timesheets for employee:', employeeId);
     
-    // Build the query filters
-    const filters = {
-      employee_id: employeeId
-    };
-    
-    if (status) {
-      console.log('Filtering by status:', status);
-      filters['status'] = status;
-    }
-    
-    // First get all timesheets for this employee
-    const { data, error } = await supabase
+    // Build the query
+    let query = supabase
       .from('timesheets')
       .select('*')
-      .match(filters)
+      .eq('employee_id', employeeId)
       .order('period_start_date', { ascending: false });
+    
+    if (status) {
+      query = query.eq('status', status);
+    }
+    
+    const { data, error } = await query;
       
     console.log('Raw timesheet query result:', { data, error });
 
@@ -202,7 +220,7 @@ export async function listTimesheetsForOrganization(
   }
 }
 
-export async function getTimesheetDetails(timesheetId: string): Promise<{ timesheet: Timesheet | null; timeEntries: TimeEntry[]; employee: any }> {
+export async function getTimesheetDetails(timesheetId: string): Promise<{ timesheet: Timesheet | null; timeEntries: TimeEntry[]; employee: EmployeeDetails | null }> {
   try {
     // Get the timesheet
     const { data: timesheet, error: timesheetError } = await supabase
@@ -237,14 +255,7 @@ export async function getTimesheetDetails(timesheetId: string): Promise<{ timesh
 
     console.log('Found employee:', employee);
 
-    // Debug: Check what time entries exist for this employee
-    const { data: allEntries, error: allEntriesError } = await supabase
-      .from('time_entries')
-      .select('*');
-
-    console.log('All time entries in database:', allEntries);
-
-    // Debug: Get the user_id for this employee
+    // Get the user_id for this employee
     const { data: memberData, error: memberError } = await supabase
       .from('organization_members')
       .select('user_id')
@@ -274,10 +285,13 @@ export async function getTimesheetDetails(timesheetId: string): Promise<{ timesh
         job_location_id,
         clock_in,
         clock_out,
+        break_start,
+        break_end,
         total_break_minutes,
         work_description,
+        service_type,
         status,
-        job_location:job_locations (
+        job_location:job_locations!inner (
           id,
           name,
           address
@@ -296,7 +310,7 @@ export async function getTimesheetDetails(timesheetId: string): Promise<{ timesh
     console.log('Found time entries for period:', timeEntries);
 
     // Calculate total hours
-    const totalHours = calculateTotalHours(timeEntries);
+    const totalHours = calculateTotalHours(timeEntries as unknown as TimeEntry[]);
 
     // Update timesheet with calculated total hours
     const { error: updateError } = await supabase
@@ -306,17 +320,22 @@ export async function getTimesheetDetails(timesheetId: string): Promise<{ timesh
 
     if (updateError) {
       console.error('Error updating timesheet total hours:', updateError);
-      // Don't throw here, we can still return the data
+      // Don't throw here, just log the error
+    } else {
+      // Update the local timesheet object
+      timesheet.total_hours = totalHours;
     }
 
-    // Return the updated timesheet with total hours
     return {
-      timesheet: { ...timesheet, total_hours: totalHours, employee },
-      timeEntries: timeEntries || [],
+      timesheet,
+      timeEntries: timeEntries.map((entry) => ({
+        ...entry,
+        job_location: entry.job_location?.[0] || null
+      })) as unknown as TimeEntry[],
       employee
     };
   } catch (error) {
-    console.error('Error getting timesheet details:', error);
+    console.error('Error in getTimesheetDetails:', error);
     throw error;
   }
 }
@@ -324,31 +343,275 @@ export async function getTimesheetDetails(timesheetId: string): Promise<{ timesh
 export async function updateTimesheetStatus(
   timesheetId: string,
   status: TimesheetStatus,
-  reviewNotes?: string
+  reviewNotes?: string,
+  totalHours?: number
 ): Promise<TimesheetResult> {
+  console.log('Updating timesheet status:', { timesheetId, status, reviewNotes, totalHours });
   try {
-    const updates: Partial<Database['public']['Tables']['timesheets']['Update']> = {
-      status,
-      reviewed_at: status === 'approved' || status === 'rejected' ? new Date().toISOString() : null,
-      review_notes: reviewNotes
-    };
-
-    if (status === 'submitted') {
-      updates.submitted_at = new Date().toISOString();
-    }
-
-    const { data, error } = await supabase
+    // First verify the timesheet exists
+    const { data: existingTimesheet, error: getError } = await supabase
       .from('timesheets')
-      .update(updates)
+      .select('*')
       .eq('id', timesheetId)
-      .select()
       .single();
 
-    if (error) throw error;
+    if (getError) {
+      console.error('Error getting timesheet:', getError);
+      return {
+        success: false,
+        error: 'Timesheet not found'
+      };
+    }
 
+    console.log('Found existing timesheet:', existingTimesheet);
+
+    // Get the employee details to get the user_id
+    const { data: employee, error: employeeError } = await supabase
+      .from('employees')
+      .select('id, member_id')
+      .eq('id', existingTimesheet.employee_id)
+      .single();
+
+    if (employeeError) {
+      console.error('Error getting employee:', employeeError);
+      return {
+        success: false,
+        error: 'Failed to get employee details'
+      };
+    }
+
+    // Get the user_id for this employee
+    const { data: memberData, error: memberError } = await supabase
+      .from('organization_members')
+      .select('user_id')
+      .eq('id', employee.member_id)
+      .single();
+
+    if (memberError) {
+      console.error('Error getting member data:', memberError);
+      return {
+        success: false,
+        error: 'Failed to get member details'
+      };
+    }
+
+    // Get time entries for this timesheet's period to calculate total hours
+    const { data: timeEntries, error: entriesError } = await supabase
+      .from('time_entries')
+      .select(`
+        id,
+        organization_id,
+        user_id,
+        job_location_id,
+        clock_in,
+        clock_out,
+        break_start,
+        break_end,
+        total_break_minutes,
+        work_description,
+        service_type,
+        status,
+        job_location:job_locations!inner (
+          id,
+          name,
+          address
+        )
+      `)
+      .eq('user_id', memberData.user_id)
+      .gte('clock_in', `${existingTimesheet.period_start_date}T00:00:00`)
+      .lte('clock_in', `${existingTimesheet.period_end_date}T23:59:59`);
+
+    if (entriesError) {
+      console.error('Error getting time entries:', entriesError);
+      return {
+        success: false,
+        error: 'Failed to get time entries'
+      };
+    }
+
+    // Calculate total hours from time entries
+    const calculatedTotalHours = calculateTotalHours(timeEntries as unknown as TimeEntry[]);
+    // If totalHours is provided and different from calculated, log a warning
+    if (totalHours !== undefined && Math.abs(totalHours - calculatedTotalHours) > 0.01) {
+      console.warn(`Provided total hours (${totalHours}) differs from calculated hours (${calculatedTotalHours})`);
+    }
+    const finalTotalHours = totalHours ?? calculatedTotalHours;
+
+    // Get current timestamp
+    const now = new Date().toISOString();
+
+    // Prepare update data - explicitly set review_notes to null if undefined
+    const updates = {
+      status,
+      updated_at: now,
+      total_hours: finalTotalHours,
+      review_notes: reviewNotes ?? null,
+      ...(status === 'submitted' && !existingTimesheet.submitted_at && { submitted_at: now }),
+      ...((status === 'approved' || status === 'rejected') && !existingTimesheet.reviewed_at && { reviewed_at: now })
+    };
+
+    console.log('Updating timesheet with data:', updates);
+
+    // Perform the update
+    const { error: updateError } = await supabase
+      .from('timesheets')
+      .update(updates)
+      .eq('id', timesheetId);
+
+    if (updateError) {
+      console.error('Error updating timesheet:', updateError);
+      return {
+        success: false,
+        error: 'Failed to update timesheet status'
+      };
+    }
+
+    // Add a small delay before verification to ensure update has propagated
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Get the updated timesheet
+    const { data: updatedTimesheet, error: fetchError } = await supabase
+      .from('timesheets')
+      .select('*')
+      .eq('id', timesheetId)
+      .single();
+
+    if (fetchError || !updatedTimesheet) {
+      console.error('Error getting updated timesheet:', fetchError);
+      return {
+        success: false,
+        error: 'Failed to verify timesheet update'
+      };
+    }
+
+    console.log('Retrieved updated timesheet for verification:', updatedTimesheet);
+
+    // Get the final time entries
+    const { data: finalTimeEntries, error: finalEntriesError } = await supabase
+      .from('time_entries')
+      .select(`
+        id,
+        organization_id,
+        user_id,
+        job_location_id,
+        clock_in,
+        clock_out,
+        break_start,
+        break_end,
+        total_break_minutes,
+        work_description,
+        service_type,
+        status,
+        job_location:job_locations!inner (
+          id,
+          name,
+          address
+        )
+      `)
+      .eq('user_id', memberData.user_id)
+      .gte('clock_in', `${updatedTimesheet.period_start_date}T00:00:00`)
+      .lte('clock_in', `${updatedTimesheet.period_end_date}T23:59:59`);
+
+    if (finalEntriesError) {
+      console.error('Error getting final time entries:', finalEntriesError);
+      return {
+        success: false,
+        error: 'Failed to get time entries'
+      };
+    }
+
+    // Verify the update was successful with tolerance for floating point comparison
+    const hoursDiff = Math.abs(updatedTimesheet.total_hours - finalTotalHours);
+    const hoursMatch = hoursDiff < 0.01;
+    const statusMatch = updatedTimesheet.status === status;
+    
+    // Handle null/undefined/empty string equivalence for review notes
+    const normalizeNotes = (notes: string | null | undefined) => {
+      if (notes === '' || notes === undefined || notes === null) return null;
+      return String(notes).trim();
+    };
+
+    const normalizedActual = normalizeNotes(updatedTimesheet.review_notes);
+    const normalizedExpected = normalizeNotes(reviewNotes);
+    const notesMatch = normalizedActual === normalizedExpected;
+
+    console.log('Raw values comparison:', {
+      hours: {
+        actual: updatedTimesheet.total_hours,
+        expected: finalTotalHours,
+        difference: hoursDiff,
+        actualType: typeof updatedTimesheet.total_hours,
+        expectedType: typeof finalTotalHours
+      },
+      status: {
+        actual: updatedTimesheet.status,
+        expected: status,
+        actualType: typeof updatedTimesheet.status,
+        expectedType: typeof status
+      },
+      notes: {
+        actual: updatedTimesheet.review_notes,
+        expected: reviewNotes,
+        actualType: typeof updatedTimesheet.review_notes,
+        expectedType: typeof reviewNotes,
+        normalizedActual,
+        normalizedExpected,
+        actualIsNull: updatedTimesheet.review_notes === null,
+        expectedIsNull: reviewNotes === null
+      }
+    });
+    
+    console.log('Verification details:', {
+      hoursMatch,
+      statusMatch,
+      notesMatch,
+      hours: { 
+        expected: finalTotalHours, 
+        actual: updatedTimesheet.total_hours, 
+        diff: Math.abs(updatedTimesheet.total_hours - finalTotalHours),
+        tolerance: 0.01
+      },
+      status: { 
+        expected: status, 
+        actual: updatedTimesheet.status,
+        match: statusMatch
+      },
+      notes: { 
+        expected: reviewNotes, 
+        actual: updatedTimesheet.review_notes,
+        expectedType: typeof reviewNotes,
+        actualType: typeof updatedTimesheet.review_notes,
+        normalizedExpected: normalizeNotes(reviewNotes),
+        normalizedActual: normalizeNotes(updatedTimesheet.review_notes),
+        match: notesMatch
+      }
+    });
+
+    if (!hoursMatch || !statusMatch || !notesMatch) {
+      console.error('Update verification failed. Expected vs Actual:', {
+        total_hours: { expected: finalTotalHours, actual: updatedTimesheet.total_hours, match: hoursMatch },
+        status: { expected: status, actual: updatedTimesheet.status, match: statusMatch },
+        review_notes: { expected: reviewNotes, actual: updatedTimesheet.review_notes, match: notesMatch }
+      });
+      return {
+        success: false,
+        error: 'Update verification failed - changes were not saved correctly'
+      };
+    }
+
+    // Combine the updated timesheet with time entries
+    const timesheetWithEntries = {
+      ...updatedTimesheet,
+      time_entries: finalTimeEntries.map((entry) => ({
+        ...entry,
+        job_location: entry.job_location?.[0] || null
+      })) as unknown as TimeEntry[]
+    };
+
+    console.log('Timesheet updated successfully:', timesheetWithEntries);
     return {
       success: true,
-      data: data as Timesheet
+      data: timesheetWithEntries as Timesheet
     };
   } catch (error) {
     console.error('Timesheet status update failed:', error);
@@ -359,100 +622,154 @@ export async function updateTimesheetStatus(
   }
 }
 
-export async function updateTimeEntry(entry: TimeEntry): Promise<TimeEntry> {
-  console.log('Updating time entry:', entry);
+export async function updateTimeEntry(entry: TimeEntry & { timesheet_id?: string }): Promise<TimeEntry> {
+  try {
+    console.log('Updating time entry:', entry);
 
-  // First get the existing entry to preserve required fields
-  const { data: existingEntry, error: getError } = await supabase
-    .from('time_entries')
-    .select('*')
-    .eq('id', entry.id)
-    .single();
+    // First update the time entry
+    const { error: updateError } = await supabase
+      .from('time_entries')
+      .update({
+        job_location_id: entry.job_location_id,
+        clock_in: entry.clock_in,
+        clock_out: entry.clock_out,
+        break_start: entry.break_start,
+        break_end: entry.break_end,
+        total_break_minutes: entry.total_break_minutes || 0,
+        work_description: entry.work_description,
+        service_type: entry.service_type,
+        status: entry.status
+      })
+      .eq('id', entry.id);
 
-  if (getError) {
-    console.error('Error getting existing time entry:', getError);
-    throw getError;
-  }
+    if (updateError) {
+      console.error('Error updating time entry:', updateError);
+      throw new Error('Failed to update time entry');
+    }
 
-  console.log('Found existing entry:', existingEntry);
-
-  // Prepare minimal update data with required fields
-  const updateData = {
-    organization_id: existingEntry.organization_id,
-    user_id: existingEntry.user_id,
-    job_location_id: entry.job_location_id || existingEntry.job_location_id,
-    service_type: existingEntry.service_type,
-    status: existingEntry.status,
-    clock_in: entry.clock_in,
-    clock_out: entry.clock_out,
-    total_break_minutes: entry.total_break_minutes || existingEntry.total_break_minutes,
-    work_description: entry.work_description || existingEntry.work_description,
-    updated_at: new Date().toISOString()
-  };
-
-  console.log('Updating with data:', updateData);
-
-  // Update the entry
-  const { data: updateResult, error: updateError } = await supabase
-    .from('time_entries')
-    .update(updateData)
-    .eq('id', entry.id)
-    .select();
-
-  if (updateError) {
-    console.error('Error updating time entry:', updateError);
-    throw updateError;
-  }
-
-  console.log('Update result:', updateResult);
-
-  if (!updateResult || updateResult.length === 0) {
-    throw new Error('No rows were updated');
-  }
-
-  // Get the updated entry with job location data
-  const { data, error: getUpdatedError } = await supabase
-    .from('time_entries')
-    .select(`
-      id,
-      organization_id,
-      user_id,
-      job_location_id,
-      clock_in,
-      clock_out,
-      total_break_minutes,
-      work_description,
-      service_type,
-      status,
-      job_location:job_locations (
+    // Get the updated time entry to verify changes
+    const { data, error: getUpdatedError } = await supabase
+      .from('time_entries')
+      .select(`
         id,
-        name,
-        address
-      )
-    `)
-    .eq('id', entry.id)
-    .single();
+        organization_id,
+        user_id,
+        job_location_id,
+        clock_in,
+        clock_out,
+        break_start,
+        break_end,
+        total_break_minutes,
+        work_description,
+        service_type,
+        status,
+        job_location:job_locations!inner (
+          id,
+          name,
+          address
+        )
+      `)
+      .eq('id', entry.id)
+      .single();
 
-  if (getUpdatedError) {
-    console.error('Error getting updated time entry:', getUpdatedError);
-    throw getUpdatedError;
+    if (getUpdatedError) {
+      console.error('Error getting updated time entry:', getUpdatedError);
+      throw new Error('Failed to retrieve updated time entry');
+    }
+
+    // Get the timesheet - first try by timesheet_id, then by date range
+    let timesheet;
+    if (entry.timesheet_id) {
+      const { data: timesheetData, error: timesheetError } = await supabase
+        .from('timesheets')
+        .select('*')
+        .eq('id', entry.timesheet_id)
+        .single();
+
+      if (!timesheetError) {
+        timesheet = timesheetData;
+      } else {
+        console.error('Error finding timesheet by id:', timesheetError);
+      }
+    }
+
+    // If we couldn't find the timesheet by id, try by date range
+    if (!timesheet && entry.clock_in) {
+      // Get employee_id from the time entry's user_id
+      const { data: employeeData, error: employeeError } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('member_id', entry.user_id)
+        .single();
+
+      if (!employeeError && employeeData) {
+        const { data: timesheetData, error: timesheetError } = await supabase
+          .from('timesheets')
+          .select('*')
+          .eq('employee_id', employeeData.id)
+          .gte('period_start_date', entry.clock_in?.split('T')[0])
+          .lte('period_end_date', entry.clock_out?.split('T')[0])
+          .single();
+
+        if (!timesheetError) {
+          timesheet = timesheetData;
+        } else {
+          console.error('Error finding timesheet by date range:', timesheetError);
+        }
+      }
+    }
+
+    // If we found a timesheet, update its total hours
+    if (timesheet) {
+      // Get all time entries for this timesheet period
+      const { data: timeEntries, error: entriesError } = await supabase
+        .from('time_entries')
+        .select(`
+          id,
+          organization_id,
+          user_id,
+          job_location_id,
+          clock_in,
+          clock_out,
+          break_start,
+          break_end,
+          total_break_minutes,
+          work_description,
+          service_type,
+          status,
+          job_location:job_locations!inner (
+            id,
+            name,
+            address
+          )
+        `)
+        .eq('user_id', data.user_id)
+        .gte('clock_in', `${timesheet.period_start_date}T00:00:00`)
+        .lte('clock_in', `${timesheet.period_end_date}T23:59:59`);
+
+      if (entriesError) {
+        console.error('Error getting time entries:', entriesError);
+      } else if (timeEntries) {
+        // Calculate and update total hours
+        const totalHours = calculateTotalHours(timeEntries as unknown as TimeEntry[]);
+        const { error: updateTimesheetError } = await supabase
+          .from('timesheets')
+          .update({ total_hours: totalHours })
+          .eq('id', timesheet.id);
+
+        if (updateTimesheetError) {
+          console.error('Error updating timesheet total hours:', updateTimesheetError);
+        }
+      }
+    }
+
+    console.log('Final updated entry:', data);
+    return {
+      ...data,
+      job_location: data.job_location?.[0] || null
+    } as TimeEntry;
+  } catch (error) {
+    console.error('Error in updateTimeEntry:', error);
+    throw error;
   }
-
-  console.log('Final updated entry:', data);
-  return data;
-}
-
-// Helper function to calculate total hours for a timesheet
-function calculateTotalHours(timeEntries: TimeEntry[]): number {
-  return timeEntries.reduce((total, entry) => {
-    if (!entry.clock_in || !entry.clock_out) return total;
-
-    const clockIn = new Date(entry.clock_in);
-    const clockOut = new Date(entry.clock_out);
-    const durationMs = clockOut.getTime() - clockIn.getTime();
-    const durationHours = durationMs / (1000 * 60 * 60); // Convert ms to hours
-    const breakHours = (entry.total_break_minutes || 0) / 60;
-
-    return total + (durationHours - breakHours);
-  }, 0);
 }

@@ -18,13 +18,13 @@ export interface Timesheet {
   id: string;
   organization_id: string;
   employee_id: string;
-  period_start_date: Date;  // Changed from period_start
-  period_end_date: Date;    // Changed from period_end
+  period_start_date: string;  // ISO date string YYYY-MM-DD
+  period_end_date: string;    // ISO date string YYYY-MM-DD
   status: TimesheetStatus;
   total_hours: number;
-  submitted_at?: Date;
+  submitted_at?: string;  // ISO datetime string
   reviewed_by?: string;
-  reviewed_at?: Date;
+  reviewed_at?: string;  // ISO datetime string
   review_notes?: string;
   employee?: {  // Changed from employees to employee to match query
     first_name: string;

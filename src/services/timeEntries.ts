@@ -141,7 +141,7 @@ export async function listTimeEntriesByTimesheet(
   try {
     const { data: timesheet, error: timesheetError } = await supabase
       .from('timesheets')
-      .select('period_start_date, period_end_date')
+      .select('period_start_date, period_end_date, employee_id')
       .eq('id', timesheetId)
       .single();
 
@@ -157,10 +157,10 @@ export async function listTimeEntriesByTimesheet(
           service_type
         )
       `)
-      .gte('entry_date', timesheet.period_start_date)
-      .lte('entry_date', timesheet.period_end_date)
-      .order('entry_date', { ascending: true })
-      .order('start_time', { ascending: true });
+      .eq('user_id', timesheet.employee_id)
+      .gte('clock_in', timesheet.period_start_date)
+      .lte('clock_in', timesheet.period_end_date)
+      .order('clock_in', { ascending: true });
 
     if (error) throw error;
 

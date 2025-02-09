@@ -1,347 +1,486 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { format } from 'date-fns';
+import React, { useState, useEffect, useCallback } from 'react';
+import { format, parseISO } from 'date-fns';
 import { Timesheet, TimeEntry, JobLocation } from '../../types/custom.types';
 import { getTimesheetDetails, updateTimeEntry } from '../../services/timesheets';
-import { supabase } from '../../lib/supabase';
+import { listLocations } from '../../services/jobLocations';
+import { useOrganization } from '../../contexts/OrganizationContext';
 
 interface TimesheetReviewFormProps {
   timesheet: Timesheet;
-  onSubmit: (status: string, notes?: string) => void;
+  onSubmit: (status: string, reviewNotes?: string, timesheetData?: Timesheet) => void;
   onClose: () => void;
+  isAdmin?: boolean;
 }
 
 export default function TimesheetReviewForm({ 
   timesheet: initialTimesheet, 
   onSubmit, 
-  onClose
+  onClose,
+  isAdmin = false
 }: TimesheetReviewFormProps) {
+  const { organization } = useOrganization();
   const [timesheet, setTimesheet] = useState<Timesheet>(initialTimesheet);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [reviewNotes, setReviewNotes] = useState('');
-  const [status, setStatus] = useState<'approved' | 'rejected'>('approved');
-  const [employeeNotes, setEmployeeNotes] = useState('');
   const [jobLocations, setJobLocations] = useState<JobLocation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [reviewNotes, setReviewNotes] = useState(initialTimesheet.review_notes || '');
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
-
-  // Use refs to prevent unnecessary re-renders
-  const timesheetRef = useRef(timesheet);
-  const timeEntriesRef = useRef(timeEntries);
-  const jobLocationsRef = useRef(jobLocations);
-
-  useEffect(() => {
-    timesheetRef.current = timesheet;
-    timeEntriesRef.current = timeEntries;
-    jobLocationsRef.current = jobLocations;
-  }, [timesheet, timeEntries, jobLocations]);
-
-  const loadDetails = useCallback(async () => {
-    const details = await getTimesheetDetails(initialTimesheet.id);
-    if (details.timesheet) {
-      setTimesheet(details.timesheet);
-    }
-    setTimeEntries(details.timeEntries);
-    setLoading(false);
-  }, [initialTimesheet.id]);
-
-  const loadJobLocations = useCallback(async () => {
-    try {
-      const { data: locations, error } = await supabase
-        .from('job_locations')
-        .select('id, organization_id, name, address')
-        .eq('organization_id', initialTimesheet.organization_id);
-      
-      if (error) throw error;
-      setJobLocations(locations || []);
-    } catch (error) {
-      console.error('Error loading job locations:', error);
-    }
-  }, [initialTimesheet.organization_id]);
+  const [editingHours, setEditingHours] = useState<number>(0);
+  const [error, setError] = useState<string>('');
 
   useEffect(() => {
     loadDetails();
-    loadJobLocations();
-  }, [loadDetails, loadJobLocations]);
+    if (organization?.id) {
+      loadJobLocations();
+    }
+  }, [initialTimesheet.id, organization?.id]);
 
-  const handleEditEntry = useCallback((entry: TimeEntry) => {
-    // Ensure datetime-local input gets the correct format and job_location_id is properly set
-    const formattedEntry = {
-      ...entry,
-      clock_in: entry.clock_in?.slice(0, 16) || '', // Format: YYYY-MM-DDThh:mm
-      clock_out: entry.clock_out?.slice(0, 16) || '',
-      job_location_id: entry.job_location?.id || entry.job_location_id // Use existing job_location.id if available
-    };
-    console.log('Editing entry with data:', formattedEntry);
-    setEditingEntry(formattedEntry);
-  }, []);
-
-  const handleSaveEntry = useCallback(async (entry: TimeEntry) => {
+  const loadDetails = async () => {
     try {
-      // Ensure we send the full ISO string and properly format the job_location_id
+      const details = await getTimesheetDetails(initialTimesheet.id);
+      if (details.timesheet) {
+        setTimesheet(details.timesheet);
+      }
+      if (details.timeEntries) {
+        setTimeEntries(details.timeEntries);
+      }
+    } catch (error) {
+      console.error('Error loading timesheet details:', error);
+      setError('Failed to load timesheet details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadJobLocations = async () => {
+    try {
+      const result = await listLocations(organization!.id);
+      if (result.success && Array.isArray(result.data)) {
+        setJobLocations(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading job locations:', error);
+    }
+  };
+
+  const calculateTotalHours = (entry: TimeEntry) => {
+    if (!entry.clock_in || !entry.clock_out) return 0;
+    
+    try {
+      const clockIn = new Date(entry.clock_in);
+      const clockOut = new Date(entry.clock_out);
+      
+      // Calculate hours between clock in and clock out
+      let hours = (clockOut.getTime() - clockIn.getTime()) / (1000 * 60 * 60);
+      
+      // Subtract break hours if any
+      const breakHours = (entry.total_break_minutes || 0) / 60;
+      hours = hours - breakHours;
+      
+      // Round to 2 decimal places
+      return Math.round(hours * 100) / 100;
+    } catch (error) {
+      console.error('Error calculating total hours:', error);
+      return 0;
+    }
+  };
+
+  const calculateTimesheetTotal = (entries: TimeEntry[]) => {
+    const total = entries.reduce((sum, entry) => {
+      return sum + calculateTotalHours(entry);
+    }, 0);
+    return Math.round(total * 100) / 100;
+  };
+
+  useEffect(() => {
+    // Update total hours whenever time entries change
+    if (timesheet && timeEntries.length > 0) {
+      const total = calculateTimesheetTotal(timeEntries);
+      console.log('Updating timesheet total hours:', total);
+      setTimesheet({
+        ...timesheet,
+        total_hours: total
+      });
+    }
+  }, [timeEntries]);
+
+  useEffect(() => {
+    // Update total hours whenever editing entry changes
+    if (editingEntry) {
+      const hours = calculateTotalHours(editingEntry);
+      setEditingHours(hours);
+    }
+  }, [editingEntry?.clock_in, editingEntry?.clock_out, editingEntry?.total_break_minutes]);
+
+  const formatTimeForInput = (dateString: string | null) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      // Format to local date-time string that works with datetime-local input
+      return format(date, "yyyy-MM-dd'T'HH:mm");
+    } catch (error) {
+      console.error('Error formatting time for input:', error);
+      return '';
+    }
+  };
+
+  // Check if the timesheet can be edited
+  const canEdit = useCallback(() => {
+    if (isAdmin) return true;
+    return timesheet.status === 'draft' || timesheet.status === 'submitted';
+  }, [isAdmin, timesheet.status]);
+
+  const handleEditEntry = (entry: TimeEntry) => {
+    // Only allow editing if user has permission
+    if (!canEdit()) return;
+    
+    // Ensure we have all the fields from the TimeEntry interface
+    setEditingEntry({
+      ...entry,
+      clock_in: formatTimeForInput(entry.clock_in),
+      clock_out: formatTimeForInput(entry.clock_out),
+      total_break_minutes: entry.total_break_minutes || 0,
+      job_location_id: entry.job_location_id,
+      service_type: entry.service_type || null,
+      work_description: entry.work_description || '',
+      status: entry.status || null
+    });
+  };
+
+  const handleSaveEntry = async () => {
+    if (!editingEntry || !canEdit()) return;
+
+    try {
+      // Validate required fields
+      if (!editingEntry.clock_in || !editingEntry.job_location_id) {
+        setError('Clock In time and Job Location are required');
+        return;
+      }
+
+      const clockIn = parseISO(editingEntry.clock_in);
+      const clockOut = editingEntry.clock_out ? parseISO(editingEntry.clock_out) : null;
+
       const updatedEntry = {
-        ...entry,
-        clock_in: new Date(entry.clock_in).toISOString(),
-        clock_out: new Date(entry.clock_out).toISOString(),
-        job_location_id: entry.job_location_id, // Make sure this is sent as is
-        total_break_minutes: Number(entry.total_break_minutes) // Ensure this is a number
+        ...editingEntry,
+        timesheet_id: timesheet.id,
+        clock_in: clockIn.toISOString(),
+        clock_out: clockOut ? clockOut.toISOString() : null,
+        total_break_minutes: editingEntry.total_break_minutes || 0,
+        total_hours: clockOut ? calculateTotalHours({
+          ...editingEntry,
+          clock_in: clockIn.toISOString(),
+          clock_out: clockOut.toISOString()
+        }) : 0
       };
-      
-      console.log('Saving entry with data:', updatedEntry);
+
       await updateTimeEntry(updatedEntry);
-      
-      // Reload timesheet details to get updated data
       await loadDetails();
       setEditingEntry(null);
+      setError('');
     } catch (error) {
       console.error('Error updating time entry:', error);
-      // TODO: Show error message to user
+      setError('Failed to update time entry');
     }
-  }, [loadDetails]);
+  };
 
-  const handleCancelEdit = useCallback(() => {
-    setEditingEntry(null);
-  }, []);
+  const handleEditingChange = (field: keyof TimeEntry, value: string | number | null) => {
+    if (!editingEntry) return;
+    
+    const updatedEntry = {
+      ...editingEntry,
+      [field]: value
+    };
+    setEditingEntry(updatedEntry);
+  };
 
-  const handleSubmit = useCallback((e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(status, reviewNotes);
-  }, [status, reviewNotes, onSubmit]);
+    setError(''); // Clear any previous errors
+    console.log('Submitting timesheet:', { timesheet, reviewNotes });
+    
+    try {
+      // Validate there are time entries
+      if (timeEntries.length === 0) {
+        setError('Cannot submit timesheet with no time entries');
+        return;
+      }
 
-  const calculateEntryHours = useCallback((entry: TimeEntry) => {
-    if (!entry.clock_in || !entry.clock_out) return 0;
-    const start = new Date(entry.clock_in);
-    const end = new Date(entry.clock_out);
-    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-    const breakHours = (entry.total_break_minutes || 0) / 60;
-    return Number((hours - breakHours).toFixed(2));
-  }, []);
+      // Calculate total hours from time entries
+      const total = calculateTimesheetTotal(timeEntries);
+      if (total <= 0) {
+        setError('Total hours must be greater than 0');
+        return;
+      }
+
+      console.log('Submitting timesheet with total hours:', total);
+      await onSubmit('submitted', reviewNotes, { ...timesheet, total_hours: total, review_notes: reviewNotes });
+      console.log('Timesheet submitted successfully');
+      onClose(); // Only close on success
+    } catch (error) {
+      console.error('Error submitting timesheet:', error);
+      setError(error instanceof Error ? error.message : 'Failed to submit timesheet');
+      // Don't close form on error - let user try again
+    }
+  };
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center">
+      <div className="fixed inset-0 z-50 bg-gray-500 bg-opacity-75 flex items-center justify-center">
         <div className="bg-white rounded-lg p-6">
-          <div className="animate-pulse">Loading timesheet details...</div>
+          <p className="text-gray-500">Loading timesheet details...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <form onSubmit={handleSubmit} className="space-y-6 p-6">
-          {/* Header */}
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="text-lg font-medium text-gray-900">
-                Review Timesheet - {timesheet.employee?.first_name} {timesheet.employee?.last_name} - Week of {format(new Date(timesheet.period_start_date), 'MMM dd, yyyy')}
-              </h3>
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={onClose}></div>
+        
+        <div className="relative bg-white rounded-lg shadow-xl w-full max-w-4xl my-8">
+          <div className="sticky top-0 z-10 bg-white rounded-t-lg border-b border-gray-200">
+            <div className="px-4 sm:px-6 py-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Timesheet - Week of {format(new Date(timesheet.period_start_date), 'MMM d, yyyy')}
+                </h2>
+                <button
+                  onClick={onClose}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <span className="sr-only">Close</span>
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
               <p className="mt-1 text-sm text-gray-500">
-                Total Hours: {timesheet.total_hours?.toFixed(2) || '0.00'}
+                Total Hours: {timesheet.total_hours}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-500"
-            >
-              <span className="sr-only">Close</span>
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
           </div>
 
-          {/* Time Entries */}
-          <div className="mt-6">
-            <h4 className="text-sm font-medium text-gray-900 mb-4">Time Entries</h4>
+          {error && (
+            <div className="px-4 sm:px-6 py-2 bg-red-50 border-b border-red-200">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+
+          <div className="px-4 sm:px-6 py-4 max-h-[calc(100vh-16rem)] overflow-y-auto">
             <div className="space-y-4">
               {timeEntries.map((entry) => (
                 <div key={entry.id} className="border rounded-lg p-4">
                   {editingEntry?.id === entry.id ? (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Clock In</label>
-                          <input
-                            type="datetime-local"
-                            value={editingEntry.clock_in}
-                            onChange={(e) => setEditingEntry({ ...editingEntry, clock_in: e.target.value })}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                          />
+                    <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4">
+                      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4">Edit Time Entry</h3>
+                        
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Clock In *</label>
+                              <input
+                                type="datetime-local"
+                                value={editingEntry.clock_in}
+                                onChange={(e) => handleEditingChange('clock_in', e.target.value)}
+                                required
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              />
+                            </div>
+                            
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Clock Out</label>
+                              <input
+                                type="datetime-local"
+                                value={editingEntry.clock_out || ''}
+                                onChange={(e) => handleEditingChange('clock_out', e.target.value)}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Break Minutes</label>
+                              <input
+                                type="number"
+                                value={editingEntry.total_break_minutes || 0}
+                                onChange={(e) => handleEditingChange('total_break_minutes', Number(e.target.value))}
+                                min="0"
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700">Job Location *</label>
+                              <select
+                                value={editingEntry.job_location_id}
+                                onChange={(e) => handleEditingChange('job_location_id', e.target.value)}
+                                required
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              >
+                                <option value="">Select a location</option>
+                                {jobLocations.map((location) => (
+                                  <option key={location.id} value={location.id}>
+                                    {location.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Service Type</label>
+                            <select
+                              value={editingEntry.service_type || ''}
+                              onChange={(e) => handleEditingChange('service_type', e.target.value || null)}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            >
+                              <option value="">Select a service type</option>
+                              <option value="hvac">HVAC</option>
+                              <option value="plumbing">Plumbing</option>
+                              <option value="both">Both</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">Work Description</label>
+                            <textarea
+                              value={editingEntry.work_description || ''}
+                              onChange={(e) => handleEditingChange('work_description', e.target.value)}
+                              rows={3}
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              placeholder="Enter work description..."
+                            />
+                          </div>
+
+                          <div className="mt-4 p-3 bg-gray-50 rounded-md">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium text-gray-500">Total Hours:</span>
+                              <span className="text-lg font-semibold text-gray-900">{editingHours.toFixed(2)}</span>
+                            </div>
+                          </div>
+
+                          {error && (
+                            <div className="text-sm text-red-600 mt-2">
+                              {error}
+                            </div>
+                          )}
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Clock Out</label>
-                          <input
-                            type="datetime-local"
-                            value={editingEntry.clock_out}
-                            onChange={(e) => setEditingEntry({ ...editingEntry, clock_out: e.target.value })}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Break Duration (minutes)</label>
-                          <input
-                            type="number"
-                            value={editingEntry.total_break_minutes}
-                            onChange={(e) => setEditingEntry({ ...editingEntry, total_break_minutes: parseInt(e.target.value) })}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Job Location</label>
-                          <select
-                            value={editingEntry.job_location_id}
-                            onChange={(e) => setEditingEntry({ ...editingEntry, job_location_id: e.target.value })}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+
+                        <div className="mt-6 flex justify-end space-x-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingEntry(null);
+                              setError('');
+                            }}
+                            className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                           >
-                            {jobLocations.map((location) => (
-                              <option key={location.id} value={location.id}>
-                                {location.name}
-                              </option>
-                            ))}
-                          </select>
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveEntry}
+                            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                          >
+                            Save Changes
+                          </button>
                         </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">Work Description</label>
-                        <textarea
-                          value={editingEntry.work_description}
-                          onChange={(e) => setEditingEntry({ ...editingEntry, work_description: e.target.value })}
-                          rows={2}
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                        />
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        Total Hours: {calculateEntryHours(editingEntry)}
-                      </div>
-                      <div className="flex justify-end space-x-2">
-                        <button
-                          type="button"
-                          onClick={handleCancelEdit}
-                          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSaveEntry(editingEntry)}
-                          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
-                        >
-                          Save
-                        </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <div className="text-sm font-medium text-gray-900">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Date</p>
+                        <p className="text-sm text-gray-900">
                           {format(new Date(entry.clock_in), 'MMM d, yyyy')}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Total Hours</p>
+                        <p className="text-sm text-gray-900">
+                          {calculateTotalHours(entry)} hours
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Clock In</p>
+                        <p className="text-sm text-gray-900">
+                          {format(new Date(entry.clock_in), 'h:mm a')}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Clock Out</p>
+                        <p className="text-sm text-gray-900">
+                          {entry.clock_out ? format(new Date(entry.clock_out), 'h:mm a') : '-'}
+                        </p>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <p className="text-sm font-medium text-gray-500">Location</p>
+                        <p className="text-sm text-gray-900">
+                          {jobLocations.find(loc => loc.id === entry.job_location_id)?.name || 'Unknown Location'}
+                        </p>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <p className="text-sm font-medium text-gray-500">Description</p>
+                        <p className="text-sm text-gray-900">
+                          {entry.work_description || 'No description provided'}
+                        </p>
+                      </div>
+                      {canEdit() && (
+                        <div className="sm:col-span-2 flex justify-end">
+                          <button
+                            onClick={() => handleEditEntry(entry)}
+                            className="text-indigo-600 hover:text-indigo-900"
+                          >
+                            Edit
+                          </button>
                         </div>
-                        <div className="text-sm text-gray-600">
-                          Total Hours: {calculateEntryHours(entry)}
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 text-sm text-gray-500">
-                        <div>Clock In: {format(new Date(entry.clock_in), 'h:mm a')}</div>
-                        <div>Clock Out: {format(new Date(entry.clock_out), 'h:mm a')}</div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 text-sm text-gray-500">
-                        <div>Break Duration: {entry.total_break_minutes} minutes</div>
-                        <div>Location: {entry.job_location?.name}</div>
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        Description: {entry.work_description}
-                      </div>
-                      <div className="flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => handleEditEntry(entry)}
-                          className="text-sm text-blue-600 hover:text-blue-800"
-                        >
-                          Edit
-                        </button>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* Employee Notes */}
-          <div>
-            <label htmlFor="employee-notes" className="block text-sm font-medium text-gray-700">
-              Employee Notes
-            </label>
-            <div className="mt-1">
-              <textarea
-                id="employee-notes"
-                rows={2}
-                value={employeeNotes}
-                readOnly
-                className="shadow-sm block w-full sm:text-sm border-gray-300 rounded-md bg-gray-50"
-                placeholder="Regular work week"
-              />
-            </div>
-          </div>
+            <form onSubmit={handleSubmit} className="mt-6">
+              <div className="mb-4">
+                <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
+                  Notes
+                </label>
+                <textarea
+                  id="notes"
+                  rows={3}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  value={reviewNotes}
+                  onChange={(e) => setReviewNotes(e.target.value)}
+                  placeholder="Add any notes about this timesheet..."
+                />
+              </div>
 
-          {/* Review Status */}
-          <div>
-            <label htmlFor="status" className="block text-sm font-medium text-gray-700">
-              Status
-            </label>
-            <select
-              id="status"
-              value={status}
-              onChange={(e) => setStatus(e.target.value as 'approved' | 'rejected')}
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-            >
-              <option value="approved">Approve</option>
-              <option value="rejected">Reject</option>
-            </select>
+              <div className="sticky bottom-0 bg-white border-t border-gray-200 mt-6 px-4 py-3 -mx-4 sm:-mx-6">
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  {!isAdmin && (timesheet.status === 'draft' || timesheet.status === 'submitted') && (
+                    <button
+                      type="submit"
+                      className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                    >
+                      Submit Timesheet
+                    </button>
+                  )}
+                </div>
+              </div>
+            </form>
           </div>
-
-          {/* Review Notes */}
-          <div>
-            <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
-              Review Notes
-            </label>
-            <div className="mt-1">
-              <textarea
-                id="notes"
-                rows={3}
-                value={reviewNotes}
-                onChange={(e) => setReviewNotes(e.target.value)}
-                className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                placeholder="Add any review comments..."
-              />
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className={`px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white ${
-                status === 'approved' 
-                  ? 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
-                  : 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
-              } focus:outline-none focus:ring-2 focus:ring-offset-2`}
-            >
-              Submit Review
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
     </div>
   );
