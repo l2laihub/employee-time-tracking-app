@@ -60,18 +60,49 @@ export async function updateEmployee(
   updates: Partial<Employee>
 ): Promise<EmployeeResult> {
   try {
-    const { data, error } = await supabase
-      .from('employees')
-      .update(updates)
-      .eq('id', employeeId)
-      .select()
+    console.log('Debug - Updating employee:', {
+      employeeId,
+      updates
+    });
+
+    // Update user metadata first
+    const { error: metadataError } = await supabase.auth.updateUser({
+      data: {
+        first_name: updates.first_name,
+        last_name: updates.last_name
+      }
+    });
+
+    if (metadataError) {
+      console.error('User metadata update failed:', metadataError);
+      return {
+        success: false,
+        error: 'Failed to update user metadata'
+      };
+    }
+
+    // Then update employee record
+    const { data: updatedEmployee, error: updateError } = await supabase
+      .rpc('update_employee_basic_info', {
+        employee_id: employeeId,
+        new_first_name: updates.first_name,
+        new_last_name: updates.last_name,
+        new_email: updates.email,
+        new_phone: updates.phone
+      })
       .single();
 
-    if (error) throw error;
+    if (updateError || !updatedEmployee) {
+      console.error('Employee update failed:', updateError);
+      return {
+        success: false,
+        error: 'Failed to get updated employee'
+      };
+    }
 
     return {
       success: true,
-      data: data as Employee
+      data: updatedEmployee as Employee
     };
   } catch (error) {
     console.error('Employee update failed:', error);
@@ -377,48 +408,34 @@ export async function getEmployeeByUserId(userId: string, organizationId?: strin
   try {
     console.log('Getting employee by user ID:', userId, 'Organization ID:', organizationId);
     
-    let query = supabase
+    // Get the employee using organization_id and member_id
+    const { data: employeeData, error: employeeError } = await supabase
       .from('employees')
       .select(`
         *,
         organization_members!inner (
           id,
           user_id,
-          role,
-          organization_id
+          role
         )
       `)
-      .eq('organization_members.user_id', userId);
-    
-    // If organization ID is provided, filter by it
-    if (organizationId) {
-      query = query.eq('organization_id', organizationId);
-    }
+      .eq('organization_id', organizationId)
+      .eq('organization_members.user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Getting employee by user ID failed:', error);
+    if (employeeError) {
+      console.error('Getting employee failed:', employeeError);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+        error: employeeError instanceof Error ? employeeError.message : 'Unknown error occurred'
       };
     }
 
-    // If organization ID was provided, return the single matching employee
-    if (organizationId && data && data.length > 0) {
-      console.log('Found employee for organization:', data[0]);
-      return {
-        success: true,
-        data: data[0] as Employee
-      };
-    }
-    
-    // If no organization ID was provided, return all matching employees
-    console.log('Found employees:', data);
     return {
       success: true,
-      data: data as Employee[]
+      data: employeeData as Employee
     };
   } catch (error) {
     console.error('Getting employee by user ID failed:', error);

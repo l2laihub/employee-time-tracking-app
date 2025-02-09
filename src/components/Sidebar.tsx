@@ -22,7 +22,7 @@ interface SidebarProps {
 
 export default function Sidebar({ onClose }: SidebarProps) {
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const { userRole } = useOrganization();
   const isAdmin = userRole === 'admin' || userRole === 'manager';
 
@@ -92,19 +92,27 @@ export default function Sidebar({ onClose }: SidebarProps) {
 
       <div className="flex-shrink-0 border-t border-gray-200 p-4">
         <div className="flex-shrink-0 w-full group">
-          <div className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50">
-            <div className="truncate">
-              <p className="text-sm font-medium text-gray-700">{userRole}</p>
-              <p className="text-xs font-medium text-gray-500 truncate capitalize">{userRole}</p>
-            </div>
+            <Link
+              to="/settings"
+              onClick={onClose}
+              className="flex items-center p-2 rounded-lg hover:bg-gray-50 mb-2"
+            >
+              <div className="truncate flex-1">
+                <p className="text-sm font-medium text-gray-700">
+                  {user?.user_metadata?.first_name} {user?.user_metadata?.last_name}
+                </p>
+                <p className="text-xs font-medium text-gray-500 truncate capitalize">{userRole}</p>
+              </div>
+              <Settings className="h-5 w-5 text-gray-500" />
+            </Link>
             <button
               onClick={() => signOut()}
-              className="p-2 text-gray-500 hover:text-gray-700 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200"
+              className="w-full flex items-center justify-center p-2 text-gray-500 hover:text-gray-700 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200"
               aria-label="Sign out"
             >
+              <span className="mr-2">Sign Out</span>
               <LogOut className="h-5 w-5" />
             </button>
-          </div>
         </div>
       </div>
     </div>

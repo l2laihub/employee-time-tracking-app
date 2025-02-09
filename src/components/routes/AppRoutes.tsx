@@ -16,6 +16,7 @@ import AcceptInvite from '../../pages/AcceptInvite';
 import Login from '../../pages/Login';
 import Signup from '../../pages/Signup';
 import OrganizationSettings from '../../pages/OrganizationSettings';
+import UserSettings from '../../pages/UserSettings';
 
 export default function AppRoutes() {
   const { user } = useAuth();
@@ -55,6 +56,7 @@ export default function AppRoutes() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/settings" element={<UserSettings />} />
         <Route path="/time-entry" element={<TimeEntry />} />
         <Route path="/job-locations" element={<JobLocations />} />
         {isAdmin && <Route path="/employees" element={<Employees />} />}
