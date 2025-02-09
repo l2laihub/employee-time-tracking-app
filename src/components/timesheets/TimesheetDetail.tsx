@@ -8,10 +8,27 @@ interface TimesheetDetailProps {
   timesheet: Timesheet;
   onClose: () => void;
   isAdmin: boolean;
+  onUpdateStatus?: (status: 'approved' | 'rejected', notes?: string) => Promise<void>;
 }
 
-export default function TimesheetDetail({ timesheet, onClose, isAdmin }: TimesheetDetailProps) {
+export default function TimesheetDetail({ timesheet, onClose, isAdmin, onUpdateStatus }: TimesheetDetailProps) {
   const { employees } = useEmployees();
+  const [reviewNotes, setReviewNotes] = React.useState('');
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  const handleStatusUpdate = async (status: 'approved' | 'rejected') => {
+    if (!onUpdateStatus) return;
+    
+    try {
+      setIsSubmitting(true);
+      await onUpdateStatus(status, reviewNotes);
+      onClose();
+    } catch (error) {
+      console.error('Failed to update timesheet status:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const getStatusIcon = (status: Timesheet['status']) => {
     switch (status) {
@@ -101,6 +118,43 @@ export default function TimesheetDetail({ timesheet, onClose, isAdmin }: Timeshe
           </div>
         )}
       </div>
+
+      {isAdmin && timesheet.status === 'submitted' && (
+        <div className="mt-6 space-y-4">
+          <div>
+            <label htmlFor="review-notes" className="block text-sm font-medium text-gray-700">
+              Review Notes
+            </label>
+            <textarea
+              id="review-notes"
+              rows={3}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              value={reviewNotes}
+              onChange={(e) => setReviewNotes(e.target.value)}
+              placeholder="Add any notes about this timesheet..."
+            />
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => handleStatusUpdate('rejected')}
+              disabled={isSubmitting}
+              className="inline-flex justify-center rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 shadow-sm hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
+            >
+              Reject
+            </button>
+            <button
+              type="button"
+              onClick={() => handleStatusUpdate('approved')}
+              disabled={isSubmitting}
+              className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+            >
+              Approve
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

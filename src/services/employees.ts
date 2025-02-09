@@ -373,12 +373,11 @@ export async function importEmployees(
   }
 }
 
-export async function getEmployeeByUserId(userId: string): Promise<EmployeeResult> {
+export async function getEmployeeByUserId(userId: string, organizationId?: string): Promise<EmployeeResult> {
   try {
-    console.log('Getting employee by user ID:', userId);
+    console.log('Getting employee by user ID:', userId, 'Organization ID:', organizationId);
     
-    // Get the employee record by user_id through organization_members
-    const { data, error } = await supabase
+    let query = supabase
       .from('employees')
       .select(`
         *,
@@ -389,8 +388,14 @@ export async function getEmployeeByUserId(userId: string): Promise<EmployeeResul
           organization_id
         )
       `)
-      .eq('organization_members.user_id', userId)
-      .single();
+      .eq('organization_members.user_id', userId);
+    
+    // If organization ID is provided, filter by it
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Getting employee by user ID failed:', error);
@@ -400,10 +405,20 @@ export async function getEmployeeByUserId(userId: string): Promise<EmployeeResul
       };
     }
 
-    console.log('Found employee:', data);
+    // If organization ID was provided, return the single matching employee
+    if (organizationId && data && data.length > 0) {
+      console.log('Found employee for organization:', data[0]);
+      return {
+        success: true,
+        data: data[0] as Employee
+      };
+    }
+    
+    // If no organization ID was provided, return all matching employees
+    console.log('Found employees:', data);
     return {
       success: true,
-      data: data as Employee
+      data: data as Employee[]
     };
   } catch (error) {
     console.error('Getting employee by user ID failed:', error);

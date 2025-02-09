@@ -4,8 +4,8 @@ import * as timesheetService from '../services/timesheets';
 import * as timeEntryService from '../services/timeEntries';
 import * as employeeService from '../services/employees';
 import { useOrganization } from './OrganizationContext';
-import { useEmployees } from './EmployeeContext';
 import { useAuth } from './AuthContext';
+import type { Employee } from '../lib/types';
 
 interface TimesheetContextType {
   // State
@@ -36,10 +36,8 @@ interface TimesheetContextType {
 const TimesheetContext = createContext<TimesheetContextType | undefined>(undefined);
 
 export function TimesheetProvider({ children }: { children: React.ReactNode }) {
-  const { organization } = useOrganization();
-  const { userRole } = useOrganization();
+  const { organization, userRole } = useOrganization();
   const { user } = useAuth();
-  const { employees } = useEmployees();
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [selectedTimesheet, setSelectedTimesheet] = useState<Timesheet | null>(null);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
@@ -73,15 +71,60 @@ export function TimesheetProvider({ children }: { children: React.ReactNode }) {
       
       if (isAdminOrManager) {
         console.log('Admin/Manager user - fetching all timesheets');
-        result = await timesheetService.listTimesheetsForOrganization(organization.id);
-      } else {
-        console.log('Regular employee - fetching their timesheets');
-        // Get employee ID first
-        const employeeResult = await employeeService.getEmployeeByUserId(user.id);
+        // Get organization timesheets
+        const orgResult = await timesheetService.listTimesheetsForOrganization(organization.id);
+        
+        // Get admin's own timesheets
+        const employeeResult = await employeeService.getEmployeeByUserId(user.id, organization.id);
         if (!employeeResult.success || !employeeResult.data) {
           throw new Error('Could not find employee record');
         }
-        console.log('Found employee:', employeeResult.data.id);
+
+        const employee = employeeResult.data as Employee;
+        
+        const today = new Date();
+        const startDate = new Date(today.getFullYear(), today.getMonth() - 3, 1);
+        startDate.setUTCHours(0, 0, 0, 0);
+        const endDate = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+        endDate.setUTCHours(23, 59, 59, 999);
+        
+        const adminResult = await timesheetService.listTimesheetsForEmployee(
+          employee.id,
+          undefined,
+          startDate,
+          endDate
+        );
+
+        // Combine both results
+        if (orgResult.success && adminResult.success) {
+          const orgTimesheets = Array.isArray(orgResult.data) ? orgResult.data : [];
+          const adminTimesheets = Array.isArray(adminResult.data) ? adminResult.data : [];
+          
+          // Combine and remove duplicates using Set
+          const combinedTimesheets = [...orgTimesheets];
+          adminTimesheets.forEach(adminTs => {
+            if (!combinedTimesheets.some(ts => ts.id === adminTs.id)) {
+              combinedTimesheets.push(adminTs);
+            }
+          });
+          
+          result = {
+            success: true,
+            data: combinedTimesheets
+          };
+        } else {
+          throw new Error(orgResult.error || adminResult.error || 'Failed to fetch timesheets');
+        }
+      } else {
+        console.log('Regular employee - fetching their timesheets');
+        // Get employee ID first
+        const employeeResult = await employeeService.getEmployeeByUserId(user.id, organization.id);
+        if (!employeeResult.success || !employeeResult.data) {
+          throw new Error('Could not find employee record');
+        }
+
+        const employee = employeeResult.data as Employee;
+        console.log('Found employee:', employee.id);
         
         // Get current date and set start date to 3 months ago
         const today = new Date();
@@ -96,7 +139,7 @@ export function TimesheetProvider({ children }: { children: React.ReactNode }) {
         console.log('Local dates - from:', startDate.toLocaleString(), 'to:', endDate.toLocaleString());
         
         result = await timesheetService.listTimesheetsForEmployee(
-          employeeResult.data.id,
+          employee.id,
           undefined, // no status filter
           startDate,
           endDate
@@ -274,7 +317,7 @@ export function TimesheetProvider({ children }: { children: React.ReactNode }) {
       timeEntries,
       isLoading,
       error,
-      userRole,
+      userRole: userRole || undefined,
 
       // Timesheet actions
       refreshTimesheets,
