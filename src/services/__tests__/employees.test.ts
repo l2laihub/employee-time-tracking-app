@@ -9,22 +9,49 @@ import {
   updateEmployeePTO
 } from '../employees';
 
+import type { User } from '@supabase/supabase-js';
+import type { Employee } from '../../lib/types';
+
+type MockQueryBuilder = {
+  select: ReturnType<typeof vi.fn>;
+  insert: ReturnType<typeof vi.fn>;
+  upsert: ReturnType<typeof vi.fn>;
+  update: ReturnType<typeof vi.fn>;
+  delete: ReturnType<typeof vi.fn>;
+  eq: ReturnType<typeof vi.fn>;
+  order: ReturnType<typeof vi.fn>;
+  single: ReturnType<typeof vi.fn>;
+  from: ReturnType<typeof vi.fn>;
+  rpc: ReturnType<typeof vi.fn>;
+  headers: Record<string, string>;
+  url: URL;
+};
+
 // Create a proper mock implementation that chains methods correctly
-const createMockQueryBuilder = (mockResponse: any) => ({
-  insert: vi.fn().mockReturnThis(),
-  update: vi.fn().mockReturnThis(),
-  select: vi.fn().mockReturnThis(),
-  eq: vi.fn().mockReturnThis(),
-  order: vi.fn().mockReturnThis(),
-  single: vi.fn().mockResolvedValue(mockResponse),
-  from: vi.fn().mockReturnThis(),
-});
+const createMockQueryBuilder = (mockResponse: { data: unknown; error: Error | null }): MockQueryBuilder => {
+  return {
+    select: vi.fn().mockReturnThis(),
+    insert: vi.fn().mockReturnThis(),
+    upsert: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    order: vi.fn().mockResolvedValue(mockResponse),
+    single: vi.fn().mockResolvedValue(mockResponse),
+    from: vi.fn().mockReturnThis(),
+    rpc: vi.fn().mockReturnThis(),
+    headers: {},
+    url: new URL('http://example.com')
+  };
+};
 
 vi.mock('../../lib/supabase', () => ({
   supabase: {
     from: vi.fn(),
+    rpc: vi.fn(),
     auth: {
-      getUser: vi.fn()
+      getUser: vi.fn(),
+      updateUser: vi.fn()
     }
   }
 }));
@@ -37,14 +64,21 @@ describe('Employee Service', () => {
     first_name: 'John',
     last_name: 'Doe',
     email: 'john@example.com',
-    role: 'employee',
-    status: 'active',
+    role: 'admin' as const,
+    status: 'active' as const,
     start_date: '2023-01-01',
     department: 'Engineering',
     pto: {
-      total: 0,
-      used: 0,
-      remaining: 0
+      vacation: {
+        beginningBalance: 0,
+        ongoingBalance: 0,
+        firstYearRule: 40,
+        used: 0
+      },
+      sickLeave: {
+        beginningBalance: 0,
+        used: 0
+      }
     }
   };
 
@@ -58,21 +92,39 @@ describe('Employee Service', () => {
 
   describe('createEmployee', () => {
     it('should create an employee successfully', async () => {
+      const mockUser: User = {
+        id: mockUserId,
+        app_metadata: {},
+        user_metadata: {},
+        aud: 'authenticated',
+        created_at: '2023-01-01',
+        role: '',
+        email: 'test@example.com',
+        phone: '',
+        confirmation_sent_at: '',
+        confirmed_at: '',
+        last_sign_in_at: '',
+        recovery_sent_at: '',
+        updated_at: '',
+        identities: [],
+        factors: []
+      };
+
       // Mock auth.getUser
       vi.mocked(supabase.auth.getUser).mockResolvedValue({
-        data: { user: { id: mockUserId } },
+        data: { user: mockUser },
         error: null
-      } as any);
+      });
 
       // Mock member lookup
       const mockMemberResponse = { data: { id: mockMemberId }, error: null };
-      vi.mocked(supabase.from).mockImplementationOnce(() => 
+      vi.mocked(supabase.from).mockReturnValue(
         createMockQueryBuilder(mockMemberResponse)
       );
 
       // Mock employee creation
       const mockEmployeeResponse = { data: mockEmployee, error: null };
-      vi.mocked(supabase.from).mockImplementationOnce(() => 
+      vi.mocked(supabase.from).mockReturnValue(
         createMockQueryBuilder(mockEmployeeResponse)
       );
 
@@ -82,25 +134,42 @@ describe('Employee Service', () => {
     });
 
     it('should handle errors when creating an employee', async () => {
+      const mockUser: User = {
+        id: mockUserId,
+        app_metadata: {},
+        user_metadata: {},
+        aud: 'authenticated',
+        created_at: '2023-01-01',
+        role: '',
+        email: 'test@example.com',
+        phone: '',
+        confirmation_sent_at: '',
+        confirmed_at: '',
+        last_sign_in_at: '',
+        recovery_sent_at: '',
+        updated_at: '',
+        identities: [],
+        factors: []
+      };
+
       // Mock auth.getUser
       vi.mocked(supabase.auth.getUser).mockResolvedValue({
-        data: { user: { id: mockUserId } },
+        data: { user: mockUser },
         error: null
-      } as any);
+      });
 
       // Mock member lookup (success)
       const mockMemberResponse = { data: { id: mockMemberId }, error: null };
-      vi.mocked(supabase.from).mockImplementationOnce(() => 
+      vi.mocked(supabase.from).mockReturnValue(
         createMockQueryBuilder(mockMemberResponse)
       );
 
       // Mock employee creation (error)
       const mockError = new Error('Creation failed');
       const mockErrorResponse = { data: null, error: mockError };
-      vi.mocked(supabase.from).mockImplementationOnce(() => ({
-        ...createMockQueryBuilder(mockErrorResponse),
-        single: vi.fn().mockResolvedValue(mockErrorResponse)
-      }));
+      vi.mocked(supabase.from).mockReturnValue(
+        createMockQueryBuilder(mockErrorResponse)
+      );
 
       const result = await createEmployee(mockOrganizationId, mockEmployee);
       expect(result.success).toBe(false);
@@ -109,15 +178,16 @@ describe('Employee Service', () => {
 
     it('should create employee without member_id when no user is authenticated', async () => {
       // Mock auth.getUser (no user)
-      vi.mocked(supabase.auth.getUser).mockResolvedValue({
+      const mockAuthResponse = {
         data: { user: null },
         error: null
-      } as any);
+      };
+      vi.mocked(supabase.auth.getUser).mockResolvedValue(mockAuthResponse as unknown as { data: { user: User }; error: null });
 
       // Mock employee creation
       const employeeWithoutMember = { ...mockEmployee, member_id: null };
       const mockResponse = { data: employeeWithoutMember, error: null };
-      vi.mocked(supabase.from).mockImplementationOnce(() => 
+      vi.mocked(supabase.from).mockReturnValue(
         createMockQueryBuilder(mockResponse)
       );
 
@@ -129,22 +199,41 @@ describe('Employee Service', () => {
 
   describe('updateEmployee', () => {
     it('should update an employee successfully', async () => {
-      const mockResponse = { data: mockEmployee, error: null };
-      vi.mocked(supabase.from).mockImplementation(() => createMockQueryBuilder(mockResponse));
+      // Mock auth user update
+      const mockAuthResponse = {
+        data: { user: null },
+        error: null
+      };
+      vi.mocked(supabase.auth.updateUser).mockResolvedValue(mockAuthResponse as unknown as { data: { user: User }; error: null });
 
-      const result = await updateEmployee('1', { status: 'inactive' });
+      const updates = {
+        first_name: 'John',
+        last_name: 'Smith',
+        email: 'john.smith@example.com',
+        phone: '123-456-7890'
+      };
+
+      const updatedEmployee = { ...mockEmployee, ...updates };
+      const mockRpcBuilder = {
+        single: vi.fn().mockResolvedValue({
+          data: updatedEmployee,
+          error: null
+        })
+      };
+      vi.mocked(supabase.rpc).mockReturnValue(mockRpcBuilder);
+
+      const result = await updateEmployee('1', updates);
       expect(result.success).toBe(true);
-      expect(result.data).toEqual(mockEmployee);
+      expect(result.data).toEqual(updatedEmployee);
     });
   });
 
   describe('listEmployees', () => {
     it('should list all employees for an organization', async () => {
       const mockResponse = { data: [mockEmployee], error: null };
-      vi.mocked(supabase.from).mockImplementation(() => ({
-        ...createMockQueryBuilder(mockResponse),
-        order: vi.fn().mockResolvedValue(mockResponse)
-      }));
+      vi.mocked(supabase.from).mockReturnValue(
+        createMockQueryBuilder(mockResponse)
+      );
 
       const result = await listEmployees(mockOrganizationId);
       expect(result.success).toBe(true);
@@ -155,7 +244,9 @@ describe('Employee Service', () => {
   describe('getEmployee', () => {
     it('should get a single employee by id', async () => {
       const mockResponse = { data: mockEmployee, error: null };
-      vi.mocked(supabase.from).mockImplementation(() => createMockQueryBuilder(mockResponse));
+      vi.mocked(supabase.from).mockReturnValue(
+        createMockQueryBuilder(mockResponse)
+      );
 
       const result = await getEmployee('1');
       expect(result.success).toBe(true);
@@ -166,10 +257,9 @@ describe('Employee Service', () => {
   describe('getEmployeesByDepartment', () => {
     it('should get employees by department', async () => {
       const mockResponse = { data: [mockEmployee], error: null };
-      vi.mocked(supabase.from).mockImplementation(() => ({
-        ...createMockQueryBuilder(mockResponse),
-        order: vi.fn().mockResolvedValue(mockResponse)
-      }));
+      vi.mocked(supabase.from).mockReturnValue(
+        createMockQueryBuilder(mockResponse)
+      );
 
       const result = await getEmployeesByDepartment(mockOrganizationId, 'Engineering');
       expect(result.success).toBe(true);
@@ -178,22 +268,34 @@ describe('Employee Service', () => {
   });
 
   describe('updateEmployeePTO', () => {
-    const mockPTOUpdate = {
-      total: 20,
-      used: 5,
-      remaining: 15
-    };
-
     it('should update employee PTO successfully', async () => {
+      const updatedEmployee = {
+        ...mockEmployee,
+        pto: {
+          vacation: {
+            beginningBalance: 20,
+            ongoingBalance: 10,
+            firstYearRule: 40,
+            used: 5
+          },
+          sickLeave: {
+            beginningBalance: 10,
+            used: 2
+          }
+        }
+      };
+      
       const mockResponse = { 
-        data: { ...mockEmployee, pto: mockPTOUpdate }, 
+        data: updatedEmployee, 
         error: null 
       };
-      vi.mocked(supabase.from).mockImplementation(() => createMockQueryBuilder(mockResponse));
+      vi.mocked(supabase.from).mockReturnValue(
+        createMockQueryBuilder(mockResponse)
+      );
 
-      const result = await updateEmployeePTO('1', mockPTOUpdate);
+      const result = await updateEmployeePTO('1', updatedEmployee.pto);
       expect(result.success).toBe(true);
-      expect(result.data?.pto).toEqual(mockPTOUpdate);
+      expect((result.data as Employee).pto).toEqual(updatedEmployee.pto);
     });
   });
 });
