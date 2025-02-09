@@ -9,7 +9,7 @@ import { useEmployees } from '../contexts/EmployeeContext';
 import { PTOProvider } from '../contexts/PTOContext';
 
 export default function Employees() {
-  const { employees, addEmployee, updateEmployee, deleteEmployee, isLoading, error, refreshEmployees, importEmployees } = useEmployees();
+  const { employees, createEmployee, updateEmployee, deleteEmployee, isLoading, error, refreshEmployees, importEmployees } = useEmployees();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -37,7 +37,7 @@ export default function Employees() {
 
   const handleAddEmployee = async (employeeData: Omit<Employee, 'id'>) => {
     try {
-      await addEmployee(employeeData);
+      await createEmployee(employeeData);
       setIsFormOpen(false);
     } catch (err) {
       console.error('Failed to add employee:', err);

@@ -191,11 +191,12 @@ export interface Database {
         Row: {
           id: string
           organization_id: string
-          user_id: string
+          employee_id: string
           job_location_id: string
+          entry_date: string
           start_time: string
-          end_time: string | null
-          break_duration: number | null
+          end_time: string
+          break_duration: number
           notes: string | null
           created_at: string
           updated_at: string
@@ -203,11 +204,12 @@ export interface Database {
         Insert: {
           id?: string
           organization_id: string
-          user_id: string
+          employee_id: string
           job_location_id: string
+          entry_date: string
           start_time: string
-          end_time?: string | null
-          break_duration?: number | null
+          end_time: string
+          break_duration: number
           notes?: string | null
           created_at?: string
           updated_at?: string
@@ -215,12 +217,60 @@ export interface Database {
         Update: {
           id?: string
           organization_id?: string
-          user_id?: string
+          employee_id?: string
           job_location_id?: string
+          entry_date?: string
           start_time?: string
-          end_time?: string | null
-          break_duration?: number | null
+          end_time?: string
+          break_duration?: number
           notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      timesheets: {
+        Row: {
+          id: string
+          organization_id: string
+          employee_id: string
+          period_start_date: string
+          period_end_date: string
+          status: string
+          total_hours: number
+          submitted_at: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          review_notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          employee_id: string
+          period_start_date: string
+          period_end_date: string
+          status?: string
+          total_hours?: number
+          submitted_at?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          review_notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          employee_id?: string
+          period_start_date?: string
+          period_end_date?: string
+          status?: string
+          total_hours?: number
+          submitted_at?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          review_notes?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -258,44 +308,6 @@ export interface Database {
           status?: string
           notes?: string | null
           created_at?: string
-        }
-      }
-      timesheets: {
-        Row: {
-          id: string
-          organization_id: string
-          user_id: string
-          period_start: string
-          period_end: string
-          status: string
-          total_hours: number | null
-          created_at: string
-          submitted_at: string | null
-          approved_at: string | null
-        }
-        Insert: {
-          id?: string
-          organization_id: string
-          user_id: string
-          period_start: string
-          period_end: string
-          status?: string
-          total_hours?: number | null
-          created_at?: string
-          submitted_at?: string | null
-          approved_at?: string | null
-        }
-        Update: {
-          id?: string
-          organization_id?: string
-          user_id?: string
-          period_start?: string
-          period_end?: string
-          status?: string
-          total_hours?: number | null
-          created_at?: string
-          submitted_at?: string | null
-          approved_at?: string | null
         }
       }
       api_keys: {

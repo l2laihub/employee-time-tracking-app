@@ -87,6 +87,7 @@ export default function Signup() {
               id,
               role,
               organization:organizations (
+                id,
                 name
               )
             `)
@@ -107,6 +108,22 @@ export default function Signup() {
         if (!memberData) {
           throw new Error('Failed to verify organization membership after multiple retries');
         }
+
+        // Create employee record
+        const { error: employeeError } = await supabase
+          .from('employees')
+          .insert({
+            organization_id: memberData.organization.id,
+            member_id: memberData.id,
+            first_name: firstName,
+            last_name: lastName,
+            email: email.toLowerCase(),
+            role: memberData.role,
+            start_date: new Date().toISOString().split('T')[0],
+            status: 'active'
+          });
+
+        if (employeeError) throw employeeError;
 
         toast.success(`Account created and joined ${memberData.organization.name} as ${memberData.role}!`);
       } else {

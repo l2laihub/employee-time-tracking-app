@@ -60,18 +60,49 @@ export async function updateEmployee(
   updates: Partial<Employee>
 ): Promise<EmployeeResult> {
   try {
-    const { data, error } = await supabase
-      .from('employees')
-      .update(updates)
-      .eq('id', employeeId)
-      .select()
+    console.log('Debug - Updating employee:', {
+      employeeId,
+      updates
+    });
+
+    // Update user metadata first
+    const { error: metadataError } = await supabase.auth.updateUser({
+      data: {
+        first_name: updates.first_name,
+        last_name: updates.last_name
+      }
+    });
+
+    if (metadataError) {
+      console.error('User metadata update failed:', metadataError);
+      return {
+        success: false,
+        error: 'Failed to update user metadata'
+      };
+    }
+
+    // Then update employee record
+    const { data: updatedEmployee, error: updateError } = await supabase
+      .rpc('update_employee_basic_info', {
+        employee_id: employeeId,
+        new_first_name: updates.first_name,
+        new_last_name: updates.last_name,
+        new_email: updates.email,
+        new_phone: updates.phone
+      })
       .single();
 
-    if (error) throw error;
+    if (updateError || !updatedEmployee) {
+      console.error('Employee update failed:', updateError);
+      return {
+        success: false,
+        error: 'Failed to get updated employee'
+      };
+    }
 
     return {
       success: true,
-      data: data as Employee
+      data: updatedEmployee as Employee
     };
   } catch (error) {
     console.error('Employee update failed:', error);
@@ -370,5 +401,177 @@ export async function importEmployees(
       success: false,
       error: error instanceof Error ? error.message : 'Failed to import employees'
     }];
+  }
+}
+
+export async function getEmployeeByUserId(userId: string, organizationId?: string): Promise<EmployeeResult> {
+  try {
+    console.log('Getting employee by user ID:', userId, 'Organization ID:', organizationId);
+    
+    // Get the employee using organization_id and member_id
+    const { data: employeeData, error: employeeError } = await supabase
+      .from('employees')
+      .select(`
+        *,
+        organization_members!inner (
+          id,
+          user_id,
+          role
+        )
+      `)
+      .eq('organization_id', organizationId)
+      .eq('organization_members.user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (employeeError) {
+      console.error('Getting employee failed:', employeeError);
+      return {
+        success: false,
+        error: employeeError instanceof Error ? employeeError.message : 'Unknown error occurred'
+      };
+    }
+
+    return {
+      success: true,
+      data: employeeData as Employee
+    };
+  } catch (error) {
+    console.error('Getting employee by user ID failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export async function createEmployeeForCurrentUser(organizationId: string): Promise<EmployeeResult> {
+  try {
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!user) throw new Error('No authenticated user found');
+
+    console.log('Debug - Current user:', { 
+      id: user.id,
+      email: user.email,
+      metadata: user.user_metadata 
+    });
+
+    // Get organization member record
+    const { data: memberData, error: memberError } = await supabase
+      .from('organization_members')
+      .select('id, role, organization_id')
+      .eq('organization_id', organizationId)
+      .eq('user_id', user.id)
+      .single();
+
+    console.log('Debug - Member data:', { memberData, memberError });
+
+    if (memberError) throw memberError;
+    if (!memberData) throw new Error('No organization member record found');
+
+    // Check if employee already exists with this email
+    const { data: existingEmployee, error: existingError } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('email', user.email)
+      .maybeSingle();
+
+    console.log('Debug - Existing employee:', { existingEmployee, existingError });
+
+    if (existingEmployee) {
+      // If employee exists but in a different organization, create a new one
+      if (existingEmployee.organization_id !== organizationId) {
+        const employeeData = {
+          organization_id: organizationId,
+          member_id: memberData.id,
+          first_name: user.user_metadata.first_name || '',
+          last_name: user.user_metadata.last_name || '',
+          email: user.email || '',
+          role: memberData.role,
+          start_date: new Date().toISOString().split('T')[0],
+          status: 'active'
+        };
+
+        console.log('Debug - Creating employee in new organization:', employeeData);
+
+        const { data: newEmployee, error: createError } = await supabase
+          .from('employees')
+          .insert(employeeData)
+          .select()
+          .single();
+
+        console.log('Debug - Created employee:', { newEmployee, createError });
+
+        if (createError) throw createError;
+        return {
+          success: true,
+          data: newEmployee as Employee
+        };
+      }
+
+      // If employee exists in this organization but not linked to member, update it
+      if (existingEmployee.organization_id === organizationId && existingEmployee.member_id !== memberData.id) {
+        const { data: updatedEmployee, error: updateError } = await supabase
+          .from('employees')
+          .update({ member_id: memberData.id })
+          .eq('id', existingEmployee.id)
+          .select()
+          .single();
+
+        console.log('Debug - Updated employee:', { updatedEmployee, updateError });
+
+        if (updateError) throw updateError;
+        return {
+          success: true,
+          data: updatedEmployee as Employee
+        };
+      }
+
+      // If employee exists in this organization and is linked, just return it
+      if (existingEmployee.organization_id === organizationId) {
+        return {
+          success: true,
+          data: existingEmployee as Employee
+        };
+      }
+    }
+
+    // Create new employee record
+    const employeeData = {
+      organization_id: organizationId,
+      member_id: memberData.id,
+      first_name: user.user_metadata.first_name || '',
+      last_name: user.user_metadata.last_name || '',
+      email: user.email || '',
+      role: memberData.role,
+      start_date: new Date().toISOString().split('T')[0],
+      status: 'active'
+    };
+
+    console.log('Debug - Creating employee:', employeeData);
+
+    const { data, error } = await supabase
+      .from('employees')
+      .insert(employeeData)
+      .select()
+      .single();
+
+    console.log('Debug - Created employee:', { data, error });
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      data: data as Employee
+    };
+  } catch (error) {
+    console.error('Failed to create employee for current user:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
   }
 }

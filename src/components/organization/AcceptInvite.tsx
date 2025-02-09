@@ -64,15 +64,34 @@ export function AcceptInvite() {
       }
 
       // Add user to organization
-      const { error: memberError } = await supabase
+      const { data: memberData, error: memberError } = await supabase
         .from('organization_members')
         .insert({
           organization_id: organization.id,
           user_id: user.id,
           role: invite.role,
-        });
+        })
+        .select()
+        .single();
 
       if (memberError) throw memberError;
+      if (!memberData) throw new Error('Failed to create organization member');
+
+      // Create employee record
+      const { error: employeeError } = await supabase
+        .from('employees')
+        .insert({
+          organization_id: organization.id,
+          member_id: memberData.id,
+          first_name: user.user_metadata.first_name || '',
+          last_name: user.user_metadata.last_name || '',
+          email: user.email || '',
+          role: invite.role,
+          start_date: new Date().toISOString().split('T')[0],
+          status: 'active'
+        });
+
+      if (employeeError) throw employeeError;
 
       // Delete the invite
       await supabase
