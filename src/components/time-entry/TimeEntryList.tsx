@@ -35,26 +35,17 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
       return;
     }
 
-    // Only fetch entries for the current user
     const result = await listTimeEntries(organization.id, {
       employeeId: user.id
     });
 
     if (result.success) {
-      // Sort entries with active entries first, then break entries, then by clock_in time
       const sortedEntries = [...(result.data as TimeEntry[])].sort((a, b) => {
-        // First prioritize active entries
         if (a.status === 'active' && b.status !== 'active') return -1;
         if (b.status === 'active' && a.status !== 'active') return 1;
-        
-        // Then prioritize break entries
         if (a.status === 'break' && b.status !== 'break') return -1;
         if (b.status === 'break' && a.status !== 'break') return 1;
-        
-        // Then sort by clock_in time (most recent first)
-        const dateA = new Date(a.clock_in).getTime();
-        const dateB = new Date(b.clock_in).getTime();
-        return dateB - dateA;
+        return new Date(b.clock_in).getTime() - new Date(a.clock_in).getTime();
       });
       setEntries(sortedEntries);
     } else {
@@ -67,12 +58,10 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
     fetchEntries();
   }, [organization?.id, user?.id]);
 
-  // Refresh entries when active entry changes
   useEffect(() => {
     fetchEntries();
   }, [activeEntry]);
 
-  // Apply filters
   const filteredEntries = entries.filter(entry => {
     if (filters.status && entry.status !== filters.status) return false;
     if (filters.locationId && entry.job_location_id !== filters.locationId) return false;
@@ -83,10 +72,8 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
     return true;
   });
 
-  // Group entries by date, but keep active and break entries separate
   const ongoingEntries: TimeEntry[] = [];
   const groupedEntries = filteredEntries.reduce<{ [date: string]: TimeEntry[] }>((groups, entry) => {
-    // Check for both active and break status (case-insensitive)
     const status = entry.status?.toLowerCase();
     if (status === 'active' || status === 'break') {
       ongoingEntries.push(entry);
@@ -98,40 +85,39 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
     return groups;
   }, {});
 
-  // Sort entries within each group by clock_in time
   Object.values(groupedEntries).forEach(entries => {
     entries.sort((a, b) => {
       return new Date(b.clock_in).getTime() - new Date(a.clock_in).getTime();
     });
   });
 
-  // Sort ongoing entries by status (active first, then break) and then by clock_in time
   ongoingEntries.sort((a, b) => {
     const statusA = a.status?.toLowerCase();
     const statusB = b.status?.toLowerCase();
-    
-    // Active entries come first
     if (statusA === 'active' && statusB !== 'active') return -1;
     if (statusB === 'active' && statusA !== 'active') return 1;
-    
-    // Then sort by clock_in time (most recent first)
     return new Date(b.clock_in).getTime() - new Date(a.clock_in).getTime();
   });
 
-  // Pagination
   const totalPages = Math.ceil(filteredEntries.length / entriesPerPage);
   const startIndex = (currentPage - 1) * entriesPerPage;
   const paginatedDates = Object.keys(groupedEntries)
     .sort((a, b) => b.localeCompare(a))
     .slice(startIndex, startIndex + entriesPerPage);
 
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div className="text-red-600">Error: {error}</div>;
 
-  if (error) {
-    return <div className="text-red-600">Error: {error}</div>;
-  }
+  const getStatusStyles = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'completed':
+        return 'bg-green-50 text-green-700 ring-1 ring-green-600/20';
+      case 'break':
+        return 'bg-orange-50 text-orange-700 ring-1 ring-orange-600/20';
+      default:
+        return 'bg-blue-50 text-blue-700 ring-1 ring-blue-600/20';
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -146,7 +132,6 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
         </button>
       </div>
 
-      {/* Filters Panel */}
       {showFilters && (
         <div className="bg-white p-4 rounded-lg shadow mb-4">
           <div className="flex justify-between items-center mb-3">
@@ -161,7 +146,10 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <select
               value={filters.status || ''}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value as any || undefined })}
+              onChange={(e) => {
+                const value = e.target.value as '' | 'active' | 'break' | 'completed';
+                setFilters({ ...filters, status: value || undefined });
+              }}
               className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
             >
               <option value="">All Statuses</option>
@@ -190,7 +178,6 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
       )}
 
       <div className="space-y-6">
-        {/* Ongoing Entries Section */}
         {ongoingEntries.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-sm font-medium text-gray-500">Ongoing Entries</h3>
@@ -203,28 +190,28 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
                 return (
                   <div
                     key={entry.id}
-                    className={`bg-white shadow rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow border-l-4 ${
+                    className={`bg-white shadow rounded-lg p-4 hover:shadow-md transition-shadow border-l-4 ${
                       isActive ? 'border-blue-500' : 'border-orange-500'
                     }`}
                   >
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
-                      <div className="space-y-2">
-                        <div className="flex items-start justify-between sm:justify-start gap-2">
-                          <h3 className="font-medium text-gray-900 flex-1 sm:flex-none">
-                            {location?.name || 'Unknown Location'}
-                          </h3>
-                          <span className={`inline-flex px-2 py-1 rounded text-xs sm:text-sm whitespace-nowrap ${
-                            isActive ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800'
-                          }`}>
-                            {entry.status === 'active' ? 'Active' : entry.status === 'break' ? 'Break' : 'Completed'}
-                          </span>
-                        </div>
-                        <div className="flex flex-col text-sm text-gray-500">
-                          <div className="text-sm text-gray-500">
-                            Started {formatDistanceToNow(startTime)} ago
-                          </div>
-                        </div>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium text-gray-900">
+                          {location?.name || 'Unknown Location'}
+                        </h3>
+                        <span className={`rounded-md px-2 py-1 text-xs font-medium ${getStatusStyles(entry.status || '')}`}>
+                          {entry.status === 'active' ? 'Currently Working' : 'On Break'}
+                        </span>
                       </div>
+                      <div className="flex items-center justify-between text-sm text-gray-500">
+                        <div>Started at {format(startTime, 'h:mm a')}</div>
+                        <div className="text-gray-400">{formatDistanceToNow(startTime)} ago</div>
+                      </div>
+                      {entry.work_description && (
+                        <p className="text-sm text-gray-600 mt-2 bg-gray-50 p-2 rounded-md">
+                          {entry.work_description}
+                        </p>
+                      )}
                     </div>
                   </div>
                 );
@@ -233,7 +220,6 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
           </div>
         )}
 
-        {/* Regular Entries Section */}
         {paginatedDates.map(date => (
           <div key={date} className="space-y-3">
             <h3 className="text-sm font-medium text-gray-500">
@@ -248,39 +234,30 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
                 return (
                   <div
                     key={entry.id}
-                    className="bg-white shadow rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow"
+                    className="bg-white shadow rounded-lg p-4 hover:shadow-md transition-shadow"
                   >
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
-                      <div className="space-y-2">
-                        <div className="flex items-start justify-between sm:justify-start gap-2">
-                          <h3 className="font-medium text-gray-900 flex-1 sm:flex-none">
-                            {location?.name || 'Unknown Location'}
-                          </h3>
-                          <span className={`inline-flex px-2 py-1 rounded text-xs sm:text-sm whitespace-nowrap ${
-                            entry.status === 'completed' ? 'bg-green-100 text-green-800' :
-                            entry.status === 'break' ? 'bg-orange-100 text-orange-800' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
-                            {entry.status === 'active' ? 'Active' : entry.status === 'break' ? 'Break' : 'Completed'}
-                          </span>
-                        </div>
-                        <div className="flex flex-col text-sm text-gray-500">
-                          <div className="flex-1">
-                            <div className="text-sm font-medium text-gray-900">
-                              {location?.name || 'Unknown Location'}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              Started {formatDistanceToNow(parseISO(entry.clock_in))} ago
-                            </div>
-                          </div>
-                          {endTime && (
-                            <span>Ended {formatDistanceToNow(endTime, { addSuffix: true })}</span>
-                          )}
-                        </div>
-                        {entry.notes && (
-                          <p className="text-sm text-gray-600 break-words">{entry.notes}</p>
-                        )}
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium text-gray-900">
+                          {location?.name || 'Unknown Location'}
+                        </h3>
+                        <span className={`rounded-md px-2 py-1 text-xs font-medium ${getStatusStyles(entry.status || '')}`}>
+                          {entry.status}
+                        </span>
                       </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="text-gray-500">
+                          {format(startTime, 'h:mm a')} - {endTime ? format(endTime, 'h:mm a') : 'Present'}
+                        </div>
+                        <div className="text-gray-400">
+                          {formatDistanceToNow(startTime, { addSuffix: true })}
+                        </div>
+                      </div>
+                      {entry.work_description && (
+                        <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded-md">
+                          {entry.work_description}
+                        </p>
+                      )}
                     </div>
                   </div>
                 );
@@ -290,7 +267,6 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
         ))}
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
           <div className="flex flex-1 justify-between sm:hidden">

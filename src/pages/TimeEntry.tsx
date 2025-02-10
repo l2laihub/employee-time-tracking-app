@@ -63,7 +63,7 @@ export default function TimeEntry() {
       if (result.success && result.data) {
         setActiveEntry(result.data);
         setSelectedJobId(result.data.job_location_id);
-        setNotes(result.data.work_description);
+        setNotes(result.data.work_description || '');
       }
     }
 
@@ -174,7 +174,7 @@ export default function TimeEntry() {
     setNotes(newNotes);
     if (activeEntry) {
       const result = await updateTimeEntry(activeEntry.id, {
-        notes: newNotes
+        work_description: newNotes
       });
 
       if (result.success) {
@@ -252,7 +252,7 @@ export default function TimeEntry() {
           
           <div>
             <NotesField 
-              value={activeEntry?.notes || notes}
+              value={activeEntry?.work_description || notes}
               onChange={handleUpdateNotes}
               disabled={!activeEntry && !selectedJobId}
             />
