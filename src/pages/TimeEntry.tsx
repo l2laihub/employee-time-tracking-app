@@ -60,7 +60,7 @@ export default function TimeEntry() {
 
     async function loadActiveEntry() {
       const result = await getActiveTimeEntry(user.id);
-      if (result.success && result.data) {
+      if (result.success && result.data && !Array.isArray(result.data)) {
         setActiveEntry(result.data);
         setSelectedJobId(result.data.job_location_id);
         setNotes(result.data.work_description || '');
@@ -68,7 +68,7 @@ export default function TimeEntry() {
     }
 
     loadActiveEntry();
-  }, [user?.id]);
+  }, [user?.id, setActiveEntry]);
 
   const handleClockIn = async () => {
     if (!selectedJobId || !user?.id || !organization?.id) return;
@@ -98,7 +98,7 @@ export default function TimeEntry() {
         user.id,
         selectedJobId,
         selectedJob.service_type,
-        notes || 'No description provided',
+        notes || '',
         organization.id
       );
 
