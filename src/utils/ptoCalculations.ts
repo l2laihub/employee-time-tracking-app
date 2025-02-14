@@ -14,27 +14,43 @@ const DEFAULT_VACATION_RULES: VacationRules = {
 };
 
 function calculateVacationHours(startDate: string, rules: VacationRules = DEFAULT_VACATION_RULES): number {
+  console.log('\n=== Calculating Vacation Hours ===');
+  console.log('Start Date:', startDate);
+  console.log('Rules:', rules);
+
   const today = new Date();
   const employeeStartDate = new Date(startDate);
   
+  console.log('Today:', today.toISOString());
+  console.log('Employee Start Date:', employeeStartDate.toISOString());
+  
   // If start date is in the future, return 0
   if (employeeStartDate > today) {
+    console.log('Start date is in the future, returning 0');
     return 0;
   }
 
   const yearsOfService = differenceInYears(today, employeeStartDate);
+  console.log('Years of Service:', yearsOfService);
   
   // First year: Pro-rate 40 hours based on months worked
   if (yearsOfService < 1) {
     const monthsWorked = differenceInMonths(today, employeeStartDate);
+    console.log('Months Worked:', monthsWorked);
+    
     // Handle case where months worked is 0 (started today)
     if (monthsWorked <= 0) {
+      console.log('Employee started today, returning 0');
       return 0;
     }
-    return Math.floor((rules.firstYearHours * monthsWorked) / 12);
+    
+    const proRatedHours = Math.floor((rules.firstYearHours * monthsWorked) / 12);
+    console.log('Pro-rated Hours (First Year):', proRatedHours);
+    return proRatedHours;
   }
   
   // Second year onwards: 80 hours (10 days)
+  console.log('Second year onwards, returning:', rules.secondYearOnwardsHours);
   return rules.secondYearOnwardsHours;
 }
 
@@ -140,17 +156,34 @@ function calculateSickLeaveHours(timesheets: TimesheetEntry[], startDate: string
 }
 
 export function getVacationBalance(employee: Employee): number {
+  console.log('\n=== Calculating Vacation Balance ===');
+  console.log('Employee:', {
+    id: employee.id,
+    name: `${employee.first_name} ${employee.last_name}`,
+    startDate: employee.start_date
+  });
+
   if (!employee.pto?.vacation) {
+    console.log('No PTO vacation data found, returning 0');
     return 0;
   }
 
   const { beginningBalance = 0, ongoingBalance = 0, used = 0 } = employee.pto.vacation;
+  console.log('PTO Settings:', {
+    beginningBalance,
+    ongoingBalance,
+    used
+  });
   
   // Calculate accrued vacation based on time
   const accruedBalance = calculateVacationHours(employee.start_date);
+  console.log('Accrued balance:', accruedBalance);
   
   // Total balance is beginning balance + ongoing balance + accrued - used
-  return Math.max(0, beginningBalance + ongoingBalance + accruedBalance - used);
+  const totalBalance = Math.max(0, beginningBalance + ongoingBalance + accruedBalance - used);
+  console.log('Total balance:', totalBalance);
+  
+  return totalBalance;
 }
 
 export function getSickLeaveBalance(employee: Employee, timesheets: TimesheetEntry[]): number {
@@ -180,6 +213,10 @@ export function getSickLeaveAllocationText(): string {
   return '1 hour per 40 hours worked';
 }
 
-export function getPTOBalance(employee: Employee, type: 'vacation' | 'sick_leave'): number {
-  return type === 'vacation' ? getVacationBalance(employee) : getSickLeaveBalance(employee, []);
-}
+/**
+ * Get PTO balance for a specific type
+ * @param employee Employee object
+ * @param type PTO type ('vacation' or 'sick_leave')
+ * @returns Balance in hours
+ */
+// Remove the unused function since we're handling balance calculations in the PTOContext

@@ -1,4 +1,5 @@
 import { PTORequest } from './types';
+import { subDays } from 'date-fns';
 
 export const mockPTORequests: PTORequest[] = [
   {
@@ -66,7 +67,3 @@ export const mockPTORequests: PTORequest[] = [
     reviewedAt: subDays(new Date(), 3).toISOString()
   }
 ];
-
-function subDays(date: Date, days: number): Date {
-  return new Date(date.getTime() - days * 24 * 60 * 60 * 1000);
-}

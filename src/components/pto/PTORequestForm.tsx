@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { format, isWeekend, eachDayOfInterval, isSameDay } from 'date-fns';
+import { format, isWeekend, isSameDay } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
-import { mockTimesheets } from '../../lib/mockData';
-import { PTORequest, PTOType, TimesheetEntry, Employee } from '../../lib/types';
+import { PTORequest, PTOType, Employee } from '../../lib/types';
 import { usePTO } from '../../contexts/PTOContext';
 import { useEmployees } from '../../contexts/EmployeeContext';
+import { useOrganization } from '../../contexts/OrganizationContext';
+import { getEmployeeByUserId, createEmployeeForCurrentUser } from '../../services/employees';
 
 interface PTORequestFormProps {
   onSubmit: (data: {
@@ -31,16 +32,122 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
   const [reason, setReason] = useState(initialData?.reason || '');
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [totalAllocation, setTotalAllocation] = useState(0);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  const [isLoadingEmployee, setIsLoadingEmployee] = useState(false);
 
   const isAdmin = user?.role === 'admin' || user?.role === 'manager';
-  // For admin users, always use the selected employee if available
-  // For admin users, use selected employee or current user
-  const { employees } = useEmployees();
-  const currentUser = isAdmin 
-    ? selectedEmployee
-    : (user ? employees.find(u => u.id === user.id) : null);
+  const { employees, refreshEmployees } = useEmployees();
+  const { organization, isLoading: orgLoading } = useOrganization();
 
-  const { getPTOBalance, addPTORequest, pendingRequests } = usePTO();
+  // For non-admin users, find and set their employee record on mount
+  useEffect(() => {
+    async function loadEmployeeRecord() {
+      if (orgLoading || !user || !organization?.id || isLoadingEmployee) {
+        return;
+      }
+
+      setIsLoadingEmployee(true);
+      try {
+        if (!isAdmin) {
+          console.log('Loading employee record for user:', user.id);
+          const result = await getEmployeeByUserId(user.id, organization.id);
+          
+          if (result.success && result.data) {
+            const employeeData = Array.isArray(result.data) ? result.data[0] : result.data;
+            if (employeeData) {
+              console.log('Found existing employee record:', {
+                id: employeeData.id,
+                name: `${employeeData.first_name} ${employeeData.last_name}`,
+                pto: employeeData.pto
+              });
+              setSelectedEmployee(employeeData);
+              return;
+            }
+          }
+
+          // If no employee record found, create one
+          console.log('No employee record found, creating new one...');
+          const createResult = await createEmployeeForCurrentUser(organization.id);
+          
+          if (createResult.success && createResult.data) {
+            const newEmployee = Array.isArray(createResult.data)
+              ? createResult.data[0]
+              : createResult.data;
+            console.log('Created new employee record:', {
+              id: newEmployee.id,
+              name: `${newEmployee.first_name} ${newEmployee.last_name}`,
+              pto: newEmployee.pto
+            });
+            await refreshEmployees();
+            setSelectedEmployee(newEmployee);
+          }
+        } else {
+          // For admin users, pre-select their own employee record
+          const adminEmployee = employees.find(emp => emp.email === user.email);
+          if (adminEmployee) {
+            console.log('Found admin employee record:', {
+              id: adminEmployee.id,
+              name: `${adminEmployee.first_name} ${adminEmployee.last_name}`,
+              pto: adminEmployee.pto
+            });
+            setSelectedEmployee(adminEmployee);
+          }
+        }
+      } catch (error) {
+        console.error('Error in loadEmployeeRecord:', error);
+      } finally {
+        setIsLoadingEmployee(false);
+      }
+    }
+    loadEmployeeRecord();
+  }, [isAdmin, user, organization?.id, orgLoading, refreshEmployees, employees]);
+
+  // Use selectedEmployee directly as currentUser
+  const currentUser = selectedEmployee;
+
+  // Debug current user selection
+  useEffect(() => {
+    console.log('Current user selection:', {
+      isAdmin,
+      userId: user?.id,
+      selectedEmployee: selectedEmployee ? `${selectedEmployee.first_name} ${selectedEmployee.last_name}` : null,
+      currentUser: currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : null,
+      employeesCount: employees.length
+    });
+  }, [isAdmin, user?.id, selectedEmployee, currentUser, employees]);
+
+  const { getPTOBalance, requests } = usePTO();
+
+  // Load PTO balance when user or type changes
+  useEffect(() => {
+    async function loadBalance() {
+      if (!currentUser) {
+        console.log('No current user selected');
+        setTotalAllocation(0);
+        return;
+      }
+
+      setIsLoadingBalance(true);
+      try {
+        console.log('Loading PTO balance for:', {
+          userId: currentUser.id,
+          name: `${currentUser.first_name} ${currentUser.last_name}`,
+          type: type
+        });
+
+        const balance = await getPTOBalance(currentUser, type);
+        console.log('Loaded balance:', balance);
+        setTotalAllocation(balance);
+      } catch (err) {
+        console.error('Failed to load PTO balance:', err);
+        setTotalAllocation(0);
+      } finally {
+        setIsLoadingBalance(false);
+      }
+    }
+    loadBalance();
+  }, [currentUser, type, getPTOBalance]);
 
   // Set initial selected employee if editing or if admin is creating for themselves
   useEffect(() => {
@@ -50,34 +157,28 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
         const employee = employees.find((u: Employee) => u.id === initialData.userId);
         setSelectedEmployee(employee || null);
       } else {
-        // For new requests, pre-select the admin user
-        const adminUser = employees.find((u: Employee) => u.id === user?.id);
+        // For new requests, pre-select the admin user by email
+        const adminUser = employees.find((u: Employee) => u.email === user?.email);
         setSelectedEmployee(adminUser || null);
       }
     }
   }, [initialData, isAdmin, user?.id, employees]);
 
-  const getTotalAllocation = (ptoType: PTOType) => {
-    if (!currentUser || !currentUser.pto) return 0;
-    return getPTOBalance(currentUser, ptoType);
-  };
-
   const getUsedHours = (ptoType: PTOType) => {
     if (!currentUser) return 0;
-    const used = pendingRequests
-      .filter(req => 
-        req.userId === currentUser.id && 
-        req.type === ptoType && 
+    const used = requests
+      .filter((req: PTORequest) =>
+        req.userId === currentUser.id &&
+        req.type === ptoType &&
         (req.status === 'pending' || req.status === 'approved')
       )
-      .reduce((total, req) => total + req.hours, 0);
+      .reduce((total: number, req: PTORequest) => total + req.hours, 0);
     return used;
   };
 
-  const getAvailableHours = (ptoType: PTOType) => {
-    const total = getTotalAllocation(ptoType);
-    const used = getUsedHours(ptoType);
-    return total - used;
+  const getAvailableHours = () => {
+    const used = getUsedHours(type);
+    return totalAllocation - used;
   };
 
   const calculateBusinessDays = (startDate: Date, endDate: Date) => {
@@ -114,7 +215,7 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
     }
 
     const businessDays = calculateBusinessDays(startDate, endDate);
-    return businessDays * 8;
+    return businessDays * Number(8);
   };
 
   const updateHours = (start: string, end: string) => {
@@ -140,19 +241,19 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
       }
 
       const expectedHours = calculateExpectedHours(startDate, endDate);
-      const availableHours = getAvailableHours(type);
+      const availableHours = getAvailableHours();
 
       if (expectedHours > availableHours) {
         setError(
           `Selected date range requires ${expectedHours} hours, but only ${availableHours} hours available. ` +
-          `(Total: ${getTotalAllocation(type)} - Used: ${getUsedHours(type)})`
+          `(Total: ${totalAllocation} - Used: ${getUsedHours(type)})`
         );
       } else {
         setHours(expectedHours);
         setError(null);
       }
     }
-  }, [startDate, endDate, type, currentUser, isAdmin]);
+  }, [startDate, endDate, type, currentUser, isAdmin, totalAllocation]);
 
   // Reset form when employee changes
   useEffect(() => {
@@ -179,7 +280,6 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
       return false;
     }
     
-    const totalAllocation = getTotalAllocation(type);
     const usedHours = getUsedHours(type);
     const availableHours = totalAllocation - usedHours;
 
@@ -194,7 +294,7 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
 
     const expectedHours = calculateExpectedHours(startDate, endDate);
     if (hours !== expectedHours) {
-      setError(`Hours must match the selected date range (${expectedHours} hours for ${expectedHours/8} business days)`);
+      setError(`Hours must match the selected date range (${expectedHours} hours for ${Math.floor(expectedHours/8)} business days)`);
       return false;
     }
 
@@ -217,16 +317,11 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
         type,
         hours,
         reason,
-        userId: currentUser.id, // currentUser is already set to selectedEmployee for admin users
-        createdBy: isAdmin ? user?.id : undefined // Track if admin created the request
+        userId: currentUser.id, // Use employee ID
+        organization_id: currentUser.organization_id // Include organization ID
       };
       
-      addPTORequest(requestData);
       onSubmit(requestData);
-      
-      if (isAdmin) {
-        setError('Request created successfully. It will need to be reviewed and approved.');
-      }
     }
   };
 
@@ -319,7 +414,7 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
             required
             disabled={isAdmin && !currentUser}
             min="1"
-            max={currentUser ? getTotalAllocation(type) - getUsedHours(type) : 0}
+            max={currentUser ? totalAllocation - getUsedHours(type) : 0}
             value={hours}
             onChange={(e) => {
               const newHours = Number(e.target.value);
@@ -327,16 +422,16 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
               
               // Validate hours against date range immediately
               const expectedHours = calculateExpectedHours(startDate, endDate);
-              const availableHours = getAvailableHours(type);
+              const availableHours = getAvailableHours();
 
               if (newHours > availableHours) {
                 setError(
                   `Insufficient ${type.replace('_', ' ')} balance. ` +
                   `Available: ${availableHours} hours ` +
-                  `(Total: ${getTotalAllocation(type)} - Used: ${getUsedHours(type)})`
+                  `(Total: ${totalAllocation} - Used: ${getUsedHours(type)})`
                 );
               } else if (newHours !== expectedHours) {
-                setError(`Hours must match the selected date range (${expectedHours} hours for ${expectedHours/8} business days)`);
+                setError(`Hours must match the selected date range (${expectedHours} hours for ${Math.floor(expectedHours/8)} business days)`);
               } else {
                 setError(null);
               }
@@ -352,19 +447,22 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
           {error ? (
             <p className="mt-1 text-sm text-red-600">{error}</p>
           ) : (
-            <p className="mt-1 text-sm text-gray-500">
-              <>
-                Total Allocation: {getTotalAllocation(type)} hours
-                <div className="text-sm mt-1">
-                  <span className="text-gray-600">Used: {getUsedHours(type)} hours</span>
-                  <br />
-                  <span className="text-green-600">Available: {getAvailableHours(type)} hours</span>
-                </div>
-                {type === 'sick_leave' && currentUser?.ptoAllocation?.sickLeave?.type === 'auto' && (
-                  <> (Accrues at 1 hour per 40 hours worked)</>
-                )}
-              </>
-            </p>
+            <div className="mt-1 text-sm text-gray-500">
+              {isLoadingBalance ? (
+                <div>Loading balance...</div>
+              ) : (
+                <>
+                  <div>Total Allocation: {totalAllocation} hours</div>
+                  <div className="mt-1">
+                    <div className="text-gray-600">Used: {getUsedHours(type)} hours</div>
+                    <div className="text-green-600">Available: {getAvailableHours()} hours</div>
+                  </div>
+                  {type === 'sick_leave' && currentUser?.pto?.vacation?.firstYearRule && (
+                    <div className="mt-1">(Accrues at 1 hour per 40 hours worked)</div>
+                  )}
+                </>
+              )}
+            </div>
           )}
         </div>
 

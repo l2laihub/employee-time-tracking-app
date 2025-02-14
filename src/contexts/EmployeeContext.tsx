@@ -23,7 +23,13 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
   const { organization } = useOrganization();
 
   const refreshEmployees = useCallback(async () => {
+    console.log('Refreshing employees...', {
+      hasOrganization: !!organization,
+      organizationId: organization?.id
+    });
+
     if (!organization) {
+      console.log('No organization, skipping employee refresh');
       setIsLoading(false);
       return;
     }
@@ -32,12 +38,24 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       setError(null);
       const result = await employeeService.listEmployees(organization.id);
+      console.log('Employee list result:', {
+        success: result.success,
+        count: Array.isArray(result.data) ? result.data.length : 0,
+        error: result.error
+      });
+
       if (result.success && result.data) {
-        setEmployees(Array.isArray(result.data) ? result.data : [result.data]);
+        const employeeList = Array.isArray(result.data) ? result.data : [result.data];
+        console.log('Setting employees:', {
+          count: employeeList.length,
+          ids: employeeList.map(e => e.id)
+        });
+        setEmployees(employeeList);
       } else {
         throw new Error(result.error || 'Failed to fetch employees');
       }
     } catch (err) {
+      console.error('Error refreshing employees:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch employees'));
       setEmployees([]); // Clear employees on error
     } finally {

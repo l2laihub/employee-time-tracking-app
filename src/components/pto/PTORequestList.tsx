@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { format } from 'date-fns';
 import { PTORequest } from '../../lib/types';
 import { Calendar, Clock, Edit2, User, Briefcase, Stethoscope, Timer, Trash2 } from 'lucide-react';
-import { mockUsers } from '../../lib/mockUsers';
+import { useEmployees } from '../../contexts/EmployeeContext';
 
 interface PTORequestListProps {
   requests: PTORequest[];
@@ -13,6 +13,30 @@ interface PTORequestListProps {
 }
 
 export default function PTORequestList({ requests, onReview, onEdit, onDelete, isAdmin }: PTORequestListProps) {
+  console.log('PTORequestList rendering:', {
+    requestsCount: requests.length,
+    isAdmin,
+    requestDetails: requests.map(r => ({
+      id: r.id,
+      userId: r.userId,
+      status: r.status,
+      type: r.type,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      hours: r.hours
+    }))
+  });
+
+  useEffect(() => {
+    console.log('PTORequestList mounted/updated with requests:', {
+      count: requests.length,
+      hasRequests: requests.length > 0,
+      firstRequest: requests[0] ? {
+        id: requests[0].id,
+        status: requests[0].status
+      } : null
+    });
+  }, [requests]);
   const getStatusBadge = (status: PTORequest['status']) => {
     switch (status) {
       case 'approved':
@@ -24,13 +48,15 @@ export default function PTORequestList({ requests, onReview, onEdit, onDelete, i
     }
   };
 
+  const { employees } = useEmployees();
+
   const getEmployeeName = (userId: string, createdBy?: string) => {
-    const employee = mockUsers.find(user => user.id === userId);
+    const employee = employees.find(user => user.id === userId);
     if (!employee) return 'Unknown Employee';
     
     const name = `${employee.first_name} ${employee.last_name}`;
     if (createdBy) {
-      const creator = mockUsers.find(user => user.id === createdBy);
+      const creator = employees.find(user => user.id === createdBy);
       if (creator && (creator.role === 'admin' || creator.role === 'manager')) {
         return `${name} (Request by ${creator.role === 'admin' ? 'Admin' : 'Manager'})`;
       }
@@ -73,9 +99,6 @@ export default function PTORequestList({ requests, onReview, onEdit, onDelete, i
                 </span>
               </div>
               <p className="text-sm text-gray-600">{request.reason}</p>
-              {request.notes && (
-                <p className="text-sm text-gray-500 italic">Note: {request.notes}</p>
-              )}
               <div className="flex items-center space-x-2 text-xs text-gray-500">
                 <Clock className="w-4 h-4" />
                 <span>Requested {format(new Date(request.createdAt), 'MMM d, yyyy')}</span>
@@ -114,7 +137,7 @@ export default function PTORequestList({ requests, onReview, onEdit, onDelete, i
                     >
                       Review Request
                     </button>
-                    {request.createdBy && (mockUsers.find(u => u.id === request.createdBy)?.role === 'admin' || mockUsers.find(u => u.id === request.createdBy)?.role === 'manager') && (
+                    {request.createdBy && (employees.find(u => u.id === request.createdBy)?.role === 'admin' || employees.find(u => u.id === request.createdBy)?.role === 'manager') && (
                       <button
                         onClick={() => {
                           if (window.confirm('Are you sure you want to delete this admin-created PTO request?')) {

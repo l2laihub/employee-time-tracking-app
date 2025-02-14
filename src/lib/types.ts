@@ -46,9 +46,8 @@ export interface PTORequest {
   hours: number;
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
-  notes?: string;
   createdAt: string;
-  createdBy?: string;  // Track who created the request (admin or employee)
+  createdBy?: string;
   reviewedBy?: string;
   reviewedAt?: string;
 }
