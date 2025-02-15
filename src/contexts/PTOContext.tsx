@@ -11,7 +11,7 @@ interface PTOContextType {
   getPTOBalance: (employee: Employee, type: PTOType) => Promise<number>;
   requests: PTORequest[];  // Changed from pendingRequests to requests
   addPTORequest: (request: Omit<PTORequest, 'id' | 'status' | 'createdAt'>) => Promise<PTORequestResult>;
-  updatePTORequest: (requestId: string, status: 'approved' | 'rejected', reviewedBy: string) => Promise<void>;
+  updatePTORequest: (requestId: string, status: 'approved' | 'rejected', reviewedBy: string, notes?: string) => Promise<void>;
   deletePTORequest: (requestId: string) => Promise<void>;
   loading: boolean;
   error: string | null;
@@ -230,11 +230,10 @@ export function PTOProvider({ children }: { children: React.ReactNode }) {
       const activeHours = activeRequests.reduce((total, req) => total + req.hours, 0);
       console.log('Active hours:', activeHours);
 
-      // Calculate final balance
-      const finalBalance = Math.max(0, baseBalance - activeHours);
-      console.log('Final balance:', finalBalance);
-
-      return finalBalance;
+      // Return base balance directly since used hours are already accounted for
+      // in getVacationBalance/getSickLeaveBalance
+      console.log('Returning base balance:', baseBalance);
+      return baseBalance;
     } catch (error) {
       console.error('Error calculating PTO balance:', error);
       throw error; // Let the component handle the error
@@ -286,20 +285,33 @@ export function PTOProvider({ children }: { children: React.ReactNode }) {
   const updatePTORequest = useCallback(async (
     requestId: string,
     status: 'approved' | 'rejected',
-    reviewedBy: string
+    reviewedBy: string,
+    notes?: string
   ) => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
-      const result = await updatePTORequestStatus(requestId, status, reviewedBy);
+      const result = await updatePTORequestStatus(requestId, status, reviewedBy, notes);
       
       if (!result.success) {
         throw new Error(result.error || 'Failed to update PTO request');
       }
 
+      // Refresh the PTO requests list to get the updated status
+      if (!organization?.id) {
+        throw new Error('Organization ID is required');
+      }
+
+      const listResult = await listPTORequests(organization.id);
+      if (!listResult.success) {
+        throw new Error(listResult.error || 'Failed to refresh PTO requests');
+      }
+
+      const requests = Array.isArray(listResult.data) ? listResult.data : [listResult.data];
       setState(prev => ({
         ...prev,
-        requests: prev.requests.filter(req => req.id !== requestId),
-        loading: false
+        requests: requests.filter((req): req is PTORequest => req !== undefined),
+        loading: false,
+        error: null
       }));
     } catch (error) {
       console.error('Error updating PTO request:', error);
@@ -310,7 +322,7 @@ export function PTOProvider({ children }: { children: React.ReactNode }) {
       }));
       throw error;
     }
-  }, []);
+  }, [organization?.id]);
 
   const handleDeletePTORequest = useCallback(async (requestId: string) => {
     try {

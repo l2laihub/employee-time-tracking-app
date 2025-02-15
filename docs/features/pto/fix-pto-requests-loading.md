@@ -1,52 +1,66 @@
-# Fix PTO Requests Loading Issue
+# Fix PTO Requests Loading for Admin Users
 
-## Problem
-PTO requests are not displaying on the PTO Requests page despite being successfully created and stored in the database.
+## Issue
+Admin users cannot view PTO requests, while regular employees can. This is due to incorrect filtering logic in the PTO page component.
 
-## Analysis
+## Current Behavior
+- Regular employees can see PTO requests
+- Admin users cannot see PTO requests
+- The filtering logic is reversed from what it should be
 
-After reviewing the code, several potential issues were identified:
+## Root Cause
+In `src/pages/PTO.tsx`, the filtering logic is backwards:
+```typescript
+let filtered = isAdmin ? requests : requests.filter(r => {
+  return r.userId === selectedEmployee?.id;
+});
+```
+This shows all requests for admins without any filtering, and filters by selectedEmployee for regular users.
 
-1. **Request Loading Filter**
-   - In `PTOContext.tsx`, requests are only loaded with 'pending' status
-   - However, the UI shows and filters all statuses (pending, approved, rejected)
-   - This mismatch means non-pending requests won't appear
+## Solution Plan
+1. Fix the filtering logic in `src/pages/PTO.tsx`:
+   - Regular employees should only see their own requests
+   - Admins should see all requests by default
+   - Admins should be able to filter by employee when one is selected
+   
+2. Update the filtering logic to:
+```typescript
+let filtered = requests;
 
-2. **Limited Error Logging**
-   - The `listPTORequests` service has minimal error logging
-   - No logging of raw data received from Supabase
-   - Difficult to debug data transformation issues
+// For regular employees, only show their own requests
+if (!isAdmin && selectedEmployee) {
+  filtered = filtered.filter(r => r.userId === selectedEmployee.id);
+}
 
-3. **Organization ID Dependency**
-   - Request loading depends on organization?.id being available
-   - No logging around when/if this dependency is satisfied
-   - Could cause silent failures if organization context isn't ready
+// For admins, filter by selected employee if one is selected
+if (isAdmin && filters.employee !== 'all') {
+  filtered = filtered.filter(r => r.userId === filters.employee);
+}
+```
 
-## Proposed Solution
+3. Add debug logging to track:
+   - Current user role
+   - Selected employee
+   - Filter states
+   - Request counts before and after filtering
 
-### 1. Modify PTOContext.tsx
-- Remove the 'pending' status filter when loading requests
-- Add debug logging for:
-  - Organization ID availability
-  - Request loading process
-  - Raw data received from service
-  - Data transformation steps
+## Expected Behavior After Fix
+- Regular employees will only see their own PTO requests
+- Admin users will see all PTO requests by default
+- Admin users can filter requests by employee using the employee filter dropdown
+- The filtering functionality will work correctly for both admin and regular users
 
-### 2. Enhance pto.ts Service
-- Add detailed logging for:
-  - Query construction steps
-  - Raw data received from Supabase
-  - Data transformation process
-  - Any errors that occur
+## Testing Plan
+1. Test as regular employee:
+   - Should only see their own requests
+   - Cannot see other employees' requests
+   
+2. Test as admin:
+   - Should see all requests by default
+   - Can filter requests by employee
+   - Can see and review requests from all employees
 
-### 3. Implementation Plan
-1. Switch to Code mode
-2. Update PTOContext.tsx first to fix the filtering issue
-3. Add comprehensive logging
-4. Test the changes
-5. Monitor the logs to ensure data flow is working correctly
-
-## Next Steps
-1. Switch to Code mode to implement these changes
-2. Test with different request statuses
-3. Verify all requests are displaying correctly
+## Implementation Notes
+- The database policies are correctly set up
+- The PTOContext and service layer are working as expected
+- Only the filtering logic in the PTO page component needs to be modified

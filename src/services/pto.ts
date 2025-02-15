@@ -1,5 +1,5 @@
- vimport { supabase } from '../lib/supabase';
-import { PTORequest } from '../lib/types';
+import { supabase } from '../lib/supabase';
+import { PTORequest, PTOType } from '../lib/types';
 
 export interface PTORequestResult {
   success: boolean;
@@ -74,14 +74,26 @@ export async function updatePTORequestStatus(
   notes?: string
 ): Promise<PTORequestResult> {
   try {
+    console.log('Updating PTO request:', {
+      requestId,
+      status,
+      reviewedBy,
+      notes
+    });
+
+    const updateData = {
+      status,
+      reviewed_by: reviewedBy,
+      reviewed_at: new Date().toISOString()
+    };
+
+    if (notes) {
+      Object.assign(updateData, { notes });
+    }
+
     const { data, error } = await supabase
       .from('pto_requests')
-      .update({
-        status,
-        reviewed_by: reviewedBy,
-        reviewed_at: new Date().toISOString(),
-        notes
-      })
+      .update(updateData)
       .eq('id', requestId)
       .select()
       .single();
@@ -133,14 +145,47 @@ export async function deletePTORequest(requestId: string): Promise<{ success: bo
   }
 }
 
+interface PTOFilters {
+  userId?: string;
+  status?: 'pending' | 'approved' | 'rejected';
+  startDate?: Date;
+  endDate?: Date;
+}
+
+interface Employee {
+  id: string;
+  first_name: string;
+  last_name: string;
+  member_id: string;
+}
+
+interface PTORequestDB {
+  id: string;
+  user_id: string;
+  start_date: string;
+  end_date: string;
+  type: PTOType;
+  hours: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  created_by: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  employee: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    member_id: string;
+    role: 'admin' | 'manager' | 'employee';
+    email: string;
+    organization_id: string;
+  } | null;
+}
+
 export async function listPTORequests(
   organizationId: string,
-  filters?: {
-    userId?: string;
-    status?: 'pending' | 'approved' | 'rejected';
-    startDate?: Date;
-    endDate?: Date;
-  }
+  filters?: PTOFilters
 ): Promise<PTORequestResult> {
   try {
     console.log('Listing PTO requests:', { organizationId, filters });
@@ -231,15 +276,15 @@ export async function listPTORequests(
 
     console.log('PTO requests query result:', {
       count: data?.length || 0,
-      statuses: data?.reduce((acc, req) => {
+      statuses: data?.reduce((acc: Record<string, number>, req: PTORequestDB) => {
         acc[req.status] = (acc[req.status] || 0) + 1;
         return acc;
-      }, {} as Record<string, number>)
+      }, {})
     });
 
     return {
       success: true,
-      data: data.map(item => ({
+      data: data.map((item: PTORequestDB) => ({
         id: item.id,
         userId: item.user_id,
         startDate: item.start_date,
@@ -249,9 +294,18 @@ export async function listPTORequests(
         reason: item.reason,
         status: item.status,
         createdAt: item.created_at,
-        createdBy: item.created_by,
-        reviewedBy: item.reviewed_by,
-        reviewedAt: item.reviewed_at
+        createdBy: item.created_by || undefined,
+        reviewedBy: item.reviewed_by || undefined,
+        reviewedAt: item.reviewed_at || undefined,
+        employee: item.employee ? {
+          id: item.employee.id,
+          firstName: item.employee.first_name,
+          lastName: item.employee.last_name,
+          memberId: item.employee.member_id,
+          role: item.employee.role,
+          email: item.employee.email,
+          organizationId: item.employee.organization_id
+        } : undefined
       }))
     };
   } catch (error) {

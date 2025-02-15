@@ -50,6 +50,15 @@ export interface PTORequest {
   createdBy?: string;
   reviewedBy?: string;
   reviewedAt?: string;
+  employee?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    memberId: string;
+    role: 'admin' | 'manager' | 'employee';
+    email: string;
+    organizationId: string;
+  };
 }
 
 export interface Employee {

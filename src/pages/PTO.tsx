@@ -15,6 +15,8 @@ export default function PTO() {
   console.log('PTO page mounting');
   const { user } = useAuth();
   const { requests, addPTORequest, updatePTORequest, deletePTORequest, loading, error } = usePTO();
+  const { employees, isLoading: employeesLoading } = useEmployees();
+  const { organization, isLoading: orgLoading } = useOrganization();
 
   // Debug mount with context values
   useEffect(() => {
@@ -26,6 +28,7 @@ export default function PTO() {
       error
     });
   }, [user, loading, requests, error]);
+
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<PTORequest | null>(null);
   const [editingRequest, setEditingRequest] = useState<PTORequest | null>(null);
@@ -39,7 +42,12 @@ export default function PTO() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   
-  const isAdmin = user?.role === 'admin' || user?.role === 'manager';
+  // Get the employee record for the current user to determine their role
+  const currentEmployee = useMemo(() => {
+    return user ? employees.find(emp => emp.email === user.email) : null;
+  }, [user, employees]);
+  
+  const isAdmin = currentEmployee?.role === 'admin' || currentEmployee?.role === 'manager';
 
   const filteredRequests = useMemo(() => {
     console.log('Filtering requests:', {
@@ -61,16 +69,26 @@ export default function PTO() {
       isAdmin
     });
 
-    let filtered = isAdmin ? requests : requests.filter(r => {
-      const matches = r.userId === selectedEmployee?.id;
-      console.log('Request filter check:', {
-        requestId: r.id,
-        requestUserId: r.userId,
-        employeeId: selectedEmployee?.id,
-        matches
+    // Start with all requests
+    let filtered = requests;
+
+    // For regular employees, only show their own requests
+    if (!isAdmin && selectedEmployee) {
+      console.log('Filtering for regular employee:', {
+        employeeId: selectedEmployee.id,
+        totalRequests: requests.length
       });
-      return matches;
-    });
+      filtered = filtered.filter(r => r.userId === selectedEmployee.id);
+    }
+
+    // For admins, filter by selected employee if one is selected in the dropdown
+    if (isAdmin && filters.employee !== 'all') {
+      console.log('Filtering for admin by selected employee:', {
+        selectedEmployee: filters.employee,
+        totalRequests: filtered.length
+      });
+      filtered = filtered.filter(r => r.userId === filters.employee);
+    }
 
     // Apply status and type filters
     if (filters.status !== 'all') {
@@ -88,11 +106,6 @@ export default function PTO() {
       filtered = filtered.filter(r => r.endDate <= filters.endDate);
     }
 
-    // Apply employee filter (admin only)
-    if (isAdmin && filters.employee !== 'all') {
-      filtered = filtered.filter(r => r.userId === filters.employee);
-    }
-
     console.log('Filtered requests:', {
       beforeFilter: requests.length,
       afterFilter: filtered.length,
@@ -103,10 +116,8 @@ export default function PTO() {
     });
 
     return filtered;
-  }, [requests, filters, isAdmin, selectedEmployee?.id]);
+  }, [requests, filters, isAdmin, selectedEmployee?.id, user?.id]);
 
-  const { employees, isLoading: employeesLoading } = useEmployees();
-  const { organization, isLoading: orgLoading } = useOrganization();
   const employeeOptions = useMemo(() => {
     if (!isAdmin) return [];
     const uniqueEmployeeIds = [...new Set(requests.map(r => r.userId))];
@@ -117,7 +128,7 @@ export default function PTO() {
         name: employee ? `${employee.first_name} ${employee.last_name}` : id
       };
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [requests, isAdmin]);
+  }, [requests, isAdmin, employees]);
 
   // Set selected employee for non-admin users
   useEffect(() => {
@@ -132,7 +143,6 @@ export default function PTO() {
       }
     }
   }, [isAdmin, user, employees]);
-
 
   const handleCreateRequest = async (data: {
     startDate: string;
@@ -209,7 +219,7 @@ export default function PTO() {
     if (!selectedRequest || !user) return;
 
     try {
-      await updatePTORequest(selectedRequest.id, data.status, user.id);
+      await updatePTORequest(selectedRequest.id, data.status, user.id, data.notes);
       setSelectedRequest(null);
       toast.success(`PTO request ${data.status}`);
     } catch (err) {

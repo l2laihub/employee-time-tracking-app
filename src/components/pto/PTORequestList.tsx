@@ -48,17 +48,14 @@ export default function PTORequestList({ requests, onReview, onEdit, onDelete, i
     }
   };
 
-  const { employees } = useEmployees();
-
-  const getEmployeeName = (userId: string, createdBy?: string) => {
-    const employee = employees.find(user => user.id === userId);
-    if (!employee) return 'Unknown Employee';
+  const getEmployeeName = (request: PTORequest) => {
+    if (!request.employee) return 'Unknown Employee';
     
-    const name = `${employee.first_name} ${employee.last_name}`;
-    if (createdBy) {
-      const creator = employees.find(user => user.id === createdBy);
-      if (creator && (creator.role === 'admin' || creator.role === 'manager')) {
-        return `${name} (Request by ${creator.role === 'admin' ? 'Admin' : 'Manager'})`;
+    const name = `${request.employee.firstName} ${request.employee.lastName}`;
+    if (request.createdBy) {
+      // If the request was created by someone else (admin/manager), show that info
+      if (request.employee.role === 'admin' || request.employee.role === 'manager') {
+        return `${name} (Request by ${request.employee.role === 'admin' ? 'Admin' : 'Manager'})`;
       }
     }
     return name;
@@ -73,7 +70,7 @@ export default function PTORequestList({ requests, onReview, onEdit, onDelete, i
               {isAdmin && (
                 <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
                   <User className="w-4 h-4" />
-                  <span>{getEmployeeName(request.userId, request.createdBy)}</span>
+                  <span>{getEmployeeName(request)}</span>
                 </div>
               )}
               <div className="flex items-center space-x-4">
@@ -137,7 +134,12 @@ export default function PTORequestList({ requests, onReview, onEdit, onDelete, i
                     >
                       Review Request
                     </button>
-                    {request.createdBy && (employees.find(u => u.id === request.createdBy)?.role === 'admin' || employees.find(u => u.id === request.createdBy)?.role === 'manager') && (
+                    {/* Show delete button for admin-created requests */}
+                    {request.createdBy && (() => {
+                      const { employees } = useEmployees();
+                      const creator = employees.find(emp => emp.id === request.createdBy);
+                      return creator && (creator.role === 'admin' || creator.role === 'manager');
+                    })() && (
                       <button
                         onClick={() => {
                           if (window.confirm('Are you sure you want to delete this admin-created PTO request?')) {
