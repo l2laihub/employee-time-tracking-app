@@ -3,18 +3,28 @@ import { render, screen, waitFor, act } from '@testing-library/react'
 import { TimesheetProvider, useTimesheets } from '../TimesheetContext'
 import * as timesheetService from '../../services/timesheets'
 import * as timeEntryService from '../../services/timeEntries'
+import * as employeeService from '../../services/employees'
 import { useOrganization } from '../OrganizationContext'
 import { useEmployees } from '../EmployeeContext'
+import { useAuth } from '../AuthContext'
 import React from 'react'
+import type { Timesheet, TimeEntry, TimesheetStatus } from '../../types/custom.types'
+import type { Employee } from '../../lib/types'
 
 // Mock the service modules
 vi.mock('../../services/timesheets')
 vi.mock('../../services/timeEntries')
+vi.mock('../../services/employees')
 vi.mock('../OrganizationContext')
 vi.mock('../EmployeeContext')
+vi.mock('../AuthContext')
+
+interface TestComponentProps {
+  onContextReady?: (context: ReturnType<typeof useTimesheets>) => void;
+}
 
 // Test component to access context
-function TestComponent({ onContextReady }: { onContextReady?: (context: any) => void } = {}) {
+function TestComponent({ onContextReady }: TestComponentProps = {}) {
   const context = useTimesheets()
   
   // Call onContextReady when context is available
@@ -37,36 +47,94 @@ function TestComponent({ onContextReady }: { onContextReady?: (context: any) => 
 }
 
 describe('TimesheetContext', () => {
-  const mockTimesheet = {
+  const mockTimesheet: Timesheet = {
     id: 'ts-123',
     organization_id: 'org-123',
     employee_id: 'emp-123',
-    period_start: new Date('2025-02-01'),
-    period_end: new Date('2025-02-15'),
-    status: 'draft'
+    period_start_date: '2025-02-01',
+    period_end_date: '2025-02-15',
+    status: 'draft',
+    total_hours: 40,
+    review_notes: undefined
   }
 
-  const mockTimeEntry = {
+  const mockTimeEntry: TimeEntry = {
     id: 'te-123',
-    timesheet_id: 'ts-123',
-    employee_id: 'emp-123',
+    organization_id: 'org-123',
+    user_id: 'user-123',
     job_location_id: 'loc-123',
-    entry_date: new Date('2025-02-01'),
-    start_time: new Date('2025-02-01T09:00:00Z'),
-    end_time: new Date('2025-02-01T17:00:00Z'),
-    break_duration: 30,
-    notes: 'Test entry'
+    clock_in: '2025-02-01T09:00:00Z',
+    clock_out: '2025-02-01T17:00:00Z',
+    break_start: null,
+    break_end: null,
+    total_break_minutes: 0,
+    service_type: 'hvac',
+    work_description: 'Test entry',
+    status: 'completed'
+  }
+
+  const mockEmployee: Employee = {
+    id: 'emp-123',
+    organization_id: 'org-123',
+    first_name: 'Test',
+    last_name: 'User',
+    email: 'test@example.com',
+    role: 'employee',
+    status: 'active',
+    start_date: '2025-01-01',
+    pto: {
+      vacation: {
+        beginningBalance: 0,
+        ongoingBalance: 0,
+        firstYearRule: 0,
+        used: 0
+      },
+      sickLeave: {
+        beginningBalance: 0,
+        used: 0
+      }
+    }
   }
 
   beforeEach(() => {
     vi.resetAllMocks()
     
-    // Mock organization context
+    // Mock auth context
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'user-123', email: 'test@example.com', app_metadata: {}, user_metadata: {}, aud: '', created_at: '' },
+      loading: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+      signUp: vi.fn()
+    })
+
+    // Mock organization context with userRole
     vi.mocked(useOrganization).mockReturnValue({
-      organization: { id: 'org-123', name: 'Test Org' },
+      organization: {
+        id: 'org-123',
+        name: 'Test Org',
+        created_at: '2025-01-01',
+        updated_at: '2025-01-01',
+        slug: 'test-org',
+        settings: {},
+        branding: {
+          primary_color: '#000000',
+          secondary_color: '#ffffff',
+          logo_url: null,
+          favicon_url: null,
+          company_name: null,
+          company_website: null
+        }
+      },
+      userRole: 'admin',
       isLoading: false,
       error: null,
-      setOrganization: vi.fn()
+      createOrganization: vi.fn(),
+      joinOrganization: vi.fn(),
+      leaveOrganization: vi.fn(),
+      sendInvite: vi.fn(),
+      revokeInvite: vi.fn(),
+      acceptInvite: vi.fn()
     })
 
     // Mock employees context
@@ -79,6 +147,12 @@ describe('TimesheetContext', () => {
       updateEmployee: vi.fn(),
       deleteEmployee: vi.fn(),
       importEmployees: vi.fn()
+    })
+
+    // Mock employee service
+    vi.mocked(employeeService.getEmployeeByUserId).mockResolvedValue({
+      success: true,
+      data: mockEmployee
     })
 
     // Mock service functions
@@ -111,7 +185,7 @@ describe('TimesheetContext', () => {
   })
 
   it('selects timesheet and loads its time entries', async () => {
-    let timesheetContext: any
+    let timesheetContext: ReturnType<typeof useTimesheets>
     
     render(
       <TimesheetProvider>
@@ -128,7 +202,7 @@ describe('TimesheetContext', () => {
 
     // Select timesheet using the context
     await act(async () => {
-      await timesheetContext.selectTimesheet(mockTimesheet)
+      await timesheetContext!.selectTimesheet(mockTimesheet)
     })
 
     // Verify selected timesheet and time entries are loaded
@@ -139,7 +213,7 @@ describe('TimesheetContext', () => {
   })
 
   it('creates a new timesheet', async () => {
-    let timesheetContext: any
+    let timesheetContext: ReturnType<typeof useTimesheets>
     
     vi.mocked(timesheetService.createTimesheet).mockResolvedValue({
       success: true,
@@ -161,7 +235,7 @@ describe('TimesheetContext', () => {
 
     // Create timesheet using the context
     await act(async () => {
-      await timesheetContext.createTimesheet(
+      await timesheetContext!.createTimesheet(
         'emp-123',
         new Date('2025-02-01'),
         new Date('2025-02-15')
@@ -175,12 +249,13 @@ describe('TimesheetContext', () => {
   })
 
   it('updates timesheet status', async () => {
-    let timesheetContext: any
+    let timesheetContext: ReturnType<typeof useTimesheets>
     
-    const updatedTimesheet = {
+    const updatedTimesheet: Timesheet = {
       ...mockTimesheet,
-      status: 'approved',
-      review_notes: 'Approved with comments'
+      status: 'approved' as TimesheetStatus,
+      review_notes: 'Approved with comments',
+      total_hours: 40
     }
 
     vi.mocked(timesheetService.updateTimesheetStatus).mockResolvedValue({
@@ -203,10 +278,11 @@ describe('TimesheetContext', () => {
 
     // Update timesheet using the context
     await act(async () => {
-      await timesheetContext.updateTimesheetStatus(
+      await timesheetContext!.updateTimesheetStatus(
         'ts-123',
         'approved',
-        'Approved with comments'
+        'Approved with comments',
+        40
       )
     })
 
@@ -214,12 +290,13 @@ describe('TimesheetContext', () => {
     expect(vi.mocked(timesheetService.updateTimesheetStatus)).toHaveBeenCalledWith(
       'ts-123',
       'approved',
-      'Approved with comments'
+      'Approved with comments',
+      40
     )
   })
 
   it('creates a new time entry', async () => {
-    let timesheetContext: any
+    let timesheetContext: ReturnType<typeof useTimesheets>
     
     vi.mocked(timeEntryService.createTimeEntry).mockResolvedValue({
       success: true,
@@ -240,14 +317,11 @@ describe('TimesheetContext', () => {
     })
 
     await act(async () => {
-      await timesheetContext.selectTimesheet(mockTimesheet)
-      await timesheetContext.createTimeEntry(
+      await timesheetContext!.selectTimesheet(mockTimesheet)
+      await timesheetContext!.createTimeEntry(
         'emp-123',
         'loc-123',
-        new Date('2025-02-01'),
-        new Date('2025-02-01T09:00:00Z'),
-        new Date('2025-02-01T17:00:00Z'),
-        30,
+        'hvac',
         'Test entry'
       )
     })

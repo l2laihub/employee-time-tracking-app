@@ -71,7 +71,7 @@ export default function TimeEntry() {
     }
 
     loadActiveEntry();
-  }, [user?.id]);
+  }, [user?.id, setActiveEntry]);
 
   const handleClockIn = async () => {
     if (!selectedJobId || !user?.id || !organization?.id) return;

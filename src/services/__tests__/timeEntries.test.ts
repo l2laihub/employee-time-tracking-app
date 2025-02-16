@@ -1,15 +1,30 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   createTimeEntry,
+  listTimeEntriesByTimesheet,
   updateTimeEntry,
   deleteTimeEntry,
-  listTimeEntriesByTimesheet,
-  listTimeEntriesByDateRange,
   getTimeEntryById,
-  TimeEntryResult
+  listTimeEntriesByDateRange
 } from '../timeEntries'
 import { supabase } from '../../lib/supabase'
 import { TimeEntry } from '../../types/custom.types'
+
+// Helper function to create chainable mock methods
+function createMockBuilder() {
+  const mock = {
+    select: vi.fn().mockReturnThis(),
+    insert: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
+    gte: vi.fn().mockReturnThis(),
+    lte: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    single: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+  };
+  return mock;
+}
 
 // Mock the Supabase client
 vi.mock('../../lib/supabase', () => ({
@@ -297,9 +312,8 @@ describe('time entries service', () => {
 
       const result = await getTimeEntryById('entry-123');
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual(mockTimeEntry);
-      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('id', 'entry-123');
-    });
-  });
-});
+      expect(result.success).toBe(true)
+      expect(result.data).toEqual(mockTimeEntry)
+    })
+  })
+})

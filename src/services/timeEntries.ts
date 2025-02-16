@@ -1,5 +1,4 @@
 import { supabase } from '../lib/supabase'
-import { addDays, startOfWeek, endOfWeek, differenceInMinutes } from 'date-fns'
 import { TimeEntry } from '../types/custom.types'
 
 export interface TimeEntryResult {
@@ -82,8 +81,19 @@ export async function createTimeEntry(entry: Partial<TimeEntry>): Promise<TimeEn
 
     console.log('Time entry creation result:', { data, error });
 
-    if (error) throw error;
-    if (!data) throw new Error('No data returned after insert');
+    if (error) {
+      console.error('Time entry creation error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+    if (!data) {
+      return {
+        success: false,
+        error: 'No data returned after insert'
+      };
+    }
 
     return {
       success: true,
@@ -93,7 +103,7 @@ export async function createTimeEntry(entry: Partial<TimeEntry>): Promise<TimeEn
     console.error('Time entry creation error:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      error: 'Database error'
     };
   }
 }
@@ -384,7 +394,7 @@ export async function endBreak(timeEntryId: string): Promise<TimeEntryResult> {
     const totalBreakMinutes = (currentEntry.total_break_minutes || 0) + breakMinutes;
 
     // First update: Set break end time and calculate total break minutes
-    const { data: updatedEntry, error: updateError1 } = await supabase
+    const { error: updateError1 } = await supabase
       .from('time_entries')
       .update({
         break_end: breakEnd.toISOString(),
