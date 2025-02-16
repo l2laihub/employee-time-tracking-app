@@ -110,17 +110,19 @@ flowchart TD
 #### 1. PTO Page (`/src/pages/PTO.tsx`)
 - Main PTO management interface
 - Features:
-  - PTO request creation/editing
+  - PTO request creation/editing for all employee types
   - Request list viewing with review status
-  - Request filtering by type/status
+  - Request filtering by type/status/employee
   - Personal balance viewing
   - Detailed accrual rules display
+  - Admin creation of requests for any employee
 - Key States:
   - `requests`: List of PTO requests
-  - `filters`: Current filter settings
+  - `filters`: Current filter settings (status, type, date range, employee)
   - `selectedRequest`: Currently selected request for review
   - `editingRequest`: Request being edited
-  - `loadingRules`: State for accrual rules updates
+  - `selectedEmployee`: Currently selected employee for request creation
+  - `isAdmin`: Boolean indicating admin/manager status
 
 #### 2. Employees Page (`/src/pages/Employees.tsx`)
 - Integrated PTO management features:
@@ -133,6 +135,25 @@ flowchart TD
   - `isImportOpen`: Import modal state
 
 ### Components
+
+#### PTORequestForm (`/src/components/pto/PTORequestForm.tsx`)
+- Handles PTO request creation and editing
+- Features:
+  - Employee selection dropdown for admins (all employee types)
+  - Date range selection with business days calculation
+  - PTO type selection (vacation/sick leave)
+  - Hours calculation based on date range
+  - Balance validation and display
+  - Clean UI without debug information
+- Key States:
+  - `selectedEmployee`: Currently selected employee
+  - `startDate`, `endDate`: Selected date range
+  - `type`: PTO type (vacation/sick_leave)
+  - `hours`: Calculated hours based on date range
+  - `reason`: Request reason
+  - `error`: Validation error messages
+  - `totalAllocation`: Available PTO hours
+  - `isLoadingBalance`: Loading state for balance calculation
 
 #### ImportEmployeesModal (`/src/components/employees/ImportEmployeesModal.tsx`)
 - Handles employee data import with PTO balances

@@ -47,6 +47,24 @@ export default function EmployeeForm({
   // Reset form data when employee changes
   useEffect(() => {
     if (employee) {
+      // Ensure PTO data has proper structure with defaults
+      const defaultPTO = {
+        vacation: {
+          beginningBalance: 0,
+          ongoingBalance: 0,
+          firstYearRule: 40,
+          used: 0
+        },
+        sickLeave: {
+          beginningBalance: 0,
+          used: 0
+        }
+      };
+
+      const employeePTO = employee.pto || defaultPTO;
+      const vacation = employeePTO.vacation || defaultPTO.vacation;
+      const sickLeave = employeePTO.sickLeave || defaultPTO.sickLeave;
+
       setFormData({
         first_name: employee.first_name,
         last_name: employee.last_name,
@@ -58,21 +76,23 @@ export default function EmployeeForm({
         start_date: formatDateForInput(employee.start_date),
         pto: {
           vacation: {
-            beginningBalance: employee.pto.vacation.beginningBalance,
-            ongoingBalance: employee.pto.vacation.ongoingBalance,
-            firstYearRule: employee.pto.vacation.firstYearRule,
-            used: employee.pto.vacation.used
+            beginningBalance: vacation.beginningBalance ?? defaultPTO.vacation.beginningBalance,
+            ongoingBalance: vacation.ongoingBalance ?? defaultPTO.vacation.ongoingBalance,
+            firstYearRule: vacation.firstYearRule ?? defaultPTO.vacation.firstYearRule,
+            used: vacation.used ?? defaultPTO.vacation.used
           },
           sickLeave: {
-            beginningBalance: employee.pto.sickLeave.beginningBalance,
-            used: employee.pto.sickLeave.used
+            beginningBalance: sickLeave.beginningBalance ?? defaultPTO.sickLeave.beginningBalance,
+            used: sickLeave.used ?? defaultPTO.sickLeave.used
           }
         }
       });
-      setFirstYearRuleInput(String(employee.pto.vacation.firstYearRule));
-      setVacationBeginningBalanceInput(String(employee.pto.vacation.beginningBalance));
-      setVacationOngoingBalanceInput(String(employee.pto.vacation.ongoingBalance));
-      setSickLeaveBalanceInput(String(employee.pto.sickLeave.beginningBalance));
+
+      // Set form input values with proper defaults
+      setFirstYearRuleInput(String(vacation.firstYearRule ?? defaultPTO.vacation.firstYearRule));
+      setVacationBeginningBalanceInput(String(vacation.beginningBalance ?? defaultPTO.vacation.beginningBalance));
+      setVacationOngoingBalanceInput(String(vacation.ongoingBalance ?? defaultPTO.vacation.ongoingBalance));
+      setSickLeaveBalanceInput(String(sickLeave.beginningBalance ?? defaultPTO.sickLeave.beginningBalance));
     }
   }, [employee]);
 

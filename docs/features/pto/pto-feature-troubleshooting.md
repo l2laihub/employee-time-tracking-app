@@ -175,7 +175,24 @@ console.log({
 
 ### UI/UX Issues
 
-#### 1. Form Reset Problems
+#### 1. Employee Selection Issues (Admin Mode)
+**Problem**: Employee dropdown not showing or not showing all employee types
+```typescript
+// Check employee role filtering
+const currentEmployee = useMemo(() => {
+  return user ? employees.find(emp => emp.email === user.email) : null;
+}, [user, employees]);
+
+const isAdmin = currentEmployee?.role === 'admin' || currentEmployee?.role === 'manager';
+```
+
+**Solution**:
+1. Verify user's role is correctly identified
+2. Check employee context is properly loaded
+3. Ensure no role-based filtering in the dropdown
+4. Verify employee sorting is working
+
+#### 2. Form Reset Problems
 **Problem**: Form doesn't reset properly
 ```typescript
 // Solution
@@ -189,7 +206,7 @@ useEffect(() => {
 }, [isOpen]);
 ```
 
-#### 2. Display Formatting
+#### 3. Display Formatting
 **Problem**: Inconsistent date display
 ```typescript
 // Use consistent formatting
@@ -247,22 +264,29 @@ console.log({
 
 ## Debugging Tools
 
-### Console Logging
-```typescript
-// Date debugging
-console.log({
-  rawDate: date,
-  dateObject: new Date(date),
-  formatted: formatDateForDisplay(date)
-});
+### Development Console Logging
+Console logging is maintained for development and testing purposes but not exposed in the UI. This helps maintain a clean user interface while still providing debugging capabilities during development.
 
-// Balance debugging
-console.log({
-  employee,
-  yearsOfService,
-  calculatedBalance,
-  pendingRequests
-});
+```typescript
+// Development-only logging examples
+if (process.env.NODE_ENV === 'development') {
+  // PTO request debugging
+  console.log('PTO request details:', {
+    employee,
+    type,
+    dates: { startDate, endDate },
+    calculatedHours,
+    availableBalance
+  });
+
+  // Balance calculation debugging
+  console.log('Balance calculation:', {
+    totalAllocation,
+    usedHours,
+    pendingHours,
+    availableBalance
+  });
+}
 ```
 
 ### React DevTools

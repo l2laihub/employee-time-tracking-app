@@ -76,7 +76,7 @@ sequenceDiagram
 - Recent locations
 - Favorites
 - Validation
-- Integration with location system
+- Basic location assignment
 
 ### StatusBadge
 - Visual status indicators
@@ -181,18 +181,24 @@ interface TimeControls {
 - No future entries
 - Maximum shift duration
 - Minimum break duration
-- Location verification
 - Overlap prevention
+- Valid job location assignment
 
 ## Future Enhancements
-- GPS location verification
-- Mobile app integration
-- Biometric verification
-- Offline support
-- Automated breaks
-- Schedule integration
-- Voice commands
-- QR code clock-in
+- Location Tracking
+  - GPS location verification
+  - Geofencing capabilities
+  - Location-based clock in/out
+  - Travel time tracking
+- Mobile Features
+  - Mobile app integration
+  - Offline support
+  - Biometric verification
+- Advanced Features
+  - Automated breaks
+  - Schedule integration
+  - Voice commands
+  - QR code clock-in
 
 ## Error Handling
 - Invalid time entries

@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { format } from 'date-fns';
 import { PTORequest } from '../../lib/types';
 import { Calendar, Clock, Edit2, User, Briefcase, Stethoscope, Timer, Trash2 } from 'lucide-react';
-import { mockUsers } from '../../lib/mockUsers';
+import { useEmployees } from '../../contexts/EmployeeContext';
 
 interface PTORequestListProps {
   requests: PTORequest[];
@@ -13,6 +13,30 @@ interface PTORequestListProps {
 }
 
 export default function PTORequestList({ requests, onReview, onEdit, onDelete, isAdmin }: PTORequestListProps) {
+  console.log('PTORequestList rendering:', {
+    requestsCount: requests.length,
+    isAdmin,
+    requestDetails: requests.map(r => ({
+      id: r.id,
+      userId: r.userId,
+      status: r.status,
+      type: r.type,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      hours: r.hours
+    }))
+  });
+
+  useEffect(() => {
+    console.log('PTORequestList mounted/updated with requests:', {
+      count: requests.length,
+      hasRequests: requests.length > 0,
+      firstRequest: requests[0] ? {
+        id: requests[0].id,
+        status: requests[0].status
+      } : null
+    });
+  }, [requests]);
   const getStatusBadge = (status: PTORequest['status']) => {
     switch (status) {
       case 'approved':
@@ -24,15 +48,14 @@ export default function PTORequestList({ requests, onReview, onEdit, onDelete, i
     }
   };
 
-  const getEmployeeName = (userId: string, createdBy?: string) => {
-    const employee = mockUsers.find(user => user.id === userId);
-    if (!employee) return 'Unknown Employee';
+  const getEmployeeName = (request: PTORequest) => {
+    if (!request.employee) return 'Unknown Employee';
     
-    const name = `${employee.first_name} ${employee.last_name}`;
-    if (createdBy) {
-      const creator = mockUsers.find(user => user.id === createdBy);
-      if (creator && (creator.role === 'admin' || creator.role === 'manager')) {
-        return `${name} (Request by ${creator.role === 'admin' ? 'Admin' : 'Manager'})`;
+    const name = `${request.employee.firstName} ${request.employee.lastName}`;
+    if (request.createdBy) {
+      // If the request was created by someone else (admin/manager), show that info
+      if (request.employee.role === 'admin' || request.employee.role === 'manager') {
+        return `${name} (Request by ${request.employee.role === 'admin' ? 'Admin' : 'Manager'})`;
       }
     }
     return name;
@@ -47,7 +70,7 @@ export default function PTORequestList({ requests, onReview, onEdit, onDelete, i
               {isAdmin && (
                 <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
                   <User className="w-4 h-4" />
-                  <span>{getEmployeeName(request.userId, request.createdBy)}</span>
+                  <span>{getEmployeeName(request)}</span>
                 </div>
               )}
               <div className="flex items-center space-x-4">
@@ -73,9 +96,6 @@ export default function PTORequestList({ requests, onReview, onEdit, onDelete, i
                 </span>
               </div>
               <p className="text-sm text-gray-600">{request.reason}</p>
-              {request.notes && (
-                <p className="text-sm text-gray-500 italic">Note: {request.notes}</p>
-              )}
               <div className="flex items-center space-x-2 text-xs text-gray-500">
                 <Clock className="w-4 h-4" />
                 <span>Requested {format(new Date(request.createdAt), 'MMM d, yyyy')}</span>
@@ -114,7 +134,12 @@ export default function PTORequestList({ requests, onReview, onEdit, onDelete, i
                     >
                       Review Request
                     </button>
-                    {request.createdBy && (mockUsers.find(u => u.id === request.createdBy)?.role === 'admin' || mockUsers.find(u => u.id === request.createdBy)?.role === 'manager') && (
+                    {/* Show delete button for admin-created requests */}
+                    {request.createdBy && (() => {
+                      const { employees } = useEmployees();
+                      const creator = employees.find(emp => emp.id === request.createdBy);
+                      return creator && (creator.role === 'admin' || creator.role === 'manager');
+                    })() && (
                       <button
                         onClick={() => {
                           if (window.confirm('Are you sure you want to delete this admin-created PTO request?')) {

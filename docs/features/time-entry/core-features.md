@@ -4,7 +4,7 @@
 
 ### Clock In/Out
 - **One-Click Entry**: Simple interface for starting and ending work sessions
-- **Location Verification**: Integration with job location geofencing
+- **Job Location**: Association with assigned job locations
 - **Status Tracking**: Clear indication of current work status
 - **Automatic Timestamps**: Precise recording of start and end times
 
@@ -41,10 +41,9 @@
 - **Searchable Content**: Easy retrieval of past entries
 - **Context Preservation**: Notes cleared appropriately on status changes
 
-## Location Integration
+## Location Management
 
-### Location Verification
-- **Geofencing**: Ensure time entries are made within designated areas
+### Job Location Selection
 - **Location Display**: Show current job location
 - **Location Selection**: Choose from assigned locations
 

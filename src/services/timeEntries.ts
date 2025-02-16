@@ -31,42 +31,51 @@ async function getTimeEntryStatus(timeEntryId: string): Promise<string | null> {
   return data?.status || null;
 }
 
-export async function createTimeEntry(
-  userId: string,
-  jobLocationId: string,
-  serviceType: 'hvac' | 'plumbing' | 'both',
-  workDescription: string,
-  organizationId: string
-): Promise<TimeEntryResult> {
-  try {
-    console.log('Creating time entry with data:', {
-      userId,
-      jobLocationId,
-      serviceType,
-      workDescription,
-      organizationId
-    });
+function validateTimeEntry(entry: Partial<TimeEntry>) {
+  if (!entry.user_id) {
+    throw new Error('User ID is required');
+  }
+  if (!entry.organization_id) {
+    throw new Error('Organization ID is required');
+  }
+  if (!entry.job_location_id) {
+    throw new Error('Job location ID is required');
+  }
+  if (!entry.service_type) {
+    throw new Error('Service type is required');
+  }
+  if (!['hvac', 'plumbing', 'both'].includes(entry.service_type)) {
+    throw new Error('Service type must be one of: hvac, plumbing, both');
+  }
+}
 
-    // Check if user already has an active time entry
-    if (await hasActiveTimeEntry(userId)) {
-      return {
-        success: false,
-        error: 'You already have an active time entry. Please clock out or end your break first.'
-      };
-    }
+export async function createTimeEntry(entry: Partial<TimeEntry>): Promise<TimeEntryResult> {
+  try {
+    // Validate the entry
+    validateTimeEntry(entry);
+
+    // Get current time
+    const now = new Date();
+
+    const timeEntryData = {
+      user_id: entry.user_id,
+      organization_id: entry.organization_id,
+      job_location_id: entry.job_location_id,
+      service_type: entry.service_type,
+      clock_in: now.toISOString(),
+      clock_out: null,
+      break_start: null,
+      break_end: null,
+      status: 'active' as const,
+      work_description: entry.work_description || '',
+      total_break_minutes: 0
+    };
+
+    console.log('Creating time entry with data:', timeEntryData);
 
     const { data, error } = await supabase
       .from('time_entries')
-      .insert({
-        user_id: userId,
-        job_location_id: jobLocationId,
-        service_type: serviceType,
-        work_description: workDescription,
-        organization_id: organizationId,
-        clock_in: new Date().toISOString(),
-        status: 'active',
-        total_break_minutes: 0
-      })
+      .insert(timeEntryData)
       .select()
       .single();
 
@@ -167,10 +176,11 @@ export async function listTimeEntriesByTimesheet(
           service_type
         )
       `)
-      .eq('user_id', timesheet.employee_id)
-      .gte('clock_in', timesheet.period_start_date)
-      .lte('clock_in', timesheet.period_end_date)
-      .order('clock_in', { ascending: true });
+      .eq('employee_id', timesheet.employee_id)
+      .gte('entry_date', timesheet.period_start_date)
+      .lte('entry_date', timesheet.period_end_date)
+      .order('entry_date', { ascending: true })
+      .order('start_time', { ascending: true });
 
     if (error) throw error;
 

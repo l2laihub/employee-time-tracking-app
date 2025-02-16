@@ -1,9 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Edit2, Trash2, Mail, Phone, Calendar, Clock, Briefcase, Stethoscope } from 'lucide-react';
-import { differenceInYears } from 'date-fns';
 import type { Employee } from '../../lib/types';
 import { formatDateForDisplay } from '../../utils/dateUtils';
-import { getVacationAllocationText } from '../../utils/ptoCalculations';
 import EmployeeStartDateForm from '../pto/EmployeeStartDateForm';
 import { usePTO } from '../../contexts/PTOContext';
 
@@ -17,6 +15,35 @@ interface EmployeeTableProps {
 export default function EmployeeTable({ employees, onEdit, onDelete, onUpdateStartDate }: EmployeeTableProps) {
   const { getPTOBalance } = usePTO();
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [balances, setBalances] = useState<Record<string, { vacation: number; sick_leave: number }>>({});
+  const [loadingBalances, setLoadingBalances] = useState(true);
+
+  useEffect(() => {
+    async function loadBalances() {
+      setLoadingBalances(true);
+      const newBalances: Record<string, { vacation: number; sick_leave: number }> = {};
+      
+      for (const employee of employees) {
+        try {
+          const [vacationBalance, sickLeaveBalance] = await Promise.all([
+            getPTOBalance(employee, 'vacation'),
+            getPTOBalance(employee, 'sick_leave')
+          ]);
+          newBalances[employee.id] = {
+            vacation: vacationBalance,
+            sick_leave: sickLeaveBalance
+          };
+        } catch (error) {
+          console.error(`Failed to load PTO balance for employee ${employee.id}:`, error);
+          newBalances[employee.id] = { vacation: 0, sick_leave: 0 };
+        }
+      }
+      
+      setBalances(newBalances);
+      setLoadingBalances(false);
+    }
+    loadBalances();
+  }, [employees, getPTOBalance]);
 
   return (
     <div>
@@ -81,11 +108,15 @@ export default function EmployeeTable({ employees, onEdit, onDelete, onUpdateSta
                   <div className="space-y-2">
                     <div className="flex items-center text-sm">
                       <Briefcase className="w-4 h-4 text-blue-500 mr-1" />
-                      <span>Vacation: {getPTOBalance(employee, 'vacation')} hrs</span>
+                      <span>
+                        Vacation: {loadingBalances ? '...' : `${balances[employee.id]?.vacation || 0} hrs`}
+                      </span>
                     </div>
                     <div className="flex items-center text-sm">
                       <Stethoscope className="w-4 h-4 text-green-500 mr-1" />
-                      <span>Sick Leave: {getPTOBalance(employee, 'sick_leave')} hrs</span>
+                      <span>
+                        Sick Leave: {loadingBalances ? '...' : `${balances[employee.id]?.sick_leave || 0} hrs`}
+                      </span>
                     </div>
                   </div>
                 </td>
@@ -159,11 +190,15 @@ export default function EmployeeTable({ employees, onEdit, onDelete, onUpdateSta
               </div>
               <div className="flex items-center text-sm text-gray-500">
                 <Clock className="w-4 h-4 mr-2" />
-                <span>Vacation: {getPTOBalance(employee, 'vacation')} hrs</span>
+                <span>
+                  Vacation: {loadingBalances ? '...' : `${balances[employee.id]?.vacation || 0} hrs`}
+                </span>
               </div>
               <div className="flex items-center text-sm text-gray-500">
                 <Stethoscope className="w-4 h-4 mr-2" />
-                <span>Sick Leave: {getPTOBalance(employee, 'sick_leave')} hrs</span>
+                <span>
+                  Sick Leave: {loadingBalances ? '...' : `${balances[employee.id]?.sick_leave || 0} hrs`}
+                </span>
               </div>
             </div>
 

@@ -1,21 +1,34 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Filter } from 'lucide-react';
 import PTORequestForm from '../components/pto/PTORequestForm';
 import PTORequestList from '../components/pto/PTORequestList';
 import PTOReviewForm from '../components/pto/PTOReviewForm';
-import { mockPTORequests } from '../lib/mockPTOData';
 import { useEmployees } from '../contexts/EmployeeContext';
 import { usePTO } from '../contexts/PTOContext';
+import { useOrganization } from '../contexts/OrganizationContext';
 import type { PTORequest, PTOType, Employee } from '../lib/types';
 import UserPTOBalance from '../components/pto/UserPTOBalance';
-import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 export default function PTO() {
+  console.log('PTO page mounting');
   const { user } = useAuth();
-  const { deletePTORequest } = usePTO();
-  const [requests, setRequests] = useState(mockPTORequests);
+  const { requests, addPTORequest, updatePTORequest, deletePTORequest, loading, error } = usePTO();
+  const { employees, isLoading: employeesLoading } = useEmployees();
+  const { organization, isLoading: orgLoading } = useOrganization();
+
+  // Debug mount with context values
+  useEffect(() => {
+    console.log('PTO page mounted with context:', {
+      hasUser: !!user,
+      userId: user?.id,
+      requestsLoading: loading,
+      requestsCount: requests?.length || 0,
+      error
+    });
+  }, [user, loading, requests, error]);
+
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<PTORequest | null>(null);
   const [editingRequest, setEditingRequest] = useState<PTORequest | null>(null);
@@ -29,10 +42,53 @@ export default function PTO() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   
-  const isAdmin = user?.role === 'admin' || user?.role === 'manager';
+  // Get the employee record for the current user to determine their role
+  const currentEmployee = useMemo(() => {
+    return user ? employees.find(emp => emp.email === user.email) : null;
+  }, [user, employees]);
+  
+  const isAdmin = currentEmployee?.role === 'admin' || currentEmployee?.role === 'manager';
 
   const filteredRequests = useMemo(() => {
-    let filtered = isAdmin ? requests : requests.filter(r => r.userId === user?.id);
+    console.log('Filtering requests:', {
+      total: requests.length,
+      isAdmin,
+      userId: user?.id,
+      filters,
+      requestDetails: requests.map(r => ({
+        id: r.id,
+        userId: r.userId,
+        status: r.status,
+        type: r.type
+      }))
+    });
+
+    console.log('User filter details:', {
+      requestUserIds: requests.map(r => r.userId),
+      currentUserId: user?.id,
+      isAdmin
+    });
+
+    // Start with all requests
+    let filtered = requests;
+
+    // For regular employees, only show their own requests
+    if (!isAdmin && selectedEmployee) {
+      console.log('Filtering for regular employee:', {
+        employeeId: selectedEmployee.id,
+        totalRequests: requests.length
+      });
+      filtered = filtered.filter(r => r.userId === selectedEmployee.id);
+    }
+
+    // For admins, filter by selected employee if one is selected in the dropdown
+    if (isAdmin && filters.employee !== 'all') {
+      console.log('Filtering for admin by selected employee:', {
+        selectedEmployee: filters.employee,
+        totalRequests: filtered.length
+      });
+      filtered = filtered.filter(r => r.userId === filters.employee);
+    }
 
     // Apply status and type filters
     if (filters.status !== 'all') {
@@ -50,15 +106,18 @@ export default function PTO() {
       filtered = filtered.filter(r => r.endDate <= filters.endDate);
     }
 
-    // Apply employee filter (admin only)
-    if (isAdmin && filters.employee !== 'all') {
-      filtered = filtered.filter(r => r.userId === filters.employee);
-    }
+    console.log('Filtered requests:', {
+      beforeFilter: requests.length,
+      afterFilter: filtered.length,
+      userFilter: isAdmin ? 'none' : `userId=${user?.id}`,
+      statusFilter: filters.status,
+      typeFilter: filters.type,
+      dateFilter: filters.startDate || filters.endDate ? 'yes' : 'no'
+    });
 
     return filtered;
-  }, [requests, filters, isAdmin, user?.id]);
+  }, [requests, filters, isAdmin, selectedEmployee?.id, user?.id]);
 
-  const { employees } = useEmployees();
   const employeeOptions = useMemo(() => {
     if (!isAdmin) return [];
     const uniqueEmployeeIds = [...new Set(requests.map(r => r.userId))];
@@ -69,36 +128,55 @@ export default function PTO() {
         name: employee ? `${employee.first_name} ${employee.last_name}` : id
       };
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [requests, isAdmin]);
+  }, [requests, isAdmin, employees]);
 
-  const handleCreateRequest = (data: { 
-    startDate: string; 
-    endDate: string; 
-    type: PTOType; 
-    hours: number; 
+  // Set selected employee for non-admin users
+  useEffect(() => {
+    if (!isAdmin && user && employees.length > 0) {
+      const userEmployee = employees.find(emp => emp.email === user.email);
+      if (userEmployee) {
+        console.log('Setting selected employee for non-admin user:', {
+          id: userEmployee.id,
+          name: `${userEmployee.first_name} ${userEmployee.last_name}`
+        });
+        setSelectedEmployee(userEmployee);
+      }
+    }
+  }, [isAdmin, user, employees]);
+
+  const handleCreateRequest = async (data: {
+    startDate: string;
+    endDate: string;
+    type: PTOType;
+    hours: number;
     reason: string;
     userId: string;
     createdBy?: string;
   }) => {
-    const newRequest: PTORequest = {
-      id: `pto-${Date.now()}`,
-      userId: data.userId,
-      startDate: data.startDate,
-      endDate: data.endDate,
-      type: data.type,
-      hours: data.hours,
-      reason: data.reason,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      createdBy: data.createdBy
-    };
-    
-    setRequests([newRequest, ...requests]);
-    setShowRequestForm(false);
-    toast.success('PTO request submitted successfully');
+    try {
+      const result = await addPTORequest({
+        userId: data.userId,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        type: data.type,
+        hours: data.hours,
+        reason: data.reason,
+        createdBy: data.createdBy
+      });
+
+      if (result.success) {
+        setShowRequestForm(false);
+        toast.success('PTO request submitted successfully');
+      } else {
+        toast.error(result.error || 'Failed to submit PTO request');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to submit PTO request';
+      toast.error(errorMessage);
+    }
   };
 
-  const handleEditRequest = (data: { 
+  const handleEditRequest = async (data: {
     startDate: string; 
     endDate: string; 
     type: PTOType; 
@@ -109,50 +187,45 @@ export default function PTO() {
   }) => {
     if (!editingRequest) return;
 
-    const updatedRequests = requests.map(req =>
-      req.id === editingRequest.id
-        ? {
-            ...req,
-            startDate: data.startDate,
-            endDate: data.endDate,
-            type: data.type,
-            hours: data.hours,
-            reason: data.reason,
-            userId: data.userId,
-            createdBy: data.createdBy || req.createdBy // Maintain original createdBy if not provided
-          }
-        : req
-    );
-
-    setRequests(updatedRequests);
-    setEditingRequest(null);
-    toast.success('PTO request updated successfully');
+    try {
+      await addPTORequest({
+        userId: data.userId,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        type: data.type,
+        hours: data.hours,
+        reason: data.reason,
+        createdBy: data.createdBy
+      });
+      setEditingRequest(null);
+      toast.success('PTO request updated successfully');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update PTO request';
+      toast.error(errorMessage);
+    }
   };
 
-  const handleDeleteRequest = (requestId: string) => {
-    setRequests(prev => prev.filter(req => req.id !== requestId));
-    deletePTORequest(requestId);
-    toast.success('PTO request deleted successfully');
+  const handleDeleteRequest = async (requestId: string) => {
+    try {
+      await deletePTORequest(requestId);
+      toast.success('PTO request deleted successfully');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete PTO request';
+      toast.error(errorMessage);
+    }
   };
 
-  const handleReviewRequest = (data: { status: 'approved' | 'rejected'; notes: string }) => {
+  const handleReviewRequest = async (data: { status: 'approved' | 'rejected'; notes: string }) => {
     if (!selectedRequest || !user) return;
 
-    const updatedRequests = requests.map(req =>
-      req.id === selectedRequest.id
-        ? {
-            ...req,
-            status: data.status,
-            notes: data.notes,
-            reviewedBy: user.id,
-            reviewedAt: new Date().toISOString()
-          }
-        : req
-    );
-
-    setRequests(updatedRequests);
-    setSelectedRequest(null);
-    toast.success(`PTO request ${data.status}`);
+    try {
+      await updatePTORequest(selectedRequest.id, data.status, user.id, data.notes);
+      setSelectedRequest(null);
+      toast.success(`PTO request ${data.status}`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update PTO request';
+      toast.error(errorMessage);
+    }
   };
 
   return (
@@ -271,16 +344,9 @@ export default function PTO() {
           <h2 className="text-lg font-semibold mb-4">
             {editingRequest ? 'Edit PTO Request' : 'New PTO Request'}
           </h2>
-          {user && (
-            <UserPTOBalance 
-              user={
-                isAdmin 
-                  ? (editingRequest 
-                      ? employees.find(u => u.id === editingRequest.userId) as Employee
-                      : selectedEmployee || (employees.find(u => u.id === user.id) as Employee))
-                  : employees.find(u => u.id === user.id) as Employee
-              } 
-            />
+          {/* Show PTO balance if we have a selected employee */}
+          {selectedEmployee && (
+            <UserPTOBalance user={selectedEmployee} />
           )}
           <PTORequestForm
             onSubmit={editingRequest ? handleEditRequest : handleCreateRequest}
@@ -295,13 +361,23 @@ export default function PTO() {
         </div>
       )}
 
-      <PTORequestList
-        requests={filteredRequests}
-        onReview={setSelectedRequest}
-        onEdit={setEditingRequest}
-        onDelete={handleDeleteRequest}
-        isAdmin={isAdmin}
-      />
+      {(loading || orgLoading) ? (
+        <div className="flex justify-center items-center p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <p>{error}</p>
+        </div>
+      ) : (
+        <PTORequestList
+          requests={filteredRequests}
+          onReview={setSelectedRequest}
+          onEdit={setEditingRequest}
+          onDelete={handleDeleteRequest}
+          isAdmin={isAdmin}
+        />
+      )}
 
       {selectedRequest && (
         <PTOReviewForm

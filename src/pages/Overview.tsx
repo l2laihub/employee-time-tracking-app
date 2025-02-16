@@ -40,7 +40,7 @@ export default function Overview() {
     {
       icon: MapPin,
       title: 'Job Location Management',
-      description: 'GPS-enabled location tracking, multi-site support, and location-based assignments'
+      description: 'Efficient job site organization, multi-location support, and streamlined site assignments'
     },
     {
       icon: FileText,

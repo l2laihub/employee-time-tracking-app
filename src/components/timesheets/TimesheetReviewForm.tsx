@@ -425,7 +425,7 @@ export default function TimesheetReviewForm({
                       <div className="sm:col-span-2">
                         <p className="text-sm font-medium text-gray-500">Description</p>
                         <p className="text-sm text-gray-900">
-                          {entry.work_description || 'No description provided'}
+                          {entry.work_description || ''}
                         </p>
                       </div>
                       {canEdit() && (

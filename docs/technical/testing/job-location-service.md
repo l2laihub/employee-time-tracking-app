@@ -1,6 +1,6 @@
 # Job Location Service Testing
 
-This document outlines the testing strategy and implementation for the Job Location Service, which handles location management, geofencing, and user assignments in ClockFlow.
+This document outlines the testing strategy and implementation for the Job Location Service, which handles location management and user assignments in ClockFlow.
 
 ## Test Framework
 
@@ -121,25 +121,6 @@ it('retrieves user locations with assignments', async () => {
 })
 ```
 
-### 3. Geofencing
-
-#### Location Checking
-```typescript
-it('returns true when user is within geofence', async () => {
-  // Tests geofence validation
-  // Verifies:
-  // - Distance calculation
-  // - Within radius check
-})
-
-it('returns false when user is outside geofence', async () => {
-  // Tests boundary conditions
-  // Verifies:
-  // - Outside radius detection
-  // - Distance calculation accuracy
-})
-```
-
 ## Error Handling
 
 ### Database Errors
@@ -162,10 +143,10 @@ expect(result.error).toBe(mockError.message);
 
 ### Validation Errors
 Tests ensure proper validation of input parameters:
-- Location coordinates
-- Geofence radius
 - Required fields
 - Data types
+- Location name and address format
+- Organization ID validation
 
 ## Running Tests
 
@@ -189,9 +170,6 @@ npm run test:unit
      id: 'loc-123',
      name: 'Main Office',
      address: '123 Main St, City, State',
-     latitude: 37.7749,
-     longitude: -122.4194,
-     radius: 100,
      organization_id: 'org-123',
      is_active: true,
      created_at: '2025-01-26T08:00:00Z',
@@ -219,3 +197,19 @@ npm run test:unit
    // Function call assertions
    expect(mockQueryBuilder.method).toHaveBeenCalledWith(expectedArgs);
    ```
+
+## Future Enhancements Testing
+
+The following test cases will be implemented when location tracking features are added:
+
+### 1. Geofencing
+- Location boundary validation
+- Distance calculation
+- GPS coordinate validation
+- Location verification during clock in/out
+
+### 2. GPS Integration
+- Location tracking accuracy
+- Real-time location updates
+- Location history tracking
+- Travel time calculation

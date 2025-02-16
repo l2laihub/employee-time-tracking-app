@@ -28,12 +28,14 @@ The PTO (Paid Time Off) feature helps manage employee time off, including both v
    - View team calendar
    - Track request review history
    - Delete admin-created requests
+   - Create PTO requests on behalf of any employee (including admins and managers)
 
 2. **Track Balances**
    - Monitor team PTO usage
    - View individual balances with beginning balances
    - Import employee PTO data
    - Manage employment dates
+   - View and manage PTO for all employee types (regular employees, managers, and admins)
 
 ## How PTO is Calculated
 

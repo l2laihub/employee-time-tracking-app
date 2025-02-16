@@ -2,6 +2,8 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrganization } from '../contexts/OrganizationContext';
+import { getEmployeeByEmail } from '../services/employees';
+import type { Employee } from '../lib/types';
 import { 
   LayoutDashboard, 
   Clock, 
@@ -23,8 +25,40 @@ interface SidebarProps {
 export default function Sidebar({ onClose }: SidebarProps) {
   const location = useLocation();
   const { user, signOut } = useAuth();
-  const { userRole } = useOrganization();
+  const { userRole, organization } = useOrganization();
   const isAdmin = userRole === 'admin' || userRole === 'manager';
+  const [employeeData, setEmployeeData] = React.useState<Employee | null>(null);
+
+  // Function to fetch employee data
+  const fetchEmployeeData = React.useCallback(async () => {
+    if (!user?.email || !organization?.id) return;
+
+    const result = await getEmployeeByEmail(user.email, organization.id);
+    if (result.success && result.data) {
+      // Ensure we're dealing with a single employee record
+      const employee = Array.isArray(result.data) ? result.data[0] : result.data;
+      setEmployeeData(employee);
+    } else {
+      console.error('Failed to fetch employee data:', result.error);
+    }
+  }, [user?.email, organization?.id]);
+
+  // Initial fetch and listen for employee updates
+  React.useEffect(() => {
+    fetchEmployeeData();
+
+    // Listen for employee updates
+    const handleEmployeeUpdate = () => {
+      console.log('Employee update detected, refreshing sidebar data');
+      fetchEmployeeData();
+    };
+
+    window.addEventListener('employee-updated', handleEmployeeUpdate);
+
+    return () => {
+      window.removeEventListener('employee-updated', handleEmployeeUpdate);
+    };
+  }, [fetchEmployeeData]);
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -99,7 +133,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
             >
               <div className="truncate flex-1">
                 <p className="text-sm font-medium text-gray-700">
-                  {user?.user_metadata?.first_name} {user?.user_metadata?.last_name}
+                  {employeeData?.first_name} {employeeData?.last_name}
                 </p>
                 <p className="text-xs font-medium text-gray-500 truncate capitalize">{userRole}</p>
               </div>

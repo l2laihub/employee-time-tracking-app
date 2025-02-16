@@ -145,7 +145,11 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     console.log('Organization effect triggered:', {
       userId: user?.id,
-      authLoading
+      authLoading,
+      hasOrg: !!organization,
+      orgId: organization?.id,
+      isLoading,
+      userRole
     });
     fetchUserOrganization();
   }, [user?.id, authLoading]);

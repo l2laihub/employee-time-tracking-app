@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Job Locations feature allows organizations to manage physical work locations, assign employees to these locations, and enforce location-based time tracking through geofencing. This feature is essential for organizations with multiple work sites or those requiring location verification for time tracking.
+The Job Locations feature allows organizations to manage physical work locations and assign employees to these locations. This feature is essential for organizations with multiple work sites to organize and track work assignments.
 
 ## Documentation Structure
 
@@ -14,7 +14,7 @@ The Job Locations feature allows organizations to manage physical work locations
 2. [Core Features](./core-features.md)
    - Location management
    - User assignments
-   - Geofencing capabilities
+   - Basic location tracking
 
 3. [Implementation](./implementation.md)
    - Code examples
@@ -25,6 +25,16 @@ The Job Locations feature allows organizations to manage physical work locations
    - Access control
    - Data protection
    - Usage guidelines
+
+## Future Enhancements
+
+### Location Verification
+The following location-based features are planned for future implementation:
+- GPS-based location verification
+- Geofencing capabilities
+- Automated location verification during time entries
+- Distance-based assignments
+- Travel time tracking
 
 ## Quick Links
 

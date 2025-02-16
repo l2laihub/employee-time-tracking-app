@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrganization } from '../contexts/OrganizationContext';
 import { useTimeEntry } from '../contexts/TimeEntryContext';
-import type { JobLocation } from '../lib/types';
+import type { JobLocation, TimeEntry } from '../lib/types';
 import { createTimeEntry, updateTimeEntry, clockOut, startBreak, endBreak, getActiveTimeEntry } from '../services/timeEntries';
 import { listLocations } from '../services/jobLocations';
 import { getEmployeeByUserId, createEmployeeForCurrentUser } from '../services/employees'; 
@@ -59,11 +59,14 @@ export default function TimeEntry() {
     if (!user?.id) return;
 
     async function loadActiveEntry() {
+      if (!user?.id) return;
+      
       const result = await getActiveTimeEntry(user.id);
-      if (result.success && result.data && !Array.isArray(result.data)) {
-        setActiveEntry(result.data);
-        setSelectedJobId(result.data.job_location_id);
-        setNotes(result.data.work_description || '');
+      if (result.success && result.data) {
+        const entry = result.data as TimeEntry;
+        setActiveEntry(entry);
+        setSelectedJobId(entry.job_location_id);
+        setNotes(entry.work_description || '');
       }
     }
 
@@ -94,13 +97,19 @@ export default function TimeEntry() {
         return;
       }
 
-      const result = await createTimeEntry(
-        user.id,
-        selectedJobId,
-        selectedJob.service_type,
-        notes || '',
-        organization.id
-      );
+      // Validate service type
+      if (!selectedJob.service_type || !['hvac', 'plumbing', 'both'].includes(selectedJob.service_type)) {
+        setError('Invalid service type for selected job');
+        return;
+      }
+
+      const result = await createTimeEntry({
+        user_id: user.id,
+        organization_id: organization.id,
+        job_location_id: selectedJobId,
+        service_type: selectedJob.service_type,
+        work_description: notes || ''
+      });
 
       if (result.success) {
         setActiveEntry(result.data);
