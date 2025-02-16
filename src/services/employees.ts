@@ -1,5 +1,18 @@
 import { supabase } from '../lib/supabase';
 import type { Employee } from '../lib/types';
+import type { PostgrestError } from '@supabase/supabase-js';
+
+interface RPCError {
+  message: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+}
+
+interface RPCResponse<T> {
+  data: T[] | null;
+  error: RPCError | null;
+}
 
 export interface EmployeeResult {
   success: boolean;
@@ -7,10 +20,35 @@ export interface EmployeeResult {
   error?: string;
 }
 
+// Default PTO structure
+const DEFAULT_PTO = {
+  vacation: {
+    beginningBalance: 0,
+    ongoingBalance: 0,
+    firstYearRule: 40,
+    used: 0
+  },
+  sickLeave: {
+    beginningBalance: 0,
+    used: 0
+  }
+};
+
 export async function createEmployee(
   organizationId: string,
   employeeData: Omit<Employee, 'id'>
 ): Promise<EmployeeResult> {
+  // Ensure PTO structure is properly initialized
+  const pto = {
+    vacation: {
+      ...DEFAULT_PTO.vacation,
+      ...employeeData.pto?.vacation
+    },
+    sickLeave: {
+      ...DEFAULT_PTO.sickLeave,
+      ...employeeData.pto?.sickLeave
+    }
+  };
   try {
     let memberId: string | null = null;
     
@@ -35,7 +73,8 @@ export async function createEmployee(
       .insert({
         ...employeeData,
         organization_id: organizationId,
-        member_id: memberId
+        member_id: memberId,
+        pto // Use the properly initialized PTO structure from above
       })
       .select()
       .single();
@@ -54,7 +93,6 @@ export async function createEmployee(
     };
   }
 }
-
 export async function updateEmployee(
   employeeId: string,
   updates: Partial<Employee>
@@ -64,6 +102,20 @@ export async function updateEmployee(
       employeeId,
       updates
     });
+
+    // Ensure PTO structure is properly initialized if included
+    if (updates.pto) {
+      updates.pto = {
+        vacation: {
+          ...DEFAULT_PTO.vacation,
+          ...updates.pto.vacation
+        },
+        sickLeave: {
+          ...DEFAULT_PTO.sickLeave,
+          ...updates.pto.sickLeave
+        }
+      };
+    }
 
     // Update user metadata first
     const { error: metadataError } = await supabase.auth.updateUser({
@@ -81,24 +133,53 @@ export async function updateEmployee(
       };
     }
 
-    // Then update employee record
+    // Separate PTO updates from basic info
+    const { pto, ...basicInfo } = updates;
+
+    console.log('Updating employee basic info:', {
+      employeeId,
+      basicInfo
+    });
+
+    // First update PTO if needed
+    if (pto) {
+      const { error: ptoError } = await supabase
+        .rpc('update_employee_pto', {
+          employee_id: employeeId,
+          new_pto: pto
+        });
+
+      if (ptoError) {
+        console.error('PTO update failed:', ptoError);
+        return {
+          success: false,
+          error: String(ptoError)
+        };
+      }
+    }
+
+    // Then update basic info using RPC function
+    const startDate = basicInfo.start_date ? new Date(basicInfo.start_date).toISOString().split('T')[0] : undefined;
+
     const { data: updatedEmployee, error: updateError } = await supabase
       .rpc('update_employee_basic_info', {
         employee_id: employeeId,
-        new_first_name: updates.first_name,
-        new_last_name: updates.last_name,
-        new_email: updates.email,
-        new_phone: updates.phone,
-        new_department: updates.department,
-        new_start_date: updates.start_date,
-        new_pto: updates.pto
+        new_first_name: basicInfo.first_name || undefined,
+        new_last_name: basicInfo.last_name || undefined,
+        new_email: basicInfo.email || undefined,
+        new_phone: basicInfo.phone || null,
+        new_department: basicInfo.department || undefined,
+        new_start_date: startDate,
+        new_role: basicInfo.role || undefined,
+        new_status: basicInfo.status || undefined,
+        new_pto: null // We handle PTO updates separately
       });
 
     if (updateError) {
-      console.error('Employee update failed:', updateError);
+      console.error('Employee basic info update failed:', updateError);
       return {
         success: false,
-        error: updateError.message || 'Failed to update employee'
+        error: String(updateError)
       };
     }
 
@@ -143,9 +224,24 @@ export async function listEmployees(organizationId: string): Promise<EmployeeRes
 
     if (error) throw error;
 
+    // Ensure all employees have proper PTO structure
+    const employeesWithPTO = data?.map(employee => ({
+      ...employee,
+      pto: {
+        vacation: {
+          ...DEFAULT_PTO.vacation,
+          ...employee.pto?.vacation
+        },
+        sickLeave: {
+          ...DEFAULT_PTO.sickLeave,
+          ...employee.pto?.sickLeave
+        }
+      }
+    }));
+
     return {
       success: true,
-      data: data as Employee[]
+      data: employeesWithPTO as Employee[]
     };
   } catch (error) {
     console.error('Listing employees failed:', error);
@@ -173,9 +269,24 @@ export async function getEmployee(employeeId: string): Promise<EmployeeResult> {
 
     if (error) throw error;
 
+    // Ensure employee has proper PTO structure
+    const employeeWithPTO = {
+      ...data,
+      pto: {
+        vacation: {
+          ...DEFAULT_PTO.vacation,
+          ...data.pto?.vacation
+        },
+        sickLeave: {
+          ...DEFAULT_PTO.sickLeave,
+          ...data.pto?.sickLeave
+        }
+      }
+    };
+
     return {
       success: true,
-      data: data as Employee
+      data: employeeWithPTO as Employee
     };
   } catch (error) {
     console.error('Getting employee failed:', error);
@@ -371,33 +482,46 @@ export async function importEmployees(
 
       console.log('Reactivating employee:', existingEmployee.email);
 
+      // First update basic info
+      const startDate = employee.start_date ? new Date(employee.start_date).toISOString().split('T')[0] : undefined;
       const { data: updatedData, error: updateError } = await supabase
-        .from('employees')
-        .update({
-          first_name: employee.first_name,
-          last_name: employee.last_name,
-          phone: employee.phone || null,
-          role: employee.role,
-          department: employee.department || null,
-          start_date: employee.start_date,
-          status: 'active',
-          pto: {
-            vacation: {
-              beginningBalance: employee.pto?.vacation?.beginningBalance || 0,
-              ongoingBalance: 0,
-              firstYearRule: 40,
-              used: 0
-            },
-            sickLeave: {
-              beginningBalance: employee.pto?.sickLeave?.beginningBalance || 0,
-              used: 0
+        .rpc('update_employee_basic_info', {
+          employee_id: existingEmployee.id,
+          new_first_name: employee.first_name || undefined,
+          new_last_name: employee.last_name || undefined,
+          new_email: employee.email || undefined,
+          new_phone: employee.phone || null,
+          new_department: employee.department || undefined,
+          new_start_date: startDate,
+          new_role: employee.role || undefined,
+          new_status: 'active',
+          new_pto: null
+        });
+
+      // Then update PTO
+      if (!updateError) {
+        const { error: ptoError } = await supabase
+          .rpc('update_employee_pto', {
+            employee_id: existingEmployee.id,
+            new_pto: {
+              vacation: {
+                beginningBalance: employee.pto?.vacation?.beginningBalance || 0,
+                ongoingBalance: 0,
+                firstYearRule: 40,
+                used: 0
+              },
+              sickLeave: {
+                beginningBalance: employee.pto?.sickLeave?.beginningBalance || 0,
+                used: 0
+              }
             }
-          }
-        })
-        .eq('id', existingEmployee.id)
-        .eq('organization_id', organizationId)
-        .select()
-        .single();
+          });
+
+        if (ptoError) {
+          console.error('Error updating PTO for reactivated employee:', ptoError);
+          throw ptoError;
+        }
+      }
 
       if (updateError) {
         console.error('Error reactivating employee:', updateError);
@@ -495,27 +619,34 @@ export async function getEmployeeByUserId(userId: string, organizationId?: strin
       };
     }
 
-    // Update employee with member_id if needed
+    // Update employee with member_id if needed using RPC
     if (employeeData.member_id !== memberData.id) {
       console.log('Updating employee with member_id:', memberData.id);
       const { data: updatedEmployee, error: updateError } = await supabase
-        .from('employees')
-        .update({ member_id: memberData.id })
-        .eq('id', employeeData.id)
-        .select()
-        .single();
+        .rpc('update_employee_basic_info', {
+          employee_id: employeeData.id,
+          new_first_name: employeeData.first_name,
+          new_last_name: employeeData.last_name,
+          new_email: employeeData.email,
+          new_phone: employeeData.phone,
+          new_department: employeeData.department,
+          new_start_date: employeeData.start_date,
+          new_role: employeeData.role,
+          new_status: employeeData.status,
+          new_pto: employeeData.pto
+        });
 
       if (updateError) {
         console.error('Failed to update member_id:', updateError);
         return {
           success: false,
-          error: updateError instanceof Error ? updateError.message : 'Unknown error occurred'
+          error: String(updateError)
         };
       }
 
       // Add member data to response
       const employeeWithMember = {
-        ...updatedEmployee,
+        ...updatedEmployee[0],
         organization_members: memberData
       };
 
@@ -583,22 +714,29 @@ export async function createEmployeeForCurrentUser(organizationId: string): Prom
     console.log('Debug - Existing employee:', { existingEmployee, existingError });
 
     if (existingEmployee) {
-      // If employee exists but not linked to member, update it
+      // If employee exists but not linked to member, update it using RPC
       if (existingEmployee.member_id !== memberData.id) {
         console.log('Employee exists but not linked to member, updating member_id');
         const { data: updatedEmployee, error: updateError } = await supabase
-          .from('employees')
-          .update({ member_id: memberData.id })
-          .eq('id', existingEmployee.id)
-          .select()
-          .single();
+          .rpc('update_employee_basic_info', {
+            employee_id: existingEmployee.id,
+            new_first_name: existingEmployee.first_name,
+            new_last_name: existingEmployee.last_name,
+            new_email: existingEmployee.email,
+            new_phone: existingEmployee.phone,
+            new_department: existingEmployee.department,
+            new_start_date: existingEmployee.start_date,
+            new_role: existingEmployee.role,
+            new_status: existingEmployee.status,
+            new_pto: existingEmployee.pto
+          });
 
         console.log('Debug - Updated employee:', { updatedEmployee, updateError });
 
         if (updateError) throw updateError;
         return {
           success: true,
-          data: updatedEmployee as Employee
+          data: updatedEmployee[0] as Employee
         };
       }
 

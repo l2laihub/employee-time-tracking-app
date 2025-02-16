@@ -12,6 +12,8 @@ CREATE OR REPLACE FUNCTION update_employee_basic_info(
   new_phone TEXT,
   new_department TEXT,
   new_start_date DATE,
+  new_role TEXT,
+  new_status TEXT,
   new_pto JSONB
 )
 RETURNS SETOF public.employees
@@ -52,6 +54,8 @@ BEGIN
     phone = new_phone,
     department = COALESCE(new_department, department),
     start_date = COALESCE(new_start_date, start_date),
+    role = COALESCE(new_role, role),
+    status = COALESCE(new_status, status),
     updated_at = TIMEZONE('utc', NOW()),
     pto = COALESCE(new_pto, pto)
   WHERE id = employee_id
