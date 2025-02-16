@@ -22,15 +22,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check active sessions and sets the user
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    async function initializeAuth() {
+      try {
+        // Get the current session first
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          console.log('Initial session found:', {
+            userId: session.user.id,
+            email: session.user.email,
+            metadata: session.user.user_metadata
+          });
+          setUser(session.user);
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    }
 
-    // Listen for changes on auth state (signed in, signed out, etc.)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+    // Initialize auth state
+    initializeAuth();
+
+    // Listen for changes on auth state
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', {
+        event,
+        userId: session?.user?.id,
+        email: session?.user?.email,
+        metadata: session?.user?.user_metadata
+      });
+
+      if (event === 'USER_UPDATED') {
+        try {
+          // Get the current session without forcing a refresh
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (currentSession?.user) {
+            setUser(currentSession.user);
+          }
+        } catch (error) {
+          console.error('Error handling user update:', error);
+          // Fall back to session from event if getting current session fails
+          setUser(session?.user ?? null);
+        }
+      } else {
+        setUser(session?.user ?? null);
+      }
       setLoading(false);
     });
 

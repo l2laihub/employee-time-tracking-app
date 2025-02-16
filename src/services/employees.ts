@@ -117,21 +117,25 @@ export async function updateEmployee(
       };
     }
 
-    // Update user metadata first
-    const { error: metadataError } = await supabase.auth.updateUser({
-      data: {
-        first_name: updates.first_name,
-        last_name: updates.last_name
-      }
-    });
-
-    if (metadataError) {
-      console.error('User metadata update failed:', metadataError);
+    // Get current session without forcing refresh
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session?.user) {
+      console.error('Failed to get current session:', sessionError);
       return {
         success: false,
-        error: 'Failed to update user metadata'
+        error: 'No active session found'
       };
     }
+    const user = session.user;
+
+    // Check if this is the current user's employee record
+    const { data: employeeData } = await supabase
+      .from('employees')
+      .select('email')
+      .eq('id', employeeId)
+      .single();
+
+    // No longer updating auth metadata since we're using employee table as source of truth
 
     // Separate PTO updates from basic info
     const { pto, ...basicInfo } = updates;
@@ -158,22 +162,45 @@ export async function updateEmployee(
       }
     }
 
-    // Then update basic info using RPC function
-    const startDate = basicInfo.start_date ? new Date(basicInfo.start_date).toISOString().split('T')[0] : undefined;
+    // Determine if this is a user settings update or admin employee update
+    const isUserSettingsUpdate = Object.keys(basicInfo).every(key =>
+      ['first_name', 'last_name', 'email', 'phone'].includes(key)
+    );
 
-    const { data: updatedEmployee, error: updateError } = await supabase
-      .rpc('update_employee_basic_info', {
-        employee_id: employeeId,
-        new_first_name: basicInfo.first_name || undefined,
-        new_last_name: basicInfo.last_name || undefined,
-        new_email: basicInfo.email || undefined,
-        new_phone: basicInfo.phone || null,
-        new_department: basicInfo.department || undefined,
-        new_start_date: startDate,
-        new_role: basicInfo.role || undefined,
-        new_status: basicInfo.status || undefined,
-        new_pto: null // We handle PTO updates separately
-      });
+    let updatedEmployee;
+    let updateError;
+
+    if (isUserSettingsUpdate) {
+      // Use user self-update function for user settings
+      const { data, error } = await supabase
+        .rpc('update_user_basic_info', {
+          employee_id: employeeId,
+          new_first_name: basicInfo.first_name || undefined,
+          new_last_name: basicInfo.last_name || undefined,
+          new_email: basicInfo.email || undefined,
+          new_phone: basicInfo.phone || null
+        });
+      updatedEmployee = data;
+      updateError = error;
+    } else {
+      // Use admin update function for full employee updates
+      const startDate = basicInfo.start_date ? new Date(basicInfo.start_date).toISOString().split('T')[0] : undefined;
+      const { data, error } = await supabase
+        .rpc('update_employee_basic_info', {
+          employee_id: employeeId,
+          new_first_name: basicInfo.first_name || undefined,
+          new_last_name: basicInfo.last_name || undefined,
+          new_email: basicInfo.email || undefined,
+          new_phone: basicInfo.phone || null,
+          new_department: basicInfo.department || undefined,
+          new_start_date: startDate,
+          new_role: basicInfo.role || undefined,
+          new_status: basicInfo.status || undefined,
+          new_pto: null // We handle PTO updates separately
+        });
+      updatedEmployee = data;
+      updateError = error;
+    }
 
     if (updateError) {
       console.error('Employee basic info update failed:', updateError);
@@ -193,6 +220,9 @@ export async function updateEmployee(
 
     // RPC function returns an array with one element
     const employee = updatedEmployee[0];
+
+    // Dispatch event to notify components of the update
+    window.dispatchEvent(new Event('employee-updated'));
 
     return {
       success: true,
@@ -570,38 +600,41 @@ export async function getEmployeeByUserId(userId: string, organizationId?: strin
       };
     }
 
-    // First get the organization member record
-    const { data: memberData, error: memberError } = await supabase
-      .from('organization_members')
-      .select('id, user_id, role')
-      .eq('organization_id', organizationId)
-      .eq('user_id', userId)
-      .single();
+    // Get the employee record
+    const result = await getEmployeeByEmail(user.email, organizationId);
+    return result;
+  } catch (error) {
+    console.error('Getting employee by user ID failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
 
-    if (memberError) {
-      console.error('Failed to get organization member:', memberError);
-      return {
-        success: false,
-        error: 'Failed to verify organization membership'
-      };
+export async function getEmployeeByEmail(email: string, organizationId?: string): Promise<EmployeeResult> {
+  try {
+    console.log('Getting employee by email:', email, 'Organization ID:', organizationId);
+
+    // Get the employee record with organization member data
+    const query = supabase
+      .from('employees')
+      .select(`
+        *,
+        organization_members!inner (
+          id,
+          user_id,
+          role
+        )
+      `)
+      .eq('email', email);
+    
+    // Add organization filter if provided
+    if (organizationId) {
+      query.eq('organization_id', organizationId);
     }
 
-    // Then get the employee record
-    const { data: employeeData, error: employeeError } = await supabase
-      .from('employees')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .eq('email', user.email)
-      .maybeSingle();
-
-    console.log('Employee lookup result:', {
-      data: employeeData,
-      error: employeeError,
-      query: {
-        organizationId,
-        email: user.email
-      }
-    });
+    const { data: employeeData, error: employeeError } = await query.maybeSingle();
 
     if (employeeError) {
       console.error('Getting employee failed:', employeeError);
@@ -612,58 +645,13 @@ export async function getEmployeeByUserId(userId: string, organizationId?: strin
     }
 
     if (!employeeData) {
-      console.log('No employee found with email:', user.email);
+      console.log('No employee found with email:', email);
       return {
         success: false,
         error: 'Employee not found'
       };
     }
 
-    // Update employee with member_id if needed using RPC
-    if (employeeData.member_id !== memberData.id) {
-      console.log('Updating employee with member_id:', memberData.id);
-      const { data: updatedEmployee, error: updateError } = await supabase
-        .rpc('update_employee_basic_info', {
-          employee_id: employeeData.id,
-          new_first_name: employeeData.first_name,
-          new_last_name: employeeData.last_name,
-          new_email: employeeData.email,
-          new_phone: employeeData.phone,
-          new_department: employeeData.department,
-          new_start_date: employeeData.start_date,
-          new_role: employeeData.role,
-          new_status: employeeData.status,
-          new_pto: employeeData.pto
-        });
-
-      if (updateError) {
-        console.error('Failed to update member_id:', updateError);
-        return {
-          success: false,
-          error: String(updateError)
-        };
-      }
-
-      // Add member data to response
-      const employeeWithMember = {
-        ...updatedEmployee[0],
-        organization_members: memberData
-      };
-
-      console.log('Successfully updated employee with member data:', employeeWithMember);
-      return {
-        success: true,
-        data: employeeWithMember as Employee
-      };
-    }
-
-    // Add member data to response
-    const employeeWithMember = {
-      ...employeeData,
-      organization_members: memberData
-    };
-
-    console.log('Returning employee with member data:', employeeWithMember);
     return {
       success: true,
       data: employeeData as Employee
@@ -753,8 +741,8 @@ export async function createEmployeeForCurrentUser(organizationId: string): Prom
     const employeeData = {
       organization_id: organizationId,
       member_id: memberData.id,
-      first_name: user.user_metadata.first_name || '',
-      last_name: user.user_metadata.last_name || '',
+      first_name: '',  // Will be set through user settings
+      last_name: '',   // Will be set through user settings
       email: user.email || '',
       role: memberData.role,
       start_date: new Date().toISOString().split('T')[0],
