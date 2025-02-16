@@ -51,7 +51,8 @@ vi.mock('../../lib/supabase', () => ({
     rpc: vi.fn(),
     auth: {
       getUser: vi.fn(),
-      updateUser: vi.fn()
+      updateUser: vi.fn(),
+      getSession: vi.fn()
     }
   }
 }));
@@ -199,13 +200,6 @@ describe('Employee Service', () => {
 
   describe('updateEmployee', () => {
     it('should update an employee successfully', async () => {
-      // Mock auth user update
-      const mockAuthResponse = {
-        data: { user: null },
-        error: null
-      };
-      vi.mocked(supabase.auth.updateUser).mockResolvedValue(mockAuthResponse as unknown as { data: { user: User }; error: null });
-
       const updates = {
         first_name: 'John',
         last_name: 'Smith',
@@ -214,13 +208,60 @@ describe('Employee Service', () => {
       };
 
       const updatedEmployee = { ...mockEmployee, ...updates };
-      const mockRpcBuilder = {
-        single: vi.fn().mockResolvedValue({
-          data: updatedEmployee,
-          error: null
-        })
-      };
-      vi.mocked(supabase.rpc).mockReturnValue(mockRpcBuilder);
+
+      // Mock the auth session
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
+        data: {
+          session: {
+            access_token: 'test-token',
+            refresh_token: 'test-refresh',
+            expires_in: 3600,
+            token_type: 'bearer',
+            user: {
+              id: 'test-user-id',
+              app_metadata: {},
+              user_metadata: {},
+              aud: 'authenticated',
+              created_at: '2023-01-01',
+              role: '',
+              email: 'test@example.com',
+              phone: '',
+              confirmation_sent_at: '',
+              confirmed_at: '',
+              last_sign_in_at: '',
+              recovery_sent_at: '',
+              updated_at: '',
+              identities: [],
+              factors: []
+            }
+          }
+        },
+        error: null
+      });
+
+      // Mock the employee lookup
+      vi.mocked(supabase.from).mockReturnValue(
+        createMockQueryBuilder({ data: { email: updates.email }, error: null })
+      );
+      // Mock RPC calls - handle both user settings and basic info updates
+      vi.mocked(supabase.rpc).mockImplementation((functionName: string) => {
+        if (functionName === 'update_user_basic_info') {
+          return {
+            data: [updatedEmployee],
+            error: null,
+            count: null,
+            status: 200,
+            statusText: 'OK'
+          };
+        }
+        return {
+          data: null,
+          error: null,
+          count: null,
+          status: 200,
+          statusText: 'OK'
+        };
+      });
 
       const result = await updateEmployee('1', updates);
       expect(result.success).toBe(true);
@@ -285,13 +326,14 @@ describe('Employee Service', () => {
         }
       };
       
-      const mockResponse = { 
-        data: updatedEmployee, 
-        error: null 
-      };
-      vi.mocked(supabase.from).mockReturnValue(
-        createMockQueryBuilder(mockResponse)
-      );
+      // Mock the RPC response
+      vi.mocked(supabase.rpc).mockResolvedValue({
+        data: [updatedEmployee],
+        error: null,
+        count: null,
+        status: 200,
+        statusText: 'OK'
+      });
 
       const result = await updateEmployeePTO('1', updatedEmployee.pto);
       expect(result.success).toBe(true);
