@@ -67,7 +67,7 @@ describe('time entries service', () => {
     break_start: null,
     break_end: null,
     total_break_minutes: 30,
-    service_type: null,
+    service_type: 'hvac',
     work_description: 'Test entry',
     status: 'completed'
   }
@@ -87,29 +87,25 @@ describe('time entries service', () => {
 
       vi.mocked(supabase.from).mockReturnValue(mockQueryBuilder as any);
 
-      const result = await createTimeEntry(
-        'emp-123',
-        'org-123',
-        'loc-123',
-        new Date('2025-02-01'),
-        new Date('2025-02-01T09:00:00Z'),
-        new Date('2025-02-01T17:00:00Z'),
-        30,
-        'Test entry'
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual(mockTimeEntry);
-      expect(mockQueryBuilder.insert).toHaveBeenCalledWith({
+      const result = await createTimeEntry({
         user_id: 'emp-123',
         organization_id: 'org-123',
         job_location_id: 'loc-123',
-        clock_in: '2025-02-01T09:00:00.000Z',
-        clock_out: '2025-02-01T17:00:00.000Z',
-        total_break_minutes: 30,
-        work_description: 'Test entry',
-        status: 'completed'
+        service_type: 'hvac',
+        work_description: 'Test entry'
       });
+
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(mockTimeEntry);
+      expect(mockQueryBuilder.insert).toHaveBeenCalledWith(expect.objectContaining({
+        user_id: 'emp-123',
+        organization_id: 'org-123',
+        job_location_id: 'loc-123',
+        service_type: 'hvac',
+        work_description: 'Test entry',
+        status: 'active',
+        total_break_minutes: 0
+      }));
     })
 
     it('handles creation failure', async () => {
@@ -123,19 +119,16 @@ describe('time entries service', () => {
 
       vi.mocked(supabase.from).mockReturnValue(mockQueryBuilder as any);
 
-      const result = await createTimeEntry(
-        'emp-123',
-        'org-123',
-        'loc-123',
-        new Date('2025-02-01'),
-        new Date('2025-02-01T09:00:00Z'),
-        new Date('2025-02-01T17:00:00Z'),
-        30,
-        'Test entry'
-      );
+      const result = await createTimeEntry({
+        user_id: 'emp-123',
+        organization_id: 'org-123',
+        job_location_id: 'loc-123',
+        service_type: 'hvac',
+        work_description: 'Test entry'
+      });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Database error');
+      expect(result.error).toBe(mockError.message);
     });
   })
 

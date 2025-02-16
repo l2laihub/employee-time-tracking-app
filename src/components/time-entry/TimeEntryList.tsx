@@ -229,7 +229,7 @@ export default function TimeEntryList({ locations, entriesPerPage = 10 }: TimeEn
               {groupedEntries[date].map(entry => {
                 const location = locations.find(loc => loc.id === entry.job_location_id);
                 const startTime = parseISO(entry.clock_in);
-                const endTime = entry.end_time ? parseISO(entry.end_time) : null;
+                const endTime = entry.clock_out ? parseISO(entry.clock_out) : null;
 
                 return (
                   <div

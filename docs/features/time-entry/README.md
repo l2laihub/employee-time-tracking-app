@@ -6,7 +6,6 @@ The Time Entry module is a core component of ClockFlow that handles all aspects 
 
 ### 1. Clock In/Out
 - One-click time entry
-- Location tracking
 - Job/task association
 - Break management
 - Overtime tracking
@@ -15,14 +14,17 @@ The Time Entry module is a core component of ClockFlow that handles all aspects 
 ```typescript
 interface TimeEntry {
   id: string;
-  userId: string;
-  startTime: Date;
-  endTime?: Date;
-  jobLocationId: string;
-  breakDuration: number;
-  status: 'pending' | 'approved' | 'rejected';
-  notes?: string;
-  category?: string;
+  user_id: string;
+  organization_id: string;
+  job_location_id: string;
+  clock_in: string;
+  clock_out: string | null;
+  break_start: string | null;
+  break_end: string | null;
+  total_break_minutes: number;
+  service_type: 'hvac' | 'plumbing' | 'both';
+  work_description: string;
+  status: 'active' | 'break' | 'completed';
 }
 ```
 
@@ -33,55 +35,88 @@ interface TimeEntry {
 - Compliance monitoring
 - Automatic calculations
 
-### 4. Location Tracking
-- GPS integration
-- Geofencing
-- Location verification
-- Site assignment
-- Travel time tracking
-
-### 5. Notes and Categories
+### 4. Notes and Categories
 - Task descriptions
 - Project associations
 - Billable status
 - Client attribution
 - Custom fields
 
+## Future Enhancements
+
+### 1. Location Tracking
+The following location tracking features are planned for future implementation:
+- GPS integration for clock in/out verification
+- Geofencing for job site validation
+- Location verification for time entries
+- Site assignment automation
+- Travel time tracking between job sites
+
 ## Implementation
 
 ### 1. Time Entry Creation
 
 ```typescript
-async function createTimeEntry(entry: TimeEntry) {
-  // Validate entry
-  validateTimeEntry(entry);
-  
-  // Check for overlaps
-  const hasOverlap = await checkOverlappingEntries(
-    entry.userId,
-    entry.startTime,
-    entry.endTime
-  );
-  
-  if (hasOverlap) {
-    throw new Error('Time entry overlaps with existing entry');
+function validateTimeEntry(entry: Partial<TimeEntry>) {
+  if (!entry.user_id) {
+    throw new Error('User ID is required');
   }
-  
-  // Create entry
-  const { data, error } = await supabase
-    .from('time_entries')
-    .insert(entry);
-    
-  if (error) throw error;
-  
-  // Update related records
-  await Promise.all([
-    updateUserStatus(entry.userId),
-    notifyManagers(entry),
-    updateTimesheets(entry)
-  ]);
-  
-  return data;
+  if (!entry.organization_id) {
+    throw new Error('Organization ID is required');
+  }
+  if (!entry.job_location_id) {
+    throw new Error('Job location ID is required');
+  }
+  if (!entry.service_type) {
+    throw new Error('Service type is required');
+  }
+  if (!['hvac', 'plumbing', 'both'].includes(entry.service_type)) {
+    throw new Error('Service type must be one of: hvac, plumbing, both');
+  }
+}
+
+export async function createTimeEntry(entry: Partial<TimeEntry>): Promise<TimeEntryResult> {
+  try {
+    // Validate the entry
+    validateTimeEntry(entry);
+
+    // Get current time
+    const now = new Date();
+
+    const timeEntryData = {
+      user_id: entry.user_id,
+      organization_id: entry.organization_id,
+      job_location_id: entry.job_location_id,
+      service_type: entry.service_type,
+      clock_in: now.toISOString(),
+      clock_out: null,
+      break_start: null,
+      break_end: null,
+      status: 'active' as const,
+      work_description: entry.work_description || 'No description provided',
+      total_break_minutes: 0
+    };
+
+    const { data, error } = await supabase
+      .from('time_entries')
+      .insert(timeEntryData)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!data) throw new Error('No data returned after insert');
+
+    return {
+      success: true,
+      data: data as TimeEntry
+    };
+  } catch (error) {
+    console.error('Time entry creation error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
 }
 ```
 
@@ -117,73 +152,27 @@ async function startBreak(timeEntryId: string, type: string) {
 }
 ```
 
-### 3. Location Tracking
+### 3. Validation
 
 ```typescript
-interface Location {
-  latitude: number;
-  longitude: number;
-  accuracy: number;
-  timestamp: Date;
-}
-
-function useLocationTracking() {
-  const [location, setLocation] = useState<Location | null>(null);
-  
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      throw new Error('Geolocation not supported');
-    }
-    
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        setLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy,
-          timestamp: new Date()
-        });
-      },
-      (error) => {
-        console.error('Location error:', error);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 0
-      }
-    );
-    
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
-  
-  return location;
-}
-```
-
-### 4. Validation
-
-```typescript
-function validateTimeEntry(entry: TimeEntry) {
+function validateTimeEntry(entry: Partial<TimeEntry>) {
   // Check required fields
-  if (!entry.startTime || !entry.userId || !entry.jobLocationId) {
-    throw new Error('Missing required fields');
+  if (!entry.user_id) {
+    throw new Error('User ID is required');
+  }
+  if (!entry.organization_id) {
+    throw new Error('Organization ID is required');
+  }
+  if (!entry.job_location_id) {
+    throw new Error('Job location ID is required');
+  }
+  if (!entry.service_type) {
+    throw new Error('Service type is required');
   }
   
-  // Validate time range
-  if (entry.endTime && entry.endTime <= entry.startTime) {
-    throw new Error('End time must be after start time');
-  }
-  
-  // Check working hours
-  const duration = calculateDuration(entry.startTime, entry.endTime);
-  if (duration > MAX_HOURS_PER_DAY) {
-    throw new Error('Exceeds maximum daily hours');
-  }
-  
-  // Validate location
-  if (!isValidLocation(entry.jobLocationId)) {
-    throw new Error('Invalid job location');
+  // Validate service type
+  if (!['hvac', 'plumbing', 'both'].includes(entry.service_type)) {
+    throw new Error('Service type must be one of: hvac, plumbing, both');
   }
 }
 ```
@@ -193,43 +182,66 @@ function validateTimeEntry(entry: TimeEntry) {
 ### 1. Time Entry Form
 
 ```tsx
-function TimeEntryForm() {
-  const form = useForm<TimeEntry>({
-    defaultValues: {
-      startTime: new Date(),
-      breakDuration: 0,
-      status: 'pending'
-    }
-  });
-  
-  const onSubmit = async (data: TimeEntry) => {
+export default function TimeEntry() {
+  const { user } = useAuth();
+  const { organization } = useOrganization();
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [notes, setNotes] = useState('');
+  const [error, setError] = useState<string>();
+  const { activeEntry, setActiveEntry } = useTimeEntry();
+
+  const handleClockIn = async () => {
+    if (!selectedJobId || !user?.id || !organization?.id) return;
+
     try {
-      await createTimeEntry(data);
-      showSuccess('Time entry created');
+      const selectedJob = jobs.find(job => job.id === selectedJobId);
+      if (!selectedJob) {
+        setError('Selected job not found');
+        return;
+      }
+
+      const result = await createTimeEntry({
+        user_id: user.id,
+        organization_id: organization.id,
+        job_location_id: selectedJobId,
+        service_type: selectedJob.service_type,
+        work_description: notes || 'No description provided'
+      });
+
+      if (result.success) {
+        setActiveEntry(result.data);
+        setError(undefined);
+      } else {
+        setError(result.error);
+      }
     } catch (error) {
-      showError(error.message);
+      console.error('Clock in error:', error);
+      setError(error instanceof Error ? error.message : 'An error occurred while clocking in');
     }
   };
-  
+
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)}>
-      <DateTimePicker
-        label="Start Time"
-        {...form.register('startTime')}
+    <div className="space-y-6">
+      <JobSelector
+        jobs={jobs}
+        selectedJobId={selectedJobId}
+        onSelect={setSelectedJobId}
+        disabled={!!activeEntry}
       />
-      <DateTimePicker
-        label="End Time"
-        {...form.register('endTime')}
+      <NotesField
+        value={notes}
+        onChange={setNotes}
+        disabled={!selectedJobId}
       />
-      <LocationSelect
-        {...form.register('jobLocationId')}
+      <TimeControls
+        isActive={!!activeEntry}
+        isOnBreak={activeEntry?.status === 'break'}
+        onClockIn={handleClockIn}
+        onClockOut={handleClockOut}
+        onStartBreak={handleStartBreak}
+        onEndBreak={handleEndBreak}
       />
-      <TextArea
-        label="Notes"
-        {...form.register('notes')}
-      />
-      <Button type="submit">Save Entry</Button>
-    </form>
+    </div>
   );
 }
 ```
@@ -266,42 +278,74 @@ function ActiveTimer() {
 
 ```sql
 CREATE TABLE time_entries (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES users(id),
-  job_location_id UUID REFERENCES job_locations(id),
-  start_time TIMESTAMP WITH TIME ZONE NOT NULL,
-  end_time TIMESTAMP WITH TIME ZONE,
-  break_duration INTEGER DEFAULT 0,
-  status TEXT CHECK (status IN ('pending', 'approved', 'rejected')),
-  notes TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id),
+  job_location_id UUID NOT NULL REFERENCES job_locations(id),
+  clock_in TIMESTAMP WITH TIME ZONE NOT NULL,
+  clock_out TIMESTAMP WITH TIME ZONE,
+  break_start TIMESTAMP WITH TIME ZONE,
+  break_end TIMESTAMP WITH TIME ZONE,
+  total_break_minutes INTEGER DEFAULT 0,
+  service_type TEXT NOT NULL CHECK (service_type IN ('hvac', 'plumbing', 'both')),
+  work_description TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('active', 'break', 'completed')),
+  organization_id UUID NOT NULL REFERENCES organizations(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  CONSTRAINT valid_break_times CHECK (
+    (break_start IS NULL AND break_end IS NULL) OR
+    (break_start IS NOT NULL AND break_end IS NULL) OR
+    (break_start IS NOT NULL AND break_end IS NOT NULL AND break_end > break_start)
+  ),
+  CONSTRAINT valid_clock_times CHECK (
+    (clock_out IS NULL) OR
+    (clock_out > clock_in)
+  )
 );
 
-CREATE INDEX idx_time_entries_user ON time_entries(user_id);
-CREATE INDEX idx_time_entries_date ON time_entries(start_time);
+CREATE INDEX time_entries_user_id_idx ON time_entries(user_id);
+CREATE INDEX time_entries_organization_id_idx ON time_entries(organization_id);
+CREATE INDEX time_entries_clock_in_idx ON time_entries(clock_in);
+CREATE INDEX time_entries_status_idx ON time_entries(status);
 ```
 
 ### 2. Queries
 
 ```typescript
-async function getTimeEntries(userId: string, startDate: Date, endDate: Date) {
-  const { data, error } = await supabase
-    .from('time_entries')
-    .select(`
-      *,
-      job_locations (
-        name,
-        address
-      )
-    `)
-    .eq('user_id', userId)
-    .gte('start_time', startDate.toISOString())
-    .lte('end_time', endDate.toISOString())
-    .order('start_time', { ascending: false });
-    
-  if (error) throw error;
-  return data;
+export async function listTimeEntriesByDateRange(
+  employeeId: string,
+  startDate: Date,
+  endDate: Date
+): Promise<TimeEntryResult> {
+  try {
+    const { data, error } = await supabase
+      .from('time_entries')
+      .select(`
+        *,
+        job_locations (
+          name,
+          type,
+          service_type
+        )
+      `)
+      .eq('user_id', employeeId)
+      .gte('clock_in', startDate.toISOString())
+      .lte('clock_in', endDate.toISOString())
+      .order('clock_in', { ascending: false });
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      data: data as TimeEntry[]
+    };
+  } catch (error) {
+    console.error('Failed to list time entries:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
 }
 ```
 
@@ -404,7 +448,7 @@ async function generateTimeReport(
 
 ## Overview
 
-The Time Entry feature enables employees to track their work hours accurately, manage breaks, and associate their time with specific job locations. This feature is fundamental for organizations requiring precise time tracking, break management, and location-based verification of work hours.
+The Time Entry feature enables employees to track their work hours accurately, manage breaks, and associate their time with specific job locations. This feature is fundamental for organizations requiring precise time tracking and break management.
 
 ## Documentation Structure
 
@@ -416,7 +460,6 @@ The Time Entry feature enables employees to track their work hours accurately, m
 2. [Core Features](./core-features.md)
    - Time entry management
    - Break handling
-   - Location verification
    - Notes and descriptions
 
 3. [Implementation](./implementation.md)
@@ -453,7 +496,6 @@ interface TimeEntry {
 ### Key Features
 1. **Clock In/Out**
    - One-click time entry
-   - Location verification
    - Job location association
 
 2. **Break Management**

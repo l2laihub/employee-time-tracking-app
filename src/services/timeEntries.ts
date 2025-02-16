@@ -32,29 +32,51 @@ async function getTimeEntryStatus(timeEntryId: string): Promise<string | null> {
   return data?.status || null;
 }
 
-export async function createTimeEntry(
-  employeeId: string,
-  organizationId: string,
-  jobLocationId: string,
-  entryDate: Date,
-  startTime: Date,
-  endTime: Date,
-  breakDuration: number = 0,
-  notes?: string
-): Promise<TimeEntryResult> {
+function validateTimeEntry(entry: Partial<TimeEntry>) {
+  if (!entry.user_id) {
+    throw new Error('User ID is required');
+  }
+  if (!entry.organization_id) {
+    throw new Error('Organization ID is required');
+  }
+  if (!entry.job_location_id) {
+    throw new Error('Job location ID is required');
+  }
+  if (!entry.service_type) {
+    throw new Error('Service type is required');
+  }
+  if (!['hvac', 'plumbing', 'both'].includes(entry.service_type)) {
+    throw new Error('Service type must be one of: hvac, plumbing, both');
+  }
+}
+
+export async function createTimeEntry(entry: Partial<TimeEntry>): Promise<TimeEntryResult> {
   try {
+    // Validate the entry
+    validateTimeEntry(entry);
+
+    // Get current time
+    const now = new Date();
+
+    const timeEntryData = {
+      user_id: entry.user_id,
+      organization_id: entry.organization_id,
+      job_location_id: entry.job_location_id,
+      service_type: entry.service_type,
+      clock_in: now.toISOString(),
+      clock_out: null,
+      break_start: null,
+      break_end: null,
+      status: 'active' as const,
+      work_description: entry.work_description || '',
+      total_break_minutes: 0
+    };
+
+    console.log('Creating time entry with data:', timeEntryData);
+
     const { data, error } = await supabase
       .from('time_entries')
-      .insert({
-        user_id: employeeId,
-        organization_id: organizationId,
-        job_location_id: jobLocationId,
-        clock_in: startTime.toISOString(),
-        clock_out: endTime.toISOString(),
-        total_break_minutes: breakDuration,
-        work_description: notes,
-        status: 'completed'
-      })
+      .insert(timeEntryData)
       .select()
       .single();
 

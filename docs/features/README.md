@@ -13,7 +13,7 @@ ClockFlow provides a comprehensive set of features for employee time tracking an
 2. [Time Entry](./time-entry/README.md)
    - Clock in/out functionality
    - Break management
-   - Job/location tracking
+   - Job location association
    - Notes and categories
    - Overtime tracking
 
@@ -26,10 +26,9 @@ ClockFlow provides a comprehensive set of features for employee time tracking an
 
 4. [Job Locations](./job-locations/README.md)
    - Location management
-   - GPS tracking
-   - Geofencing
    - Site assignments
    - Multi-location support
+   - Basic location tracking
 
 5. [Timesheets](./timesheets/README.md)
    - Automated generation
@@ -88,10 +87,8 @@ ClockFlow provides a comprehensive set of features for employee time tracking an
 ## Mobile Features
 
 - Mobile-responsive interface
-- GPS location tracking
-- Offline capabilities
-- Push notifications
 - Mobile time entry
+- Push notifications
 
 ## Reporting Capabilities
 
@@ -108,3 +105,18 @@ ClockFlow provides a comprehensive set of features for employee time tracking an
 - Data import/export
 - Backup/restore
 - Audit trails
+
+## Planned Features (Q2 2025)
+
+### Location Tracking
+- GPS location tracking
+- Geofencing capabilities
+- Location verification for time entries
+- Travel time tracking
+- Offline capabilities with location sync
+
+### Enhanced Mobile Features
+- Advanced mobile time tracking
+- Location-based clock in/out
+- Geofence-based notifications
+- Offline mode with GPS tracking
