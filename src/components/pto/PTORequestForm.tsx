@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { format, isWeekend, isSameDay } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
 import { PTORequest, PTOType, Employee } from '../../lib/types';
@@ -36,8 +36,13 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [isLoadingEmployee, setIsLoadingEmployee] = useState(false);
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'manager';
   const { employees, refreshEmployees } = useEmployees();
+  
+  const currentEmployee = useMemo(() => {
+    return user ? employees.find(emp => emp.email === user.email) : null;
+  }, [user, employees]);
+  
+  const isAdmin = currentEmployee?.role === 'admin' || currentEmployee?.role === 'manager';
   const { organization, isLoading: orgLoading } = useOrganization();
 
   // For non-admin users, find and set their employee record on mount
@@ -50,35 +55,23 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
       setIsLoadingEmployee(true);
       try {
         if (!isAdmin) {
-          console.log('Loading employee record for user:', user.id);
           const result = await getEmployeeByUserId(user.id, organization.id);
           
           if (result.success && result.data) {
             const employeeData = Array.isArray(result.data) ? result.data[0] : result.data;
             if (employeeData) {
-              console.log('Found existing employee record:', {
-                id: employeeData.id,
-                name: `${employeeData.first_name} ${employeeData.last_name}`,
-                pto: employeeData.pto
-              });
               setSelectedEmployee(employeeData);
               return;
             }
           }
 
           // If no employee record found, create one
-          console.log('No employee record found, creating new one...');
           const createResult = await createEmployeeForCurrentUser(organization.id);
           
           if (createResult.success && createResult.data) {
             const newEmployee = Array.isArray(createResult.data)
               ? createResult.data[0]
               : createResult.data;
-            console.log('Created new employee record:', {
-              id: newEmployee.id,
-              name: `${newEmployee.first_name} ${newEmployee.last_name}`,
-              pto: newEmployee.pto
-            });
             await refreshEmployees();
             setSelectedEmployee(newEmployee);
           }
@@ -86,11 +79,6 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
           // For admin users, pre-select their own employee record
           const adminEmployee = employees.find(emp => emp.email === user.email);
           if (adminEmployee) {
-            console.log('Found admin employee record:', {
-              id: adminEmployee.id,
-              name: `${adminEmployee.first_name} ${adminEmployee.last_name}`,
-              pto: adminEmployee.pto
-            });
             setSelectedEmployee(adminEmployee);
           }
         }
@@ -345,7 +333,7 @@ export default function PTORequestForm({ onSubmit, onCancel, initialData, isEdit
             >
               <option value="">Select Employee (Required)</option>
               {employees
-                .filter(u => u.role === 'employee' || u.id === user?.id)
+                .sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`))
                 .map(emp => (
                   <option key={emp.id} value={emp.id}>
                     {emp.first_name} {emp.last_name}

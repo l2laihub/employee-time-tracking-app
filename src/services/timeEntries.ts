@@ -33,40 +33,27 @@ async function getTimeEntryStatus(timeEntryId: string): Promise<string | null> {
 }
 
 export async function createTimeEntry(
-  userId: string,
+  employeeId: string,
+  organizationId: string,
   jobLocationId: string,
-  serviceType: 'hvac' | 'plumbing' | 'both',
-  workDescription: string,
-  organizationId: string
+  entryDate: Date,
+  startTime: Date,
+  endTime: Date,
+  breakDuration: number = 0,
+  notes?: string
 ): Promise<TimeEntryResult> {
   try {
-    console.log('Creating time entry with data:', {
-      userId,
-      jobLocationId,
-      serviceType,
-      workDescription,
-      organizationId
-    });
-
-    // Check if user already has an active time entry
-    if (await hasActiveTimeEntry(userId)) {
-      return {
-        success: false,
-        error: 'You already have an active time entry. Please clock out or end your break first.'
-      };
-    }
-
     const { data, error } = await supabase
       .from('time_entries')
       .insert({
-        user_id: userId,
-        job_location_id: jobLocationId,
-        service_type: serviceType,
-        work_description: workDescription,
+        user_id: employeeId,
         organization_id: organizationId,
-        clock_in: new Date().toISOString(),
-        status: 'active',
-        total_break_minutes: 0
+        job_location_id: jobLocationId,
+        clock_in: startTime.toISOString(),
+        clock_out: endTime.toISOString(),
+        total_break_minutes: breakDuration,
+        work_description: notes,
+        status: 'completed'
       })
       .select()
       .single();
@@ -157,10 +144,11 @@ export async function listTimeEntriesByTimesheet(
           service_type
         )
       `)
-      .eq('user_id', timesheet.employee_id)
-      .gte('clock_in', timesheet.period_start_date)
-      .lte('clock_in', timesheet.period_end_date)
-      .order('clock_in', { ascending: true });
+      .eq('employee_id', timesheet.employee_id)
+      .gte('entry_date', timesheet.period_start_date)
+      .lte('entry_date', timesheet.period_end_date)
+      .order('entry_date', { ascending: true })
+      .order('start_time', { ascending: true });
 
     if (error) throw error;
 

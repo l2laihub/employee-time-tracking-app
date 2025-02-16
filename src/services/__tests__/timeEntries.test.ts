@@ -18,17 +18,58 @@ vi.mock('../../lib/supabase', () => ({
   }
 }))
 
+// Helper function to create a mock PostgrestQueryBuilder
+function createMockQueryBuilder(overrides = {}) {
+  return {
+    url: '',
+    headers: {},
+    insert: vi.fn().mockReturnThis(),
+    upsert: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    filter: vi.fn().mockReturnThis(),
+    match: vi.fn().mockReturnThis(),
+    neq: vi.fn().mockReturnThis(),
+    gt: vi.fn().mockReturnThis(),
+    lt: vi.fn().mockReturnThis(),
+    gte: vi.fn().mockReturnThis(),
+    lte: vi.fn().mockReturnThis(),
+    like: vi.fn().mockReturnThis(),
+    ilike: vi.fn().mockReturnThis(),
+    is: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
+    contains: vi.fn().mockReturnThis(),
+    containedBy: vi.fn().mockReturnThis(),
+    range: vi.fn().mockReturnThis(),
+    textSearch: vi.fn().mockReturnThis(),
+    not: vi.fn().mockReturnThis(),
+    or: vi.fn().mockReturnThis(),
+    and: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+    offset: vi.fn().mockReturnThis(),
+    single: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockReturnThis(),
+    ...overrides
+  };
+}
+
 describe('time entries service', () => {
   const mockTimeEntry: TimeEntry = {
     id: 'entry-123',
-    employee_id: 'emp-123',
+    user_id: 'emp-123',
     organization_id: 'org-123',
     job_location_id: 'loc-123',
-    entry_date: new Date('2025-02-01'),
-    start_time: new Date('2025-02-01T09:00:00Z'),
-    end_time: new Date('2025-02-01T17:00:00Z'),
-    break_duration: 30,
-    notes: 'Test entry'
+    clock_in: '2025-02-01T09:00:00Z',
+    clock_out: '2025-02-01T17:00:00Z',
+    break_start: null,
+    break_end: null,
+    total_break_minutes: 30,
+    service_type: null,
+    work_description: 'Test entry',
+    status: 'completed'
   }
 
   beforeEach(() => {
@@ -37,16 +78,14 @@ describe('time entries service', () => {
 
   describe('createTimeEntry', () => {
     it('creates a new time entry successfully', async () => {
-      const mockQueryBuilder = {
-        insert: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
+      const mockQueryBuilder = createMockQueryBuilder({
         single: vi.fn().mockResolvedValue({
           data: mockTimeEntry,
           error: null
         })
-      }
+      });
 
-      vi.mocked(supabase.from).mockImplementation(() => mockQueryBuilder)
+      vi.mocked(supabase.from).mockReturnValue(mockQueryBuilder as any);
 
       const result = await createTimeEntry(
         'emp-123',
@@ -57,31 +96,32 @@ describe('time entries service', () => {
         new Date('2025-02-01T17:00:00Z'),
         30,
         'Test entry'
-      )
+      );
 
-      expect(result.success).toBe(true)
-      expect(result.data).toEqual(mockTimeEntry)
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(mockTimeEntry);
       expect(mockQueryBuilder.insert).toHaveBeenCalledWith({
-        employee_id: 'emp-123',
+        user_id: 'emp-123',
         organization_id: 'org-123',
         job_location_id: 'loc-123',
-        entry_date: '2025-02-01',
-        start_time: '2025-02-01T09:00:00.000Z',
-        end_time: '2025-02-01T17:00:00.000Z',
-        break_duration: 30,
-        notes: 'Test entry'
-      })
+        clock_in: '2025-02-01T09:00:00.000Z',
+        clock_out: '2025-02-01T17:00:00.000Z',
+        total_break_minutes: 30,
+        work_description: 'Test entry',
+        status: 'completed'
+      });
     })
 
     it('handles creation failure', async () => {
-      const mockError = new Error('Database error')
-      const mockQueryBuilder = {
-        insert: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockRejectedValue(mockError)
-      }
+      const mockError = new Error('Database error');
+      const mockQueryBuilder = createMockQueryBuilder({
+        single: vi.fn().mockResolvedValue({
+          data: null,
+          error: mockError
+        })
+      });
 
-      vi.mocked(supabase.from).mockImplementation(() => mockQueryBuilder)
+      vi.mocked(supabase.from).mockReturnValue(mockQueryBuilder as any);
 
       const result = await createTimeEntry(
         'emp-123',
@@ -89,39 +129,38 @@ describe('time entries service', () => {
         'loc-123',
         new Date('2025-02-01'),
         new Date('2025-02-01T09:00:00Z'),
-        new Date('2025-02-01T17:00:00Z')
-      )
+        new Date('2025-02-01T17:00:00Z'),
+        30,
+        'Test entry'
+      );
 
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('Database error')
-    })
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Database error');
+    });
   })
 
   describe('updateTimeEntry', () => {
     it('updates a time entry successfully', async () => {
-      const mockQueryBuilder = {
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
+      const mockQueryBuilder = createMockQueryBuilder({
         single: vi.fn().mockResolvedValue({
           data: mockTimeEntry,
           error: null
         })
-      }
+      });
 
-      vi.mocked(supabase.from).mockImplementation(() => mockQueryBuilder)
+      vi.mocked(supabase.from).mockReturnValue(mockQueryBuilder as any);
 
       const updates = {
-        notes: 'Updated description'
-      }
+        work_description: 'Updated description'
+      };
 
-      const result = await updateTimeEntry('entry-123', updates)
+      const result = await updateTimeEntry('entry-123', updates);
 
-      expect(result.success).toBe(true)
-      expect(result.data).toEqual(mockTimeEntry)
-      expect(mockQueryBuilder.update).toHaveBeenCalledWith(updates)
-      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('id', 'entry-123')
-    })
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(mockTimeEntry);
+      expect(mockQueryBuilder.update).toHaveBeenCalledWith(updates);
+      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('id', 'entry-123');
+    });
   })
 
   describe('deleteTimeEntry', () => {
@@ -147,42 +186,38 @@ describe('time entries service', () => {
   describe('listTimeEntriesByTimesheet', () => {
     it('lists time entries for a timesheet', async () => {
       // Mock timesheet query
-      const mockTimesheetBuilder = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
+      const mockTimesheetBuilder = createMockQueryBuilder({
         single: vi.fn().mockResolvedValue({
           data: {
             period_start_date: '2025-02-01',
-            period_end_date: '2025-02-15'
+            period_end_date: '2025-02-15',
+            employee_id: 'emp-123'
           },
           error: null
         })
-      };
+      });
 
       // Mock time entries query
-      const mockEntriesBuilder = {
-        select: vi.fn().mockReturnThis(),
-        gte: vi.fn().mockReturnThis(),
-        lte: vi.fn().mockReturnThis(),
-        order: vi.fn().mockReturnThis()
-      };
-
-      // Add promise resolution to the last order call
-      const mockEntriesPromise = Promise.resolve({
-        data: [mockTimeEntry],
-        error: null
-      });
-      mockEntriesBuilder.order.mockReturnValueOnce(mockEntriesBuilder);
-      mockEntriesBuilder.order.mockReturnValueOnce({
-        then: mockEntriesPromise.then.bind(mockEntriesPromise)
+      const mockEntriesBuilder = createMockQueryBuilder({
+        order: vi.fn().mockImplementation((field, opts) => {
+          if (field === 'entry_date') {
+            return mockEntriesBuilder;
+          }
+          return {
+            then: (callback: any) => callback({
+              data: [mockTimeEntry],
+              error: null
+            })
+          };
+        })
       });
 
       // Mock supabase.from to return appropriate builder
       vi.mocked(supabase.from).mockImplementation((table: string) => {
         if (table === 'timesheets') {
-          return mockTimesheetBuilder;
+          return mockTimesheetBuilder as any;
         }
-        return mockEntriesBuilder;
+        return mockEntriesBuilder as any;
       });
 
       const result = await listTimeEntriesByTimesheet('ts-123');
@@ -191,7 +226,7 @@ describe('time entries service', () => {
       expect(result.data).toEqual([mockTimeEntry]);
 
       // Verify timesheet query
-      expect(mockTimesheetBuilder.select).toHaveBeenCalledWith('period_start_date, period_end_date');
+      expect(mockTimesheetBuilder.select).toHaveBeenCalledWith('period_start_date, period_end_date, employee_id');
       expect(mockTimesheetBuilder.eq).toHaveBeenCalledWith('id', 'ts-123');
 
       // Verify time entries query
@@ -213,25 +248,21 @@ describe('time entries service', () => {
 
   describe('listTimeEntriesByDateRange', () => {
     it('lists time entries for a date range', async () => {
-      const mockBuilder = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        gte: vi.fn().mockReturnThis(),
-        lte: vi.fn().mockReturnThis(),
-        order: vi.fn().mockReturnThis()
-      };
-
-      // Add promise resolution to the last order call
-      const mockPromise = Promise.resolve({
-        data: [mockTimeEntry],
-        error: null
-      });
-      mockBuilder.order.mockReturnValueOnce(mockBuilder);
-      mockBuilder.order.mockReturnValueOnce({
-        then: mockPromise.then.bind(mockPromise)
+      const mockBuilder = createMockQueryBuilder({
+        order: vi.fn().mockImplementation((field, opts) => {
+          if (field === 'entry_date') {
+            return mockBuilder;
+          }
+          return {
+            then: (callback: any) => callback({
+              data: [mockTimeEntry],
+              error: null
+            })
+          };
+        })
       });
 
-      vi.mocked(supabase.from).mockReturnValue(mockBuilder);
+      vi.mocked(supabase.from).mockReturnValue(mockBuilder as any);
 
       const result = await listTimeEntriesByDateRange(
         'emp-123',
@@ -262,16 +293,14 @@ describe('time entries service', () => {
 
   describe('getTimeEntryById', () => {
     it('gets a time entry by id', async () => {
-      const mockQueryBuilder = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
+      const mockQueryBuilder = createMockQueryBuilder({
         single: vi.fn().mockResolvedValue({
           data: mockTimeEntry,
           error: null
         })
-      };
+      });
 
-      vi.mocked(supabase.from).mockImplementation(() => mockQueryBuilder);
+      vi.mocked(supabase.from).mockReturnValue(mockQueryBuilder as any);
 
       const result = await getTimeEntryById('entry-123');
 

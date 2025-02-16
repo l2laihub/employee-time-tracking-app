@@ -344,30 +344,10 @@ export default function PTO() {
           <h2 className="text-lg font-semibold mb-4">
             {editingRequest ? 'Edit PTO Request' : 'New PTO Request'}
           </h2>
-          {/* Show PTO balance if we have a selected employee (admin mode) or found the user's employee record */}
+          {/* Show PTO balance if we have a selected employee */}
           {selectedEmployee && (
             <UserPTOBalance user={selectedEmployee} />
           )}
-          {/* Debug employee selection */}
-          <div className="text-xs text-gray-500 mt-2">
-            <div>Organization: {organization?.id || 'None'}</div>
-            <div>
-              Debug: {
-                isAdmin 
-                  ? `Admin mode - Selected: ${selectedEmployee?.first_name || 'None'}`
-                  : `Employee mode - User ID: ${user?.id || 'No user'}`
-              }
-            </div>
-            <div>Loading employees: {employeesLoading ? 'Yes' : 'No'}</div>
-            <div>Total employees: {employees.length}</div>
-            <div>
-              Found in employees: {user ? employees.find(u => u.email === user.email)?.first_name || 'Not found' : 'No user'}
-            </div>
-            <div>Employee IDs: {employees.map(e => e.id).join(', ')}</div>
-            <div>
-              Auth user metadata: {JSON.stringify(user?.user_metadata || {})}
-            </div>
-          </div>
           <PTORequestForm
             onSubmit={editingRequest ? handleEditRequest : handleCreateRequest}
             onCancel={() => {
