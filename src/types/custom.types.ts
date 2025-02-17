@@ -7,8 +7,11 @@ export interface JobLocation {
   organization_id: string;
   name: string;
   address: string;
+  service_type: 'hvac' | 'plumbing' | 'both';
+  type: 'commercial' | 'residential';
   created_at?: string;
   updated_at?: string;
+  is_active: boolean;
 }
 
 // Timesheet types
