@@ -1,395 +1,207 @@
 # Reports
 
-The Reports module in ClockFlow provides comprehensive analytics and reporting capabilities for time tracking data.
+The Reports module in ClockFlow provides analytics and reporting capabilities for employee time tracking data.
 
 ## Features
 
-### 1. Standard Reports
-- Time and Attendance
-- Overtime Analysis
-- PTO Usage
-- Cost Analysis
-- Location Reports
-- Compliance Reports
+### Employee Hours Report
 
-### 2. Custom Report Builder
-- Flexible field selection
-- Custom filters
-- Advanced grouping
-- Sort options
-- Saved report templates
+The primary report showing employee working hours and time off:
 
-### 3. Data Visualization
-- Interactive charts
-- Time-based trends
-- Comparative analysis
-- Department breakdowns
-- Cost projections
+#### Core Features
+- Weekly hours breakdown by day
+- Regular and overtime hours tracking
+- PTO tracking (vacation and sick leave)
+- Interactive employee detail view
+- CSV export capabilities
 
-## Implementation
+#### Filtering Options
+- Date range selection
+- Job location filtering
+- Status-based filtering
+- Organization-level data isolation
 
-### 1. Report Generation
+### Data Structure
 
 ```typescript
-interface ReportConfig {
-  type: ReportType;
+interface WeeklyEmployeeHours {
+  id: string;
+  name: string;
+  jobLocationIds: string[];
+  hours: {
+    monday: number;
+    tuesday: number;
+    wednesday: number;
+    thursday: number;
+    friday: number;
+    saturday: number;
+    sunday: number;
+  };
+  totalRegular: number;
+  totalOT: number;
+  vacationHours: number;
+  sickLeaveHours: number;
+  vacationBalance: number;
+  sickLeaveBalance: number;
+}
+
+interface EmployeeTimeEntry {
+  date: string;
+  timeIn: string;
+  lunchStart: string;
+  lunchEnd: string;
+  timeOut: string;
+  totalHours: number;
+  lunchBreak: number;
+  workedHours: number;
+  jobLocation: string;
+  status: string;
+}
+```
+
+### Implementation
+
+#### Report Generation
+
+```typescript
+interface ReportFilters {
   startDate: Date;
   endDate: Date;
-  filters: ReportFilter[];
-  groupBy?: string[];
-  sortBy?: SortConfig[];
-  includeFields: string[];
+  employeeIds?: string[];
+  jobLocationIds?: string[];
 }
 
-interface ReportFilter {
-  field: string;
-  operator: 'eq' | 'gt' | 'lt' | 'contains' | 'between';
-  value: any;
-}
-
-async function generateReport(config: ReportConfig): Promise<ReportData> {
-  // Build query
-  const query = buildReportQuery(config);
-  
-  // Execute query
-  const data = await executeReportQuery(query);
-  
-  // Process results
-  const processed = processReportData(data, config);
-  
-  // Generate visualizations
-  const visualizations = generateVisualizations(processed, config);
-  
-  return {
-    config,
-    data: processed,
-    visualizations,
-    generatedAt: new Date()
-  };
-}
-```
-
-### 2. Custom Report Builder
-
-```typescript
-interface ReportBuilder {
-  fields: Field[];
-  filters: Filter[];
-  groupings: string[];
-  sortOrder: SortOrder[];
-  template?: ReportTemplate;
-}
-
-function useReportBuilder() {
-  const [config, setConfig] = useState<ReportBuilder>({
-    fields: [],
-    filters: [],
-    groupings: [],
-    sortOrder: []
-  });
-  
-  const addField = (field: Field) => {
-    setConfig(prev => ({
-      ...prev,
-      fields: [...prev.fields, field]
-    }));
-  };
-  
-  const addFilter = (filter: Filter) => {
-    setConfig(prev => ({
-      ...prev,
-      filters: [...prev.filters, filter]
-    }));
-  };
-  
-  const saveTemplate = async () => {
-    const template: ReportTemplate = {
-      ...config,
-      name: 'Custom Report',
-      createdAt: new Date()
-    };
-    
-    await saveReportTemplate(template);
-  };
-  
-  return {
-    config,
-    addField,
-    addFilter,
-    saveTemplate
-  };
-}
-```
-
-### 3. Data Visualization
-
-```typescript
-interface ChartConfig {
-  type: 'bar' | 'line' | 'pie' | 'scatter';
-  data: any[];
-  xAxis: string;
-  yAxis: string;
-  groupBy?: string;
-  options?: ChartOptions;
-}
-
-function generateCharts(data: ReportData, config: ChartConfig[]): Chart[] {
-  return config.map(chartConfig => {
-    const processedData = processChartData(data, chartConfig);
-    
-    return {
-      type: chartConfig.type,
-      data: processedData,
-      options: {
-        ...defaultChartOptions,
-        ...chartConfig.options
-      }
-    };
-  });
-}
-
-function useChartData(reportData: ReportData, config: ChartConfig) {
-  const chartRef = useRef<Chart>();
-  
-  useEffect(() => {
-    if (!chartRef.current) {
-      chartRef.current = new Chart(config);
-    }
-    
-    chartRef.current.updateData(reportData);
-  }, [reportData, config]);
-  
-  return chartRef.current;
-}
-```
-
-## User Interface
-
-### 1. Report Builder Interface
-
-```tsx
-function ReportBuilder() {
-  const { config, addField, addFilter } = useReportBuilder();
-  
-  const onSubmit = async () => {
-    try {
-      const report = await generateReport(config);
-      showSuccess('Report generated successfully');
-      return report;
-    } catch (error) {
-      showError('Failed to generate report');
-    }
-  };
-  
-  return (
-    <div className="report-builder">
-      <FieldSelector
-        onSelect={addField}
-        selected={config.fields}
-      />
-      <FilterBuilder
-        onAddFilter={addFilter}
-        filters={config.filters}
-      />
-      <GroupingSelector
-        fields={config.fields}
-        selected={config.groupings}
-      />
-      <SortOrderSelector
-        fields={config.fields}
-        sortOrder={config.sortOrder}
-      />
-      <Button onClick={onSubmit}>
-        Generate Report
-      </Button>
-    </div>
-  );
-}
-```
-
-### 2. Report Viewer
-
-```tsx
-function ReportViewer({ report }: Props) {
-  const [view, setView] = useState<'table' | 'chart'>('table');
-  
-  return (
-    <div className="report-viewer">
-      <ReportHeader report={report} />
-      <ViewToggle value={view} onChange={setView} />
-      
-      {view === 'table' ? (
-        <DataTable
-          data={report.data}
-          columns={report.config.fields}
-          sortable
-          filterable
-        />
-      ) : (
-        <ChartView
-          data={report.data}
-          charts={report.visualizations}
-        />
-      )}
-      
-      <ExportOptions report={report} />
-    </div>
-  );
-}
-```
-
-## Data Processing
-
-### 1. Query Building
-
-```typescript
-function buildReportQuery(config: ReportConfig): Query {
-  let query = supabase
-    .from(config.type)
-    .select(config.includeFields.join(','));
-  
-  // Apply filters
-  config.filters.forEach(filter => {
-    query = applyFilter(query, filter);
-  });
-  
-  // Apply grouping
-  if (config.groupBy) {
-    query = query.group(config.groupBy);
-  }
-  
-  // Apply sorting
-  config.sortBy?.forEach(sort => {
-    query = query.order(sort.field, {
-      ascending: sort.ascending
+async function getWeeklyHours(filters: ReportFilters): Promise<WeeklyEmployeeHours[]> {
+  // Fetch data from weekly_employee_hours view
+  const { data, error } = await supabase
+    .rpc('get_weekly_employee_hours', {
+      start_date: filters.startDate,
+      end_date: filters.endDate,
+      org_id: organizationId
     });
-  });
-  
-  return query;
+
+  if (error) throw error;
+  return processWeeklyHours(data);
 }
 ```
 
-### 2. Data Aggregation
+#### Employee Detail View
 
 ```typescript
-function aggregateData(data: any[], config: AggregationConfig) {
-  const grouped = groupBy(data, config.groupBy);
-  
-  return Object.entries(grouped).map(([key, group]) => ({
-    key,
-    count: group.length,
-    sum: sumBy(group, config.sumField),
-    average: averageBy(group, config.avgField),
-    min: minBy(group, config.minField),
-    max: maxBy(group, config.maxField)
-  }));
+async function getEmployeeDetails(
+  employeeId: string,
+  filters: ReportFilters
+): Promise<EmployeeTimeEntry[]> {
+  const { data, error } = await supabase
+    .from('time_entries')
+    .select(`
+      *,
+      job_locations (
+        name
+      )
+    `)
+    .eq('employee_id', employeeId)
+    .gte('clock_in', filters.startDate)
+    .lte('clock_in', filters.endDate);
+
+  if (error) throw error;
+  return processTimeEntries(data);
 }
 ```
 
-## Export Capabilities
+### Export Capabilities
 
-### 1. Export Formats
+#### CSV Export
 
 ```typescript
-async function exportReport(
-  report: Report,
-  format: 'pdf' | 'excel' | 'csv'
-): Promise<Buffer> {
-  switch (format) {
-    case 'pdf':
-      return exportToPDF(report);
-    case 'excel':
-      return exportToExcel(report);
-    case 'csv':
-      return exportToCSV(report);
-    default:
-      throw new Error('Unsupported export format');
-  }
+async function exportWeeklySummaryToCSV(filters: ReportFilters): Promise<string> {
+  const data = await getWeeklyHours(filters);
+  
+  const headers = [
+    'Employee',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+    'Regular Hours',
+    'Overtime',
+    'Vacation Hours',
+    'Sick Leave Hours',
+    'Vacation Balance',
+    'Sick Leave Balance'
+  ];
+
+  const rows = data.map(employee => [
+    employee.name,
+    employee.hours.monday,
+    employee.hours.tuesday,
+    employee.hours.wednesday,
+    employee.hours.thursday,
+    employee.hours.friday,
+    employee.hours.saturday,
+    employee.hours.sunday,
+    employee.totalRegular,
+    employee.totalOT,
+    employee.vacationHours,
+    employee.sickLeaveHours,
+    employee.vacationBalance,
+    employee.sickLeaveBalance
+  ]);
+
+  return [
+    headers.join(','),
+    ...rows.map(row => row.join(','))
+  ].join('\n');
 }
 ```
 
-### 2. Scheduled Reports
+### Debug Capabilities
+
+For troubleshooting weekly hours calculations:
 
 ```typescript
-interface ScheduledReport {
-  id: string;
-  config: ReportConfig;
-  schedule: {
-    frequency: 'daily' | 'weekly' | 'monthly';
-    dayOfWeek?: number;
-    dayOfMonth?: number;
-    time: string;
-  };
-  recipients: string[];
-}
+async function debugWeeklyHours(
+  employeeId: string,
+  filters: ReportFilters
+): Promise<any> {
+  const { data, error } = await supabase
+    .rpc('debug_weekly_hours', {
+      start_date: filters.startDate,
+      end_date: filters.endDate,
+      org_id: organizationId,
+      employee_id: employeeId
+    });
 
-async function scheduleReport(config: ScheduledReport): Promise<void> {
-  // Save schedule
-  await saveScheduledReport(config);
-  
-  // Set up cron job
-  const cronExpression = generateCronExpression(config.schedule);
-  await scheduler.addJob({
-    name: `report-${config.id}`,
-    cron: cronExpression,
-    task: async () => {
-      const report = await generateReport(config.config);
-      await emailReport(report, config.recipients);
-    }
-  });
+  if (error) throw error;
+  return data;
 }
 ```
 
 ## Integration Points
 
-### 1. Email Integration
+### Time Entry System
+- Pulls clock in/out times
+- Calculates worked hours
+- Tracks break times
+- Handles job locations
 
-```typescript
-async function emailReport(report: Report, recipients: string[]): Promise<void> {
-  // Generate report formats
-  const [pdf, excel] = await Promise.all([
-    exportToPDF(report),
-    exportToExcel(report)
-  ]);
-  
-  // Send email
-  await emailService.send({
-    to: recipients,
-    subject: `${report.config.type} Report - ${format(report.generatedAt)}`,
-    body: generateReportEmail(report),
-    attachments: [
-      {
-        filename: 'report.pdf',
-        content: pdf
-      },
-      {
-        filename: 'report.xlsx',
-        content: excel
-      }
-    ]
-  });
-}
-```
+### PTO System
+- Vacation hours tracking
+- Sick leave tracking
+- Balance calculations
+- Leave type categorization
 
-### 2. Dashboard Integration
+### Organization System
+- Automatic organization context
+- Role-based access control
+- Data isolation by organization
 
-```typescript
-function useDashboardReport(config: ReportConfig) {
-  const [data, setData] = useState<ReportData | null>(null);
-  
-  useEffect(() => {
-    const fetchReport = async () => {
-      const report = await generateReport(config);
-      setData(report.data);
-    };
-    
-    fetchReport();
-    
-    // Refresh every 5 minutes
-    const interval = setInterval(fetchReport, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [config]);
-  
-  return data;
-}
-```
+## Future Enhancements
+- Additional report types (Cost Analysis, Location Reports)
+- Enhanced export formats (PDF, Excel)
+- Advanced data visualization
+- Custom report builder
+- Scheduled report delivery

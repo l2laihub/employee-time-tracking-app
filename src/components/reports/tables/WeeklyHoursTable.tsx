@@ -10,13 +10,14 @@ export default function WeeklyHoursTable({ data, onSelectEmployee }: WeeklyHours
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   
   const getTotalDayHours = (day: string) => {
-    return data.reduce((sum, employee) => {
+    const total = data.reduce((sum, employee) => {
       return sum + employee.hours[day.toLowerCase() as keyof typeof employee.hours];
     }, 0);
+    return Number(total.toFixed(2));
   };
 
   const getTotalColumn = (type: 'regular' | 'ot' | 'vacation' | 'sick' | 'vacationBalance' | 'sickBalance') => {
-    return data.reduce((sum, employee) => {
+    const total = data.reduce((sum, employee) => {
       switch (type) {
         case 'regular':
           return sum + employee.totalRegular;
@@ -34,6 +35,7 @@ export default function WeeklyHoursTable({ data, onSelectEmployee }: WeeklyHours
           return sum;
       }
     }, 0);
+    return Number(total.toFixed(2));
   };
 
   return (

@@ -1,5 +1,6 @@
 import React from 'react';
 import EmployeeHoursReport from '../components/reports/EmployeeHoursReport';
+import { ReportsProvider } from '../contexts/ReportsContext';
 
 export default function Reports() {
   return (
@@ -8,7 +9,9 @@ export default function Reports() {
         <h1 className="text-2xl font-bold text-gray-900">Employee Hours Report</h1>
         <p className="text-gray-600">View and analyze employee working hours</p>
       </div>
-      <EmployeeHoursReport />
+      <ReportsProvider>
+        <EmployeeHoursReport />
+      </ReportsProvider>
     </div>
   );
 }
