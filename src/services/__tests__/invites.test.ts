@@ -1,164 +1,255 @@
-import { describe, it, expect, vi } from 'vitest'
-import { createInvite, listOrgInvites } from '../invites'
-import { supabase } from '../../lib/supabase'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createInvite, listOrgInvites, revokeInvite } from '../invites';
+import { supabase } from '../../lib/supabase';
+import { getEmailService } from '../email';
+import { InviteError, InviteErrorCode } from '../../utils/errorHandling';
+import { PostgrestError, PostgrestSingleResponse, PostgrestResponse } from '@supabase/supabase-js';
 
-vi.mock('../../lib/supabase')
+// Create reusable mock chain methods
+const mockFrom = vi.fn().mockReturnThis();
+const mockSelect = vi.fn().mockReturnThis();
+const mockInsert = vi.fn().mockReturnThis();
+const mockUpdate = vi.fn().mockReturnThis();
+const mockEq = vi.fn().mockReturnThis();
+const mockSingle = vi.fn().mockReturnThis();
+const mockOrder = vi.fn().mockReturnThis();
 
-describe('invite service', () => {
-  it('creates invite with admin permissions', async () => {
-    // Mock implementation that returns a promise directly
-    const mockQueryBuilder = {
-      insert: vi.fn().mockReturnThis(),
-      select: vi.fn().mockResolvedValue({
-        data: [{ id: 'invite-123' }],
-        error: null,
-        count: 1,
-        status: 201,
-        statusText: 'Created'
-      }),
-      eq: vi.fn().mockReturnThis(),
-      upsert: vi.fn().mockReturnThis(),
-      update: vi.fn().mockReturnThis(),
-      delete: vi.fn().mockReturnThis(),
-      url: new URL('http://localhost'),
-      headers: {},
-      maybeSingle: vi.fn().mockReturnThis(),
-      throwOnError: vi.fn().mockReturnThis()
-    };
+// Mock Supabase
+vi.mock('../../lib/supabase', () => ({
+  supabase: {
+    from: mockFrom,
+    select: mockSelect,
+    insert: mockInsert,
+    update: mockUpdate,
+    eq: mockEq,
+    single: mockSingle,
+    order: mockOrder
+  }
+}));
 
-    vi.mocked(supabase.from).mockImplementation(() => mockQueryBuilder);
-
-    const result = await createInvite('admin@org.com', 'ADMIN', 'org-123', false)
-    expect(result.success).toBe(true)
-    expect(result.inviteId).toBe('invite-123')
+// Mock Email Service
+vi.mock('../email', () => ({
+  getEmailService: vi.fn().mockReturnValue({
+    sendInvite: vi.fn().mockResolvedValue(undefined)
   })
+}));
 
-  it('lists organization invites', async () => {
-    let mockInvites = [
-      { id: 'invite-1', email: 'user1@org.com', role: 'MEMBER', organization_id: 'org-123' },
-      { id: 'invite-2', email: 'user2@org.com', role: 'ADMIN', organization_id: 'org-123' }
-    ];
+const createSuccessResponse = <T>(data: T): PostgrestSingleResponse<T> => ({
+  data,
+  error: null,
+  count: null,
+  status: 200,
+  statusText: 'OK'
+});
 
-    const mockQueryBuilder = {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockImplementation((column: keyof typeof mockInvites[0], value) => {
-        mockInvites = mockInvites.filter(invite => invite[column] === value);
-        return mockQueryBuilder;
-      }).mockReturnThis(),
-      then: vi.fn().mockImplementation(function(resolve) {
-        resolve({
-          data: mockInvites,
-          error: null
-        });
-      }),
-      insert: vi.fn().mockReturnThis(),
-      upsert: vi.fn().mockReturnThis(),
-      update: vi.fn().mockReturnThis(),
-      delete: vi.fn().mockReturnThis(),
-      url: new URL('http://localhost'),
-      headers: {},
-      maybeSingle: vi.fn().mockReturnThis(),
-      throwOnError: vi.fn().mockReturnThis()
-    };
+const createErrorResponse = <T>(error: PostgrestError): PostgrestSingleResponse<T> => ({
+  data: null,
+  error,
+  count: null,
+  status: 400,
+  statusText: 'Bad Request'
+});
 
-    vi.mocked(supabase.from).mockImplementation(() => mockQueryBuilder);
+const mockError = (message: string): PostgrestError => ({
+  name: 'PostgrestError',
+  message,
+  details: '',
+  hint: '',
+  code: 'ERROR'
+});
 
-    const invites = await listOrgInvites('org-123')
-    expect(invites).toHaveLength(2)
-    expect(invites[0].role).toBe('MEMBER')
-    expect(mockQueryBuilder.eq).toHaveBeenCalledWith('organization_id', 'org-123')
-  })
+describe('Invite Service', () => {
+  const mockOrg = {
+    id: 'test-org-id',
+    name: 'Test Org'
+  };
 
-  it('redirects invited user to organization dashboard on signup', async () => {
-    const mockInvite = {
-      id: 'invite-123',
-      email: 'user@org.com',
-      role: 'MEMBER', 
-      organization_id: 'org-123',
-      created_at: new Date().toISOString()
-    };
-
-    // Mock invite check
-    const mockInviteQuery = {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({
-        data: mockInvite,
-        error: null
-      }),
-      insert: vi.fn().mockReturnThis(),
-      upsert: vi.fn().mockReturnThis(),
-      update: vi.fn().mockReturnThis(),
-      delete: vi.fn().mockReturnThis(),
-      url: new URL('http://localhost'),
-      headers: {},
-      maybeSingle: vi.fn().mockReturnThis(),
-      throwOnError: vi.fn().mockReturnThis()
-    };
-
-    // Mock organization member insert
-    const mockMemberInsert = {
-      insert: vi.fn().mockReturnThis(),
-      select: vi.fn().mockResolvedValue({
-        data: [{ id: 'member-123' }],
-        error: null,
-        count: 1,
-        status: 201,
-        statusText: 'Created'
-      }),
-      eq: vi.fn().mockReturnThis(),
-      upsert: vi.fn().mockReturnThis(),
-      update: vi.fn().mockReturnThis(),
-      delete: vi.fn().mockReturnThis(),
-      url: new URL('http://localhost'),
-      headers: {},
-      maybeSingle: vi.fn().mockReturnThis(),
-      throwOnError: vi.fn().mockReturnThis()
-    };
-
-    vi.mocked(supabase.from)
-      .mockImplementationOnce(() => mockInviteQuery) // For invite check
-      .mockImplementationOnce(() => mockMemberInsert); // For member insertion
-
-    const result = await createInvite('user@org.com', 'MEMBER', 'org-123', true);
-
-    // Verify invite was created
-    expect(result.success).toBe(true);
+  beforeEach(() => {
+    vi.clearAllMocks();
     
-    // Verify organization membership was created
-    expect(mockMemberInsert.insert).toHaveBeenCalledWith({
-      user_id: expect.any(String),
-      organization_id: 'org-123',
-      role: 'MEMBER'
+    // Reset all mock implementations
+    mockFrom.mockReturnThis();
+    mockSelect.mockReturnThis();
+    mockInsert.mockReturnThis();
+    mockUpdate.mockReturnThis();
+    mockEq.mockReturnThis();
+    mockSingle.mockReturnThis();
+    mockOrder.mockReturnThis();
+  });
+
+  describe('createInvite', () => {
+    const mockEmail = 'test@example.com';
+    const mockRole = 'employee';
+
+    beforeEach(() => {
+      // Mock successful organization lookup
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'organizations') {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: () => createSuccessResponse(mockOrg)
+              })
+            })
+          };
+        }
+        return mockFrom();
+      });
+
+      // Mock no existing invite check
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'organization_invites') {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  eq: () => ({
+                    single: () => createErrorResponse(mockError('No rows returned'))
+                  })
+                })
+              })
+            })
+          };
+        }
+        return mockFrom();
+      });
+
+      // Mock successful invite creation
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'organization_invites') {
+          return {
+            insert: () => ({
+              select: () => ({
+                single: () => createSuccessResponse({ id: 'test-invite-id' })
+              })
+            })
+          };
+        }
+        return mockFrom();
+      });
     });
 
-    // Verify user is redirected to organization dashboard
-    expect(result.redirectTo).toBe('/dashboard/org-123');
+    it('should create invite successfully', async () => {
+      const result = await createInvite(mockEmail, mockRole, mockOrg.id);
+      expect(result.success).toBe(true);
+      expect(result.inviteId).toBeDefined();
+    });
+
+    it('should handle duplicate invites', async () => {
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'organization_invites') {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  eq: () => ({
+                    single: () => createSuccessResponse({ id: 'existing-invite' })
+                  })
+                })
+              })
+            })
+          };
+        }
+        return mockFrom();
+      });
+
+      const result = await createInvite(mockEmail, mockRole, mockOrg.id);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('already been sent');
+    });
+
+    it('should handle email service errors', async () => {
+      vi.mocked(getEmailService().sendInvite).mockRejectedValueOnce(
+        new Error('Email failed')
+      );
+
+      const result = await createInvite(mockEmail, mockRole, mockOrg.id);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Failed to send invite email');
+    });
+
+    it('should validate email format', async () => {
+      const result = await createInvite('invalid-email', mockRole, mockOrg.id);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Invalid email');
+    });
   });
 
-  it('handles missing invite during signup', async () => {
-    const mockInviteQuery = {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({
-        data: null,
-        error: { message: 'No invite found' }
-      }),
-      insert: vi.fn().mockReturnThis(),
-      upsert: vi.fn().mockReturnThis(),
-      update: vi.fn().mockReturnThis(),
-      delete: vi.fn().mockReturnThis(),
-      url: new URL('http://localhost'),
-      headers: {},
-      maybeSingle: vi.fn().mockReturnThis(),
-      throwOnError: vi.fn().mockReturnThis()
-    };
+  describe('listOrgInvites', () => {
+    const mockInvites = [
+      { id: 'invite-1', email: 'test1@example.com' },
+      { id: 'invite-2', email: 'test2@example.com' }
+    ];
 
-    vi.mocked(supabase.from).mockImplementation(() => mockInviteQuery);
+    it('should list invites successfully', async () => {
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'organization_invites') {
+          return {
+            select: () => ({
+              eq: () => ({
+                order: () => createSuccessResponse(mockInvites)
+              })
+            })
+          };
+        }
+        return mockFrom();
+      });
 
-    const result = await createInvite('user@org.com', 'MEMBER', 'org-123', true);
-    
-    expect(result.success).toBe(false);
-    expect(result.error).toMatch(/no active invite found/i);
+      const result = await listOrgInvites(mockOrg.id);
+      expect(result).toEqual(mockInvites);
+    });
+
+    it('should handle database errors', async () => {
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'organization_invites') {
+          return {
+            select: () => ({
+              eq: () => ({
+                order: () => createErrorResponse<any[]>(mockError('Database error occurred'))
+              })
+            })
+          };
+        }
+        return mockFrom();
+      });
+
+      await expect(listOrgInvites(mockOrg.id)).rejects.toThrow();
+    });
   });
-})
+
+  describe('revokeInvite', () => {
+    const mockInviteId = 'test-invite-id';
+
+    it('should revoke invite successfully', async () => {
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'organization_invites') {
+          return {
+            update: () => ({
+              eq: () => createSuccessResponse(null)
+            })
+          };
+        }
+        return mockFrom();
+      });
+
+      const result = await revokeInvite(mockInviteId);
+      expect(result).toBe(true);
+    });
+
+    it('should handle revocation errors', async () => {
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'organization_invites') {
+          return {
+            update: () => ({
+              eq: () => createErrorResponse(mockError('Database error occurred'))
+            })
+          };
+        }
+        return mockFrom();
+      });
+
+      const result = await revokeInvite(mockInviteId);
+      expect(result).toBe(false);
+    });
+  });
+});

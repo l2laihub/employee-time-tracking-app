@@ -1,14 +1,11 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import type { Database } from '../types/database.types';
 import { UserRole } from '../types/custom.types';
-import { sendInviteEmail, sendWelcomeEmail } from '../lib/email';
 import { useAuth } from './AuthContext';
-
-type Organization = Database['public']['Tables']['organizations']['Row'];
-type OrganizationMember = Database['public']['Tables']['organization_members']['Row'];
-type OrganizationInvite = Database['public']['Tables']['organization_invites']['Row'];
+import { Organization } from '../types/supabase.types';
+import { createInvite } from '../services/invites';
+import { useEmail } from './EmailContext';
 
 interface OrganizationContextType {
   organization: Organization | null;
@@ -33,6 +30,13 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [error, setError] = useState<Error | null>(null);
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { isInitialized: isEmailInitialized, error: emailError } = useEmail();
+
+  useEffect(() => {
+    if (emailError) {
+      console.error('Email service initialization error:', emailError);
+    }
+  }, [emailError]);
 
   const fetchUserOrganization = async () => {
     console.log('fetchUserOrganization called:', {
@@ -60,72 +64,44 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       console.log('Fetching organization for user:', user.id);
       setIsLoading(true);
 
-      // Get user's organization membership and organization details with retries
-      let memberData = null;
-      let retryCount = 0;
-      const maxRetries = 3;
-      const retryDelay = 1000; // 1 second
+      // First get the organization member record
+      const { data: memberData, error: memberError } = await supabase
+        .from('organization_members')
+        .select('organization_id, role')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      while (!memberData && retryCount < maxRetries) {
-        const { data, error } = await supabase
-          .from('organization_members')
-          .select(`
-            id,
-            organization_id,
-            user_id,
-            role::text,
-            permissions,
-            created_at,
-            organization:organizations (
-              id,
-              name,
-              slug,
-              created_at,
-              updated_at,
-              branding,
-              settings
-            )
-          `)
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        console.log(`Member data check (attempt ${retryCount + 1}/${maxRetries}):`, { data, error });
-
-        // Only throw error if it's not a "no rows" error
-        if (error && error.code !== 'PGRST116') {
-          console.error('Member error details:', {
-            code: error.code,
-            message: error.message,
-            details: error.details,
-            hint: error.hint
-          });
-          throw error;
-        }
-
-        if (data) {
-          memberData = data;
-          break;
-        }
-
-        retryCount++;
-        if (retryCount < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-        }
+      if (memberError && memberError.code !== 'PGRST116') {
+        throw memberError;
       }
 
-      if (memberData) {
-        console.log('Setting organization and role from membership:', {
-          org: memberData.organization,
-          role: memberData.role
-        });
-        setOrganization(memberData.organization);
-        setUserRole(memberData.role as UserRole);
-        setError(null);
-      } else {
-        console.log('No organization found after retries');
+      if (!memberData) {
+        console.log('No organization membership found');
         setOrganization(null);
         setUserRole(null);
+        setIsLoading(false);
+        return;
       }
+
+      // Then get the organization details
+      const { data: orgData, error: orgError } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('id', memberData.organization_id)
+        .single();
+
+      if (orgError) {
+        throw orgError;
+      }
+
+      console.log('Setting organization and role:', {
+        org: orgData,
+        role: memberData.role
+      });
+
+      setOrganization(orgData);
+      setUserRole(memberData.role as UserRole);
+      setError(null);
     } catch (err) {
       console.error('Error in fetchUserOrganization:', err);
       if (err instanceof Error) {
@@ -182,37 +158,18 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         throw error;
       }
 
-      // Fetch the newly created organization immediately
-      const { data: memberData, error: memberError } = await supabase
-        .from('organization_members')
-        .select(`
-          id,
-          organization_id,
-          user_id,
-          role::text,
-          permissions,
-          created_at,
-          organization:organizations (
-            id,
-            name,
-            slug,
-            created_at,
-            updated_at,
-            branding,
-            settings
-          )
-        `)
-        .eq('user_id', user.id)
-        .maybeSingle();
+      // Fetch the newly created organization
+      const { data: orgData, error: orgError } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('id', data.organization_id)
+        .single();
 
-      if (memberError) throw memberError;
-      if (!memberData) throw new Error('Organization created but member data not found');
+      if (orgError) throw orgError;
 
-      console.log('Setting newly created organization:', memberData.organization);
-      console.log('Setting user role:', memberData.role);
-      
-      setOrganization(memberData.organization);
-      setUserRole(memberData.role as UserRole);
+      console.log('Setting newly created organization:', orgData);
+      setOrganization(orgData);
+      setUserRole('admin' as UserRole);
       setError(null);
     } catch (err) {
       console.error('Error creating organization:', err);
@@ -231,48 +188,28 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
   const sendInvite = async (email: string, role: UserRole) => {
     if (!organization) throw new Error('No organization selected');
+    if (!isEmailInitialized) throw new Error('Email service not initialized');
+    if (emailError) throw emailError;
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
-
-      // Check if user already has an organization
-      const { data: existingMember } = await supabase
-        .from('organization_members')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (existingMember) {
-        throw new Error('User already belongs to an organization');
+      console.log('Sending invite:', { email, role, organizationId: organization.id });
+      const result = await createInvite(email, role, organization.id);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to send invite');
       }
 
-      const inviteCode = Math.random().toString(36).substring(2, 15) + 
-                        Math.random().toString(36).substring(2, 15);
-
-      // Create invite
-      const { error: inviteError } = await supabase
-        .from('organization_invites')
-        .insert({
-          organization_id: organization.id,
-          email: email.toLowerCase(),
-          role,
-          invite_code: inviteCode,
-          invited_by: user.id,
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
-        });
-
-      if (inviteError) throw inviteError;
-
-      await sendInviteEmail({
-        to: email,
-        inviteCode,
-        organizationName: organization.name,
-        inviterName: user.email || 'An administrator',
-        role,
-      });
+      console.log('Invite sent successfully');
     } catch (err) {
-      throw err instanceof Error ? err : new Error('Failed to send invite');
+      console.error('Error in sendInvite:', err);
+      if (err instanceof Error) {
+        console.error('Error details:', {
+          name: err.name,
+          message: err.message,
+          stack: err.stack
+        });
+      }
+      throw err;
     }
   };
 
@@ -294,14 +231,14 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
   const acceptInvite = async (inviteCode: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser?.email) throw new Error('User not authenticated or email not found');
 
       // Check if user already has an organization
       const { data: existingMember } = await supabase
         .from('organization_members')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('user_id', currentUser.id)
         .single();
 
       if (existingMember) {
@@ -311,7 +248,10 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       // Get invite details
       const { data: invite, error: inviteError } = await supabase
         .from('organization_invites')
-        .select('*, organization:organizations (*)')
+        .select(`
+          *,
+          organization:organizations (*)
+        `)
         .eq('invite_code', inviteCode)
         .single();
 
@@ -324,7 +264,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       }
 
       // Check if user's email matches invite
-      if (user.email?.toLowerCase() !== invite.email.toLowerCase()) {
+      if (currentUser.email.toLowerCase() !== invite.email.toLowerCase()) {
         throw new Error('This invite is for a different email address');
       }
 
@@ -333,7 +273,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         .from('organization_members')
         .insert({
           organization_id: invite.organization_id,
-          user_id: user.id,
+          user_id: currentUser.id,
           role: invite.role,
         });
 
@@ -344,11 +284,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         .from('organization_invites')
         .delete()
         .eq('id', invite.id);
-
-      await sendWelcomeEmail({
-        to: user.email,
-        organizationName: invite.organization.name,
-      });
 
       setOrganization(invite.organization);
       setUserRole(invite.role);
@@ -368,13 +303,13 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
   const leaveOrganization = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error('User not authenticated');
 
       const { error } = await supabase
         .from('organization_members')
         .delete()
-        .eq('user_id', user.id)
+        .eq('user_id', currentUser.id)
         .eq('organization_id', organization?.id);
 
       if (error) throw error;

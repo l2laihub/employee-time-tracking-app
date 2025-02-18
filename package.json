@@ -10,13 +10,17 @@
     "preview": "vite preview",
     "test:unit": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:email": "tsx src/scripts/test-email.ts",
+    "test:invite": "tsx src/scripts/test-invite-flow.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-dialog": "^1.1.5",
     "@radix-ui/react-switch": "^1.1.2",
+    "@react-email/components": "^0.0.33",
+    "@react-email/render": "^1.0.5",
     "@supabase/supabase-js": "^2.39.7",
     "chart.js": "^4.4.7",
     "date-fns": "^3.3.1",
@@ -28,7 +32,7 @@
     "react-hook-form": "^7.54.2",
     "react-hot-toast": "^2.4.1",
     "react-router-dom": "^6.22.2",
-    "resend": "^4.1.1",
+    "resend": "^4.1.2",
     "sonner": "^1.7.2",
     "zod": "^3.24.1"
   },
@@ -42,6 +46,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.18",
+    "dotenv": "^16.4.5",
     "eslint": "^9.9.1",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.11",
@@ -51,6 +56,7 @@
     "postcss": "^8.4.35",
     "supabase": "^2.13.0",
     "tailwindcss": "^3.4.1",
+    "tsx": "^4.7.1",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.3.0",
     "vite": "^5.4.2",
