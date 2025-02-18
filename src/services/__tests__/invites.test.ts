@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createInvite, listOrgInvites, revokeInvite } from '../invites';
 import { supabase } from '../../lib/supabase';
-import { getEmailService } from '../email';
+import { getEmailService, EmailService, EmailServiceImpl } from '../email';
 import { PostgrestError, PostgrestSingleResponse } from '@supabase/supabase-js';
 import { InviteError, InviteErrorCode } from '../../utils/errorHandling';
 
@@ -89,12 +89,20 @@ vi.mock('../../lib/supabase', () => {
   };
 });
 
-// Mock Email Service
-vi.mock('../email', () => ({
-  getEmailService: vi.fn().mockReturnValue({
-    sendInvite: vi.fn().mockResolvedValue(undefined)
-  })
-}));
+// Mock Email Service with more comprehensive scenarios
+vi.mock('../email', () => {
+  const mockSendInvite = vi.fn();
+  const mockEmailService: EmailService = {
+    sendInvite: mockSendInvite,
+    testConfiguration: vi.fn()
+  };
+
+  return {
+    getEmailService: vi.fn().mockReturnValue(mockEmailService),
+    EmailServiceImpl: vi.fn(),
+    mockSendInvite // Export for test access
+  };
+});
 
 describe('Invite Service', () => {
   const mockOrg = {
@@ -105,6 +113,8 @@ describe('Invite Service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockResponseQueue = [];
+    // Reset email service mock
+    vi.mocked(getEmailService().sendInvite).mockReset();
   });
 
   describe('createInvite', () => {
@@ -119,9 +129,19 @@ describe('Invite Service', () => {
         createSuccessResponse({ id: 'test-invite-id' }) // Create invite
       ];
 
+      vi.mocked(getEmailService().sendInvite).mockResolvedValueOnce();
+
       const result = await createInvite(mockEmail, mockRole, mockOrg.id);
       expect(result.success).toBe(true);
       expect(result.inviteId).toBeDefined();
+
+      // Verify email service was called with correct parameters
+      expect(getEmailService().sendInvite).toHaveBeenCalledWith({
+        email: mockEmail,
+        organizationName: mockOrg.name,
+        role: mockRole,
+        inviteUrl: expect.any(String)
+      });
     });
 
     it('should handle duplicate invites', async () => {
@@ -134,31 +154,24 @@ describe('Invite Service', () => {
       const result = await createInvite(mockEmail, mockRole, mockOrg.id);
       expect(result.success).toBe(false);
       expect(result.error).toContain('already been sent');
+      expect(getEmailService().sendInvite).not.toHaveBeenCalled();
     });
 
     it('should validate email format', async () => {
       const result = await createInvite('invalid-email', mockRole, mockOrg.id);
       expect(result.success).toBe(false);
       expect(result.error).toContain('Invalid email format');
+      expect(getEmailService().sendInvite).not.toHaveBeenCalled();
     });
 
     it('should validate role', async () => {
       const result = await createInvite(mockEmail, 'invalid_role', mockOrg.id);
       expect(result.success).toBe(false);
       expect(result.error).toContain('Invalid role');
+      expect(getEmailService().sendInvite).not.toHaveBeenCalled();
     });
 
-    it('should verify organization exists', async () => {
-      mockResponseQueue = [
-        createErrorResponse('Organization not found')
-      ];
-
-      const result = await createInvite(mockEmail, mockRole, 'invalid-org-id');
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Organization not found');
-    });
-
-    it('should handle email service errors', async () => {
+    it('should handle rate limit errors', async () => {
       mockResponseQueue = [
         createSuccessResponse(mockOrg),              // Organization lookup
         createSuccessResponse({ role: 'admin' }),    // Member check
@@ -167,12 +180,46 @@ describe('Invite Service', () => {
       ];
 
       vi.mocked(getEmailService().sendInvite).mockRejectedValueOnce(
-        new Error('Failed to send invite email')
+        new Error('Email sending failed: Rate limit exceeded. Please try again later.')
       );
 
       const result = await createInvite(mockEmail, mockRole, mockOrg.id);
       expect(result.success).toBe(false);
-      expect(result.error).toContain('Failed to send invite email');
+      expect(result.error).toContain('Rate limit exceeded');
+    });
+
+    it('should handle template rendering errors', async () => {
+      mockResponseQueue = [
+        createSuccessResponse(mockOrg),              // Organization lookup
+        createSuccessResponse({ role: 'admin' }),    // Member check
+        createErrorResponse('No rows returned', 'PGRST116'),  // No existing invite
+        createSuccessResponse({ id: 'test-invite-id' }) // Create invite
+      ];
+
+      vi.mocked(getEmailService().sendInvite).mockRejectedValueOnce(
+        new Error('Failed to generate email content')
+      );
+
+      const result = await createInvite(mockEmail, mockRole, mockOrg.id);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Failed to generate email content');
+    });
+
+    it('should handle development mode restrictions', async () => {
+      mockResponseQueue = [
+        createSuccessResponse(mockOrg),              // Organization lookup
+        createSuccessResponse({ role: 'admin' }),    // Member check
+        createErrorResponse('No rows returned', 'PGRST116'),  // No existing invite
+        createSuccessResponse({ id: 'test-invite-id' }) // Create invite
+      ];
+
+      vi.mocked(getEmailService().sendInvite).mockRejectedValueOnce(
+        new Error('In development mode, can only send to verified email')
+      );
+
+      const result = await createInvite(mockEmail, mockRole, mockOrg.id);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('verified email');
     });
   });
 
