@@ -40,15 +40,16 @@ export class EmailServiceImpl implements EmailService {
       });
     }
 
-    // Test the configuration
-    this.testConfiguration().catch(error => {
-      console.error('Failed to test email configuration:', {
-        error,
-        isDevelopment: this.isDevelopment,
-        fromEmail: this.fromEmail,
-        verifiedEmail: this.VERIFIED_EMAIL
-      });
-    });
+    // Automatic configuration test disabled to prevent rate limiting
+    // To test configuration manually, call testConfiguration() directly
+    // this.testConfiguration().catch(error => {
+    //   console.error('Failed to test email configuration:', {
+    //     error,
+    //     isDevelopment: this.isDevelopment,
+    //     fromEmail: this.fromEmail,
+    //     verifiedEmail: this.VERIFIED_EMAIL
+    //   });
+    // });
   }
 
   private async sendEmail(options: {
@@ -110,7 +111,11 @@ export class EmailServiceImpl implements EmailService {
     return data;
   }
 
-  public async testConfiguration(): Promise<void> {
+  public async testConfiguration(confirmTest?: boolean): Promise<void> {
+    if (!confirmTest) {
+      console.log('Test configuration skipped - requires explicit confirmation');
+      return;
+    }
     try {
       console.log('Starting email configuration test:', {
         isDevelopment: this.isDevelopment,

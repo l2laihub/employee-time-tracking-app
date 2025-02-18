@@ -90,15 +90,8 @@ export function EmailProvider({ children }: EmailProviderProps) {
         initializeEmailService(senderEmail);
         const service = getEmailService();
         
-        // Test the service
-        try {
-          console.log('Testing email service...');
-          await service.testConfiguration();
-          console.log('Email service test successful');
-        } catch (testError) {
-          console.error('Email service test failed:', testError);
-          throw testError;
-        }
+        // Test configuration disabled to prevent rate limiting
+        // To test manually, call emailService.testConfiguration() directly when needed
 
         const endTime = new Date();
         console.log('Email service initialized and verified:', {

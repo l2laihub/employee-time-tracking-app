@@ -2,38 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createInvite, listOrgInvites, revokeInvite } from '../invites';
 import { supabase } from '../../lib/supabase';
 import { getEmailService } from '../email';
+import { PostgrestError, PostgrestSingleResponse } from '@supabase/supabase-js';
 import { InviteError, InviteErrorCode } from '../../utils/errorHandling';
-import { PostgrestError, PostgrestSingleResponse, PostgrestResponse } from '@supabase/supabase-js';
 
-// Create reusable mock chain methods
-const mockFrom = vi.fn().mockReturnThis();
-const mockSelect = vi.fn().mockReturnThis();
-const mockInsert = vi.fn().mockReturnThis();
-const mockUpdate = vi.fn().mockReturnThis();
-const mockEq = vi.fn().mockReturnThis();
-const mockSingle = vi.fn().mockReturnThis();
-const mockOrder = vi.fn().mockReturnThis();
-
-// Mock Supabase
-vi.mock('../../lib/supabase', () => ({
-  supabase: {
-    from: mockFrom,
-    select: mockSelect,
-    insert: mockInsert,
-    update: mockUpdate,
-    eq: mockEq,
-    single: mockSingle,
-    order: mockOrder
-  }
-}));
-
-// Mock Email Service
-vi.mock('../email', () => ({
-  getEmailService: vi.fn().mockReturnValue({
-    sendInvite: vi.fn().mockResolvedValue(undefined)
-  })
-}));
-
+// Helper functions for creating mock responses
 const createSuccessResponse = <T>(data: T): PostgrestSingleResponse<T> => ({
   data,
   error: null,
@@ -42,21 +14,87 @@ const createSuccessResponse = <T>(data: T): PostgrestSingleResponse<T> => ({
   statusText: 'OK'
 });
 
-const createErrorResponse = <T>(error: PostgrestError): PostgrestSingleResponse<T> => ({
+const createErrorResponse = (message: string, code = 'ERROR'): PostgrestSingleResponse<any> => ({
   data: null,
-  error,
+  error: {
+    message,
+    details: '',
+    hint: '',
+    code
+  } as PostgrestError,
   count: null,
   status: 400,
   statusText: 'Bad Request'
 });
 
-const mockError = (message: string): PostgrestError => ({
-  name: 'PostgrestError',
-  message,
-  details: '',
-  hint: '',
-  code: 'ERROR'
+// Mock response queue
+let mockResponseQueue: PostgrestSingleResponse<any>[] = [];
+const getNextResponse = (): PostgrestSingleResponse<any> => {
+  const response = mockResponseQueue.shift() || createErrorResponse('Unexpected end of mock responses');
+  if (response.error && response.error.message === 'Organization not found') {
+    throw new InviteError('Organization not found', InviteErrorCode.DATABASE_ERROR);
+  }
+  if (response.error && response.error.message === 'Database error') {
+    throw new InviteError('A database error occurred', InviteErrorCode.DATABASE_ERROR);
+  }
+  return response;
+};
+
+// Mock Supabase client
+vi.mock('../../lib/supabase', () => {
+  type QueryBuilder = {
+    select: () => QueryBuilder;
+    insert: () => QueryBuilder;
+    update: () => QueryBuilder;
+    eq: () => QueryBuilder;
+    order: () => QueryBuilder;
+    single: () => Promise<PostgrestSingleResponse<any>>;
+  };
+
+  const createQueryBuilder = (): QueryBuilder => {
+    const builder: QueryBuilder = {
+      select: () => builder,
+      insert: () => builder,
+      update: () => builder,
+      eq: () => builder,
+      order: () => builder,
+      single: () => Promise.resolve(getNextResponse())
+    };
+    return builder;
+  };
+
+  return {
+    supabase: {
+      from: vi.fn().mockImplementation(() => {
+        const builder = createQueryBuilder();
+        return {
+          ...builder,
+          select: () => ({
+            ...builder,
+            eq: () => ({
+              ...builder,
+              order: () => getNextResponse()
+            })
+          }),
+          update: () => ({
+            ...builder,
+            eq: () => getNextResponse()
+          })
+        };
+      }),
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user-id' } }, error: null })
+      }
+    }
+  };
 });
+
+// Mock Email Service
+vi.mock('../email', () => ({
+  getEmailService: vi.fn().mockReturnValue({
+    sendInvite: vi.fn().mockResolvedValue(undefined)
+  })
+}));
 
 describe('Invite Service', () => {
   const mockOrg = {
@@ -66,154 +104,94 @@ describe('Invite Service', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    // Reset all mock implementations
-    mockFrom.mockReturnThis();
-    mockSelect.mockReturnThis();
-    mockInsert.mockReturnThis();
-    mockUpdate.mockReturnThis();
-    mockEq.mockReturnThis();
-    mockSingle.mockReturnThis();
-    mockOrder.mockReturnThis();
+    mockResponseQueue = [];
   });
 
   describe('createInvite', () => {
     const mockEmail = 'test@example.com';
     const mockRole = 'employee';
 
-    beforeEach(() => {
-      // Mock successful organization lookup
-      mockFrom.mockImplementation((table: string) => {
-        if (table === 'organizations') {
-          return {
-            select: () => ({
-              eq: () => ({
-                single: () => createSuccessResponse(mockOrg)
-              })
-            })
-          };
-        }
-        return mockFrom();
-      });
-
-      // Mock no existing invite check
-      mockFrom.mockImplementation((table: string) => {
-        if (table === 'organization_invites') {
-          return {
-            select: () => ({
-              eq: () => ({
-                eq: () => ({
-                  eq: () => ({
-                    single: () => createErrorResponse(mockError('No rows returned'))
-                  })
-                })
-              })
-            })
-          };
-        }
-        return mockFrom();
-      });
-
-      // Mock successful invite creation
-      mockFrom.mockImplementation((table: string) => {
-        if (table === 'organization_invites') {
-          return {
-            insert: () => ({
-              select: () => ({
-                single: () => createSuccessResponse({ id: 'test-invite-id' })
-              })
-            })
-          };
-        }
-        return mockFrom();
-      });
-    });
-
     it('should create invite successfully', async () => {
+      mockResponseQueue = [
+        createSuccessResponse(mockOrg),              // Organization lookup
+        createSuccessResponse({ role: 'admin' }),    // Member check
+        createErrorResponse('No rows returned', 'PGRST116'),  // No existing invite
+        createSuccessResponse({ id: 'test-invite-id' }) // Create invite
+      ];
+
       const result = await createInvite(mockEmail, mockRole, mockOrg.id);
       expect(result.success).toBe(true);
       expect(result.inviteId).toBeDefined();
     });
 
     it('should handle duplicate invites', async () => {
-      mockFrom.mockImplementation((table: string) => {
-        if (table === 'organization_invites') {
-          return {
-            select: () => ({
-              eq: () => ({
-                eq: () => ({
-                  eq: () => ({
-                    single: () => createSuccessResponse({ id: 'existing-invite' })
-                  })
-                })
-              })
-            })
-          };
-        }
-        return mockFrom();
-      });
+      mockResponseQueue = [
+        createSuccessResponse(mockOrg),              // Organization lookup
+        createSuccessResponse({ role: 'admin' }),    // Member check
+        createSuccessResponse({ id: 'existing-invite' }) // Existing invite found
+      ];
 
       const result = await createInvite(mockEmail, mockRole, mockOrg.id);
       expect(result.success).toBe(false);
       expect(result.error).toContain('already been sent');
     });
 
+    it('should validate email format', async () => {
+      const result = await createInvite('invalid-email', mockRole, mockOrg.id);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Invalid email format');
+    });
+
+    it('should validate role', async () => {
+      const result = await createInvite(mockEmail, 'invalid_role', mockOrg.id);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Invalid role');
+    });
+
+    it('should verify organization exists', async () => {
+      mockResponseQueue = [
+        createErrorResponse('Organization not found')
+      ];
+
+      const result = await createInvite(mockEmail, mockRole, 'invalid-org-id');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Organization not found');
+    });
+
     it('should handle email service errors', async () => {
+      mockResponseQueue = [
+        createSuccessResponse(mockOrg),              // Organization lookup
+        createSuccessResponse({ role: 'admin' }),    // Member check
+        createErrorResponse('No rows returned', 'PGRST116'),  // No existing invite
+        createSuccessResponse({ id: 'test-invite-id' }) // Create invite
+      ];
+
       vi.mocked(getEmailService().sendInvite).mockRejectedValueOnce(
-        new Error('Email failed')
+        new Error('Failed to send invite email')
       );
 
       const result = await createInvite(mockEmail, mockRole, mockOrg.id);
       expect(result.success).toBe(false);
       expect(result.error).toContain('Failed to send invite email');
     });
-
-    it('should validate email format', async () => {
-      const result = await createInvite('invalid-email', mockRole, mockOrg.id);
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Invalid email');
-    });
   });
 
   describe('listOrgInvites', () => {
     const mockInvites = [
-      { id: 'invite-1', email: 'test1@example.com' },
-      { id: 'invite-2', email: 'test2@example.com' }
+      { id: 'invite-1', email: 'test1@example.com', status: 'pending' },
+      { id: 'invite-2', email: 'test2@example.com', status: 'accepted' },
+      { id: 'invite-3', email: 'test3@example.com', status: 'revoked' }
     ];
 
     it('should list invites successfully', async () => {
-      mockFrom.mockImplementation((table: string) => {
-        if (table === 'organization_invites') {
-          return {
-            select: () => ({
-              eq: () => ({
-                order: () => createSuccessResponse(mockInvites)
-              })
-            })
-          };
-        }
-        return mockFrom();
-      });
-
+      mockResponseQueue = [createSuccessResponse(mockInvites)];
       const result = await listOrgInvites(mockOrg.id);
       expect(result).toEqual(mockInvites);
     });
 
     it('should handle database errors', async () => {
-      mockFrom.mockImplementation((table: string) => {
-        if (table === 'organization_invites') {
-          return {
-            select: () => ({
-              eq: () => ({
-                order: () => createErrorResponse<any[]>(mockError('Database error occurred'))
-              })
-            })
-          };
-        }
-        return mockFrom();
-      });
-
-      await expect(listOrgInvites(mockOrg.id)).rejects.toThrow();
+      mockResponseQueue = [createErrorResponse('Database error')];
+      await expect(listOrgInvites(mockOrg.id)).rejects.toThrow(InviteError);
     });
   });
 
@@ -221,33 +199,13 @@ describe('Invite Service', () => {
     const mockInviteId = 'test-invite-id';
 
     it('should revoke invite successfully', async () => {
-      mockFrom.mockImplementation((table: string) => {
-        if (table === 'organization_invites') {
-          return {
-            update: () => ({
-              eq: () => createSuccessResponse(null)
-            })
-          };
-        }
-        return mockFrom();
-      });
-
+      mockResponseQueue = [createSuccessResponse(null)];
       const result = await revokeInvite(mockInviteId);
       expect(result).toBe(true);
     });
 
     it('should handle revocation errors', async () => {
-      mockFrom.mockImplementation((table: string) => {
-        if (table === 'organization_invites') {
-          return {
-            update: () => ({
-              eq: () => createErrorResponse(mockError('Database error occurred'))
-            })
-          };
-        }
-        return mockFrom();
-      });
-
+      mockResponseQueue = [createErrorResponse('Database error')];
       const result = await revokeInvite(mockInviteId);
       expect(result).toBe(false);
     });
