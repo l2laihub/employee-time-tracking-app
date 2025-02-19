@@ -1,5 +1,5 @@
-import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Dashboard from '../../pages/Dashboard';
 import TimeEntry from '../../pages/TimeEntry';
 import JobLocations from '../../pages/JobLocations';
@@ -21,10 +21,21 @@ import UserSettings from '../../pages/UserSettings';
 export default function AppRoutes() {
   const { user } = useAuth();
   const { organization, userRole, isLoading } = useOrganization();
+  const location = useLocation();
   const isAdmin = userRole === 'admin' || userRole === 'manager';
+
+  useEffect(() => {
+    console.log('AppRoutes: Current route info', {
+      pathname: location.pathname,
+      user: user?.email,
+      isLoading,
+      isInvitePath: location.pathname.startsWith('/accept-invite')
+    });
+  }, [location.pathname, user, isLoading]);
 
   // Show loading state
   if (isLoading) {
+    console.log('AppRoutes: Loading state');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -35,42 +46,58 @@ export default function AppRoutes() {
     );
   }
 
-  // Public routes when not logged in
-  if (!user) {
-    return (
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/accept-invite/:inviteId" element={<AcceptInvite />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    );
-  }
-
-  // Show create organization page if no organization exists
-  if (!organization) {
-    return <CreateOrganization />;
-  }
+  // Render routes based on authentication state
+  console.log('AppRoutes: Rendering routes', {
+    isAuthenticated: !!user,
+    hasOrganization: !!organization,
+    currentPath: location.pathname
+  });
 
   return (
     <Routes>
-      <Route element={<Layout />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/settings" element={<UserSettings />} />
-        <Route path="/time-entry" element={<TimeEntry />} />
-        <Route path="/job-locations" element={<JobLocations />} />
-        {isAdmin && <Route path="/employees" element={<Employees />} />}
-        <Route path="/timesheets" element={<Timesheets />} />
-        {isAdmin && <Route path="/reports" element={<Reports />} />}
-        <Route path="/pto" element={<PTO />} />
-        {isAdmin && (
+      {/* Public routes - always accessible */}
+      <Route path="/accept-invite/:inviteId" element={<AcceptInvite />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+
+      {/* Protected routes */}
+      {user ? (
+        !organization ? (
+          // User logged in but no organization
+          <Route path="*" element={<CreateOrganization />} />
+        ) : (
+          // User logged in with organization
           <>
-            <Route path="/admin/settings" element={<OrganizationSettings />} />
-            <Route path="/admin/invites" element={<OrganizationInvites />} />
+            <Route element={<Layout />}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/settings" element={<UserSettings />} />
+              <Route path="/time-entry" element={<TimeEntry />} />
+              <Route path="/job-locations" element={<JobLocations />} />
+              {isAdmin && <Route path="/employees" element={<Employees />} />}
+              <Route path="/timesheets" element={<Timesheets />} />
+              {isAdmin && <Route path="/reports" element={<Reports />} />}
+              <Route path="/pto" element={<PTO />} />
+              {isAdmin && (
+                <>
+                  <Route path="/admin/settings" element={<OrganizationSettings />} />
+                  <Route path="/admin/invites" element={<OrganizationInvites />} />
+                </>
+              )}
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
           </>
-        )}
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+        )
+      ) : (
+        // Not logged in - redirect to login except for invite paths
+        <Route
+          path="*"
+          element={
+            location.pathname.startsWith('/accept-invite') ? null : (
+              <Navigate to="/login" state={{ from: location }} replace />
+            )
+          }
+        />
+      )}
     </Routes>
   );
 }

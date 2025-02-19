@@ -1,19 +1,50 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import Logo from '../components/Logo';
 
 export default function Login() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { signIn } = useAuth();
+  const { signIn, user } = useAuth();
+
+  // Parse query parameters
+  const searchParams = new URLSearchParams(location.search);
+  const redirectPath = searchParams.get('redirect');
+  const inviteEmail = searchParams.get('email');
+
+  useEffect(() => {
+    console.log('Login: Component mounted', {
+      redirectPath,
+      inviteEmail,
+      state: location.state,
+      currentUser: user?.email
+    });
+
+    // Pre-fill email if provided in query params
+    if (inviteEmail) {
+      console.log('Login: Pre-filling email from invite:', inviteEmail);
+      setEmail(inviteEmail);
+    }
+  }, [inviteEmail, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Login: Attempting login', { email, redirectPath });
+
     try {
       await signIn(email, password);
+      
+      // Handle redirect after successful login
+      if (redirectPath) {
+        console.log('Login: Redirecting to:', redirectPath);
+        navigate(redirectPath);
+      }
     } catch (error) {
+      console.error('Login: Error during sign in:', error);
       toast.error('Invalid email or password');
     }
   };
@@ -26,6 +57,11 @@ export default function Login() {
           <p className="mt-2 text-center text-sm text-gray-600">
             Sign in to manage your time tracking
           </p>
+          {inviteEmail && (
+            <p className="mt-2 text-center text-sm text-blue-600">
+              Please sign in with {inviteEmail} to accept the invite
+            </p>
+          )}
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
@@ -37,6 +73,7 @@ export default function Login() {
                 placeholder="Email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                readOnly={!!inviteEmail}
               />
             </div>
             <div>
@@ -64,7 +101,10 @@ export default function Login() {
         <div className="text-center">
           <p className="mt-2 text-sm text-gray-600">
             Don't have an account?{' '}
-            <Link to="/signup" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link 
+              to={`/signup${location.search}`} 
+              className="font-medium text-blue-600 hover:text-blue-500"
+            >
               Sign up now
             </Link>
           </p>

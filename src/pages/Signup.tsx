@@ -1,9 +1,38 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useOrganization } from '../contexts/OrganizationContext';
 import { supabase } from '../lib/supabase';
-import toast from 'react-hot-toast';
+
+interface OrganizationMemberDB {
+  id: string;
+  role: string;
+  organization_id: string;
+}
+
+interface OrganizationMember {
+  id: string;
+  role: string;
+  organization: {
+    id: string;
+    name: string;
+  };
+}
+
+import { toast } from 'sonner';
 import Logo from '../components/Logo';
+
+interface OrganizationInvite {
+  id: string;
+  organization_id: string;
+  role: string;
+  status: string;
+  expires_at: string;
+  organization: {
+    id: string;
+    name: string;
+  };
+}
 
 export default function Signup() {
   const [email, setEmail] = useState('');
@@ -11,23 +40,41 @@ export default function Signup() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isJoiningOrg, setIsJoiningOrg] = useState(false);
   const { signUp } = useAuth();
+  const { refreshOrganization } = useOrganization();
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const inviteCode = searchParams.get('code');
+  const redirectPath = searchParams.get('redirect');
+  const invitedEmail = searchParams.get('email');
+
+  // Pre-fill email if provided in URL
+  useEffect(() => {
+    if (invitedEmail) {
+      setEmail(decodeURIComponent(invitedEmail));
+    }
+  }, [invitedEmail]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      // Sign up the user
+      // Sign up the user and wait for session to be established
       const { error: signUpError } = await signUp(email, password, firstName, lastName);
       if (signUpError) throw signUpError;
 
-      // Sign in immediately after signup
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // Get the current user to ensure we have the session
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        throw new Error('Failed to get user after signup');
+      }
+
+      console.log('User session established:', {
+        userId: currentUser.id,
+        email: currentUser.email
       });
-      if (signInError) throw signInError;
 
       // Debug: Check all invites for this email
       const { data: allInvites, error: debugError } = await supabase
@@ -65,73 +112,137 @@ export default function Signup() {
 
       if (inviteData) {
         console.log('Found invite, accepting:', inviteData);
-        // Accept the invite
-        const { error: acceptError } = await supabase.rpc('accept_organization_invite', {
-          p_invite_id: inviteData.id
-        });
-
-        if (acceptError) throw acceptError;
-
-        // Wait for member to be created and retry a few times if needed
-        let memberData = null;
-        let retryCount = 0;
-        const maxRetries = 3;
-        const retryDelay = 1000; // 1 second
-
-        while (!memberData && retryCount < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-
-          const { data, error } = await supabase
-            .from('organization_members')
-            .select(`
-              id,
-              role,
-              organization:organizations (
-                id,
-                name
-              )
-            `)
-            .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
-            .single();
-
-          console.log(`Member check attempt ${retryCount + 1}:`, { data, error });
-
-          if (!error && data) {
-            memberData = data;
-            break;
-          }
-
-          retryCount++;
-          console.log(`Retry ${retryCount}/${maxRetries} to fetch member data`);
-        }
-
-        if (!memberData) {
-          throw new Error('Failed to verify organization membership after multiple retries');
-        }
-
-        // Create employee record
-        const { error: employeeError } = await supabase
-          .from('employees')
-          .insert({
-            organization_id: memberData.organization.id,
-            member_id: memberData.id,
-            first_name: firstName,
-            last_name: lastName,
-            email: email.toLowerCase(),
-            role: memberData.role,
-            start_date: new Date().toISOString().split('T')[0],
-            status: 'active'
+        setIsJoiningOrg(true);
+        
+        // Show organization setup progress
+        const toastId = toast.loading('Setting up your organization access...');
+        
+        try {
+          // Accept the invite
+          const { error: acceptError } = await supabase.rpc('accept_organization_invite', {
+            p_invite_id: inviteData.id
           });
 
-        if (employeeError) throw employeeError;
+          if (acceptError) throw acceptError;
 
-        toast.success(`Account created and joined ${memberData.organization.name} as ${memberData.role}!`);
+          // Wait for member to be created and retry a few times if needed
+          let memberData: OrganizationMember | null = null;
+          let retryCount = 0;
+          const maxRetries = 3;
+          const retryDelay = 1000; // 1 second
+
+          while (!memberData && retryCount < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+
+            const { data, error } = await supabase
+              .from('organization_members')
+              .select(`
+                id,
+                role,
+                organization_id
+              `)
+              .eq('user_id', currentUser.id)
+              .single();
+
+            console.log(`Member check attempt ${retryCount + 1}:`, { data, error });
+
+            if (!error && data) {
+              const memberDbData = data as OrganizationMemberDB;
+              // Fetch organization details
+              const { data: orgData, error: orgError } = await supabase
+                .from('organizations')
+                .select('id, name')
+                .eq('id', memberDbData.organization_id)
+                .single();
+
+              if (orgError) throw orgError;
+
+              memberData = {
+                id: memberDbData.id,
+                role: memberDbData.role,
+                organization: {
+                  id: orgData.id,
+                  name: orgData.name
+                }
+              };
+              break;
+            }
+
+            retryCount++;
+            console.log(`Retry ${retryCount}/${maxRetries} to fetch member data`);
+          }
+
+          if (!memberData) {
+            throw new Error('Failed to verify organization membership after multiple retries');
+          }
+
+          // Create employee record
+          const { error: employeeError } = await supabase
+            .from('employees')
+            .insert({
+              organization_id: memberData.organization.id,
+              member_id: memberData.id,
+              first_name: firstName,
+              last_name: lastName,
+              email: email.toLowerCase(),
+              role: memberData.role,
+              start_date: new Date().toISOString().split('T')[0],
+              status: 'active'
+            });
+
+          if (employeeError) throw employeeError;
+
+          // Trigger organization context refresh and wait for update
+          refreshOrganization();
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          // Verify organization membership
+          let verifyRetryCount = 0;
+          const verifyMaxRetries = 5;
+          while (verifyRetryCount < verifyMaxRetries) {
+            const { data: memberCheck } = await supabase
+              .from('organization_members')
+              .select('id')
+              .eq('user_id', currentUser.id)
+              .single();
+
+            if (memberCheck) {
+              console.log('Organization membership confirmed');
+              
+              // Ensure loading toast is dismissed before showing success
+              toast.dismiss(toastId);
+              
+              // Show success and navigate
+              toast.success(`Successfully joined ${memberData.organization.name} as ${memberData.role}!`);
+              navigate('/');
+              return;
+            }
+
+            verifyRetryCount++;
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            console.log(`Organization verification attempt ${verifyRetryCount}/${verifyMaxRetries}`);
+          }
+
+          // If we get here, verification failed
+          toast.dismiss(toastId);
+          toast.error('Could not verify organization access. Please try again.');
+
+          console.warn('Organization membership not confirmed after retries');
+          navigate('/');
+        } catch (error) {
+          toast.dismiss(toastId);
+          throw error;
+        } finally {
+          setIsJoiningOrg(false);
+        }
       } else {
-        toast.success('Account created successfully!');
+        // No invite, redirect to organization creation
+        if (redirectPath && !redirectPath.includes('accept-invite')) {
+          navigate(redirectPath);
+        } else {
+          navigate('/create-organization');
+        }
       }
-
-      // Navigate to the app
-      navigate('/');
     } catch (error) {
       console.error('Signup error:', error);
       toast.error(error instanceof Error ? error.message : 'Error creating account');
@@ -170,7 +281,7 @@ export default function Signup() {
                 placeholder="Last Name"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                disabled={isLoading}
+                disabled={isLoading || isJoiningOrg}
               />
             </div>
             <div>
@@ -192,7 +303,7 @@ export default function Signup() {
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
+                disabled={isLoading || isJoiningOrg}
               />
             </div>
           </div>
@@ -203,7 +314,14 @@ export default function Signup() {
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
               disabled={isLoading}
             >
-              {isLoading ? (
+              {isJoiningOrg ? (
+                <>
+                  <span className="absolute left-0 inset-y-0 flex items-center pl-3">
+                    <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+                  </span>
+                  Setting up organization access...
+                </>
+              ) : isLoading ? (
                 <>
                   <span className="absolute left-0 inset-y-0 flex items-center pl-3">
                     <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />

@@ -18,6 +18,7 @@ interface OrganizationContextType {
   sendInvite: (email: string, role: UserRole) => Promise<void>;
   revokeInvite: (inviteId: string) => Promise<void>;
   acceptInvite: (inviteCode: string) => Promise<void>;
+  refreshOrganization: () => void;
 }
 
 export const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
@@ -118,6 +119,14 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     }
   };
 
+  // Add a refresh trigger for manual refreshes
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  const refreshOrganization = () => {
+    console.log('Manual organization refresh triggered');
+    setRefreshTrigger(prev => prev + 1);
+  };
+
   useEffect(() => {
     console.log('Organization effect triggered:', {
       userId: user?.id,
@@ -125,10 +134,11 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       hasOrg: !!organization,
       orgId: organization?.id,
       isLoading,
-      userRole
+      userRole,
+      refreshTrigger
     });
     fetchUserOrganization();
-  }, [user?.id, authLoading]);
+  }, [user?.id, authLoading, refreshTrigger]);
 
   const createOrganization = async (name: string) => {
     if (!user) throw new Error('User not authenticated');
@@ -335,6 +345,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         sendInvite,
         revokeInvite,
         acceptInvite,
+        refreshOrganization,
       }}
     >
       {children}

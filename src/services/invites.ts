@@ -44,7 +44,7 @@ async function getOrganizationName(orgId: string): Promise<string> {
 
 function generateInviteUrl(inviteId: string): string {
   const baseUrl = window.location.origin;
-  const inviteUrl = `${baseUrl}/accept-invite?code=${inviteId}`;
+  const inviteUrl = `${baseUrl}/accept-invite/${inviteId}`;
   console.log('Generated invite URL:', inviteUrl);
   return inviteUrl;
 }

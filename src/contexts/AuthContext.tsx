@@ -4,7 +4,7 @@ import { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
-interface AuthContextType {
+export interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signUp({
+      const { data: signUpData, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -110,6 +110,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) throw error;
+
+      // Wait for the session to be established
+      const waitForSession = async (maxAttempts = 5) => {
+        for (let i = 0; i < maxAttempts; i++) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            setUser(session.user);
+            return true;
+          }
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        return false;
+      };
+
+      // Wait for session to be ready
+      const sessionEstablished = await waitForSession();
+      if (!sessionEstablished) {
+        throw new Error('Failed to establish session after signup');
+      }
+
       return { error: null };
     } catch (error) {
       console.error('Sign up error:', error);
