@@ -18,6 +18,9 @@ interface EmployeeDetails {
   first_name: string;
   last_name: string;
   department: string;
+}
+
+interface EmployeeDetailsWithMember extends EmployeeDetails {
   member_id: string;
 }
 
@@ -159,122 +162,44 @@ export async function listTimesheetsForOrganization(
   endDate?: Date
 ): Promise<TimesheetResult> {
   try {
-    console.log('Fetching timesheets for organization:', organizationId);
-    console.log('Filters:', { status, startDate, endDate });
-
-    // Get current user's employee record
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('No authenticated user found');
-    }
-
-    const { data: currentEmployee } = await supabase
-      .from('employees')
-      .select('id')
-      .eq('organization_id', organizationId)
-      .eq('email', user.email)
-      .single();
-
-    if (!currentEmployee) {
-      throw new Error('Employee record not found');
-    }
-
-    console.log('Current employee ID:', currentEmployee.id);
-
-    // First get current user's email from auth
-    console.log('Current user:', { id: user.id, email: user.email });
-
-    // Get employee record for current user
-    const { data: employeeData, error: employeeError } = await supabase
-      .from('employees')
-      .select('id')
-      .eq('email', user.email)
-      .eq('organization_id', organizationId)
-      .single();
-
-    if (employeeError) throw employeeError;
-    console.log('Found employee data:', employeeData);
-
-    // Get timesheets for current user using employee_id
-    console.log('Fetching timesheets with params:', {
-      employee_id: employeeData.id,
-      organization_id: organizationId
-    });
-    
-    const { data: userTimesheets, error: userError } = await supabase
-      .from('timesheets')
-      .select('*')
-      .eq('employee_id', employeeData.id)
-      .eq('organization_id', organizationId);
-
-    if (userError) {
-      console.error('Error fetching user timesheets:', userError);
-      throw userError;
-    }
-    
-    console.log('Current user timesheets raw:', userTimesheets);
-    console.log('Current user timesheets details:', userTimesheets?.map(t => ({
-      id: t.id,
-      employee_id: t.employee_id,
-      status: t.status,
-      period: `${t.period_start_date} to ${t.period_end_date}`
-    })));
-
-    // Get other employees' non-draft timesheets
-    const { data: otherTimesheets, error: otherError } = await supabase
+    // Get all timesheets for the organization
+    const { data: timesheets, error: timesheetsError } = await supabase
       .from('timesheets')
       .select('*')
       .eq('organization_id', organizationId)
-      .neq('employee_id', currentEmployee.id)
-      .neq('status', 'draft');
+      .order('period_start_date', { ascending: false });
 
-    if (otherError) throw otherError;
-    
-    // Log detailed timesheet data
-    if (otherTimesheets && otherTimesheets.length > 0) {
-      const firstTimesheet = otherTimesheets[0];
-      console.log('Example timesheet details:', {
-        timesheet: firstTimesheet,
-        employeeIdType: typeof firstTimesheet.employee_id,
-        currentEmployeeIdType: typeof currentEmployee.id,
-        employeeIds: otherTimesheets.map(t => t.employee_id),
-        currentEmployeeId: currentEmployee.id,
-        organizationMatch: firstTimesheet.organization_id === organizationId
-      });
-    }
-    
-    console.log('Other employees timesheets:', otherTimesheets?.map(t => ({
-      id: t.id,
-      employee_id: t.employee_id,
-      status: t.status,
-      period: `${t.period_start_date} to ${t.period_end_date}`
-    })));
+    if (timesheetsError) throw timesheetsError;
 
-    // Combine results
-    const allTimesheets: Timesheet[] = [
-      ...(userTimesheets || []),
-      ...(otherTimesheets || [])
-    ];
-    console.log('Combined timesheets:', allTimesheets.map(t => ({
-      id: t.id,
-      employee_id: t.employee_id,
-      status: t.status,
-      period: `${t.period_start_date} to ${t.period_end_date}`
-    })));
+    // Get employee details for all timesheets
+    const employeeIds = [...new Set(timesheets.map(t => t.employee_id))];
+    const { data: employees, error: employeesError } = await supabase
+      .from('employees')
+      .select('id, first_name, last_name, department')
+      .in('id', employeeIds);
+
+    if (employeesError) throw employeesError;
+
+    // Create employee lookup map
+    const employeeMap = employees.reduce<Record<string, EmployeeDetails>>((map, emp) => {
+      map[emp.id] = emp;
+      return map;
+    }, {});
+
+    // Combine timesheet data with employee details
+    const timesheetsWithEmployees = timesheets.map(timesheet => ({
+      ...timesheet,
+      employee: employeeMap[timesheet.employee_id]
+    }));
 
     // Apply status filter if provided
     const filteredTimesheets = status
-      ? allTimesheets.filter(timesheet => timesheet.status === status)
-      : allTimesheets;
-
-    // Sort by period start date descending
-    const sortedTimesheets = filteredTimesheets.sort((a, b) =>
-      new Date(b.period_start_date).getTime() - new Date(a.period_start_date).getTime()
-    );
+      ? timesheetsWithEmployees.filter(timesheet => timesheet.status === status)
+      : timesheetsWithEmployees;
 
     return {
       success: true,
-      data: sortedTimesheets
+      data: filteredTimesheets
     };
   } catch (error) {
     console.error('Error in listTimesheetsForOrganization:', error);
@@ -285,7 +210,7 @@ export async function listTimesheetsForOrganization(
   }
 }
 
-export async function getTimesheetDetails(timesheetId: string): Promise<{ timesheet: Timesheet | null; timeEntries: TimeEntry[]; employee: EmployeeDetails | null }> {
+export async function getTimesheetDetails(timesheetId: string): Promise<{ timesheet: Timesheet | null; timeEntries: TimeEntry[]; employee: EmployeeDetailsWithMember | null }> {
   try {
     // Get the timesheet
     const { data: timesheet, error: timesheetError } = await supabase

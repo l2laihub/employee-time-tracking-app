@@ -22,7 +22,7 @@ interface TimesheetFilters {
 
 const initialFilters: TimesheetFilters = {
   search: '',
-  status: '',
+  status: 'submitted',  // Show pending timesheets by default
   department: '',
   dateRange: {
     startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
@@ -142,10 +142,10 @@ export default function AdminTimesheetView({
               onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
             >
               <option value="">All Statuses</option>
-              <option value="draft">Draft</option>
-              <option value="submitted">Submitted</option>
+              <option value="submitted">Pending Review</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
+              <option value="draft">Draft</option>
             </select>
           </div>
 
