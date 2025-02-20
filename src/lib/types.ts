@@ -1,78 +1,14 @@
-import type { Database } from './database.types';
-
-export type JobLocation = Database['public']['Tables']['job_locations']['Row'];
-export type TimeEntry = Database['public']['Tables']['time_entries']['Row'];
-export type Organization = Database['public']['Tables']['organizations']['Row'];
-export type OrganizationMember = Database['public']['Tables']['organization_members']['Row'];
-export type OrganizationInvite = Database['public']['Tables']['organization_invites']['Row'];
-export type Profile = Database['public']['Tables']['profiles']['Row'];
-
-export type UserRole = 'owner' | 'admin' | 'member';
-
-export type JobLocationFormData = {
-  name: string;
-  type: string;
-  address: string | null;
-  city: string | null;
-  state: string | null;
-  zip: string | null;
-  service_type: string;
-  is_active: boolean;
-};
-
-export interface TimesheetEntry {
-  id: string;
-  userId: string;
-  employeeName: string;
-  weekStartDate: string;
-  weekEndDate: string;
-  status: 'draft' | 'submitted' | 'approved' | 'rejected' | 'pending';
-  notes: string;
-  timeEntries: TimeEntry[];
-  totalHours: number;
-  submittedAt?: string;
-  reviewedBy: string | null;
-  reviewedAt: string | null;
-}
-
-export type PTOType = 'vacation' | 'sick_leave';
-
-export interface PTORequest {
-  id: string;
-  userId: string;
-  startDate: string;
-  endDate: string;
-  type: PTOType;
-  hours: number;
-  reason: string;
-  status: 'pending' | 'approved' | 'rejected';
-  createdAt: string;
-  createdBy?: string;
-  reviewedBy?: string;
-  reviewedAt?: string;
-  employee?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    memberId: string;
-    role: 'admin' | 'manager' | 'employee';
-    email: string;
-    organizationId: string;
-  };
-}
-
+// Employee Types
 export interface Employee {
   id: string;
-  organization_id: string;
-  member_id?: string;
   first_name: string;
   last_name: string;
   email: string;
   phone?: string;
-  role: 'admin' | 'manager' | 'employee';
+  department: string;
+  role: string;
+  start_date?: string;
   status: 'active' | 'inactive';
-  department?: string;
-  start_date: string;
   pto: {
     vacation: {
       beginningBalance: number;
@@ -85,11 +21,18 @@ export interface Employee {
       used: number;
     };
   };
-  created_at?: string;
-  updated_at?: string;
-  organization_members?: {
-    id: string;
-    user_id: string;
-    role: UserRole;
-  } | null;
 }
+
+export interface EmployeeFilters {
+  search: string;
+  role: string;
+  department: string;
+  status: 'active' | 'all' | 'inactive';
+}
+
+export interface SortConfig {
+  column: 'name' | 'department' | 'role' | 'start_date' | 'status';
+  direction: 'asc' | 'desc';
+}
+
+// Other types...

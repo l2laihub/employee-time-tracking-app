@@ -111,17 +111,60 @@ John,Doe,john.doe@example.com,123-456-7890,employee,Engineering,2025-01-01,activ
 
 ### Search Capabilities
 - Name search
+  * First name and last name matching
+  * Case-insensitive search
 - Email search
+  * Exact match or partial search
+  * Domain filtering support
 - Department filter
+  * Single department selection
+  * Includes empty department handling
 - Role filter
+  * Filter by specific roles
+  * Multiple role selection
 - Status filter
+  * Active Only (default view)
+  * All Employees
+  * Inactive Only
+  * Clear status indication
 
 ### Sort Options
 - Name (ascending/descending)
+  * Sorts by last name, first name
+  * Visual indicators for sort direction
+  * Handles missing name components
 - Department
+  * Alphabetical department sorting
+  * Handles null/undefined departments
+  * Maintains consistent ordering
 - Role
+  * Sorts by role level
+  * Supports custom role ordering
+  * Consistent role hierarchy
 - Start date
+  * Chronological ordering
+  * Handles unset dates gracefully
+  * Default to newest first
 - Status
+  * Groups by active/inactive
+  * Visual distinction for inactive employees
+  * Maintains status grouping
+
+### Visual Enhancements
+- Status badges (active/inactive)
+  * Color-coded indicators
+  * Clear status visibility
+- Sort direction indicators
+  * Arrow indicators in column headers
+  * Current sort column highlight
+- Employee count summary
+  * Shows total active employees
+  * Shows total inactive employees
+  * Updates dynamically
+- Inactive employee styling
+  * Gray background in table rows
+  * Reduced opacity for inactive status
+  * Consistent visual hierarchy
 
 ## Data Export
 

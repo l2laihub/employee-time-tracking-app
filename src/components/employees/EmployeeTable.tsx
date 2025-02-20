@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Edit2, Trash2, Mail, Phone, Calendar, Clock, Briefcase, Stethoscope } from 'lucide-react';
-import type { Employee } from '../../lib/types';
+import { Edit2, Trash2, Mail, Phone, Calendar, Clock, Briefcase, Stethoscope, ChevronUp, ChevronDown } from 'lucide-react';
+import type { Employee, SortConfig } from '../../lib/types';
 import { formatDateForDisplay } from '../../utils/dateUtils';
 import EmployeeStartDateForm from '../pto/EmployeeStartDateForm';
 import { usePTO } from '../../contexts/PTOContext';
@@ -10,9 +10,18 @@ interface EmployeeTableProps {
   onEdit: (employee: Employee) => void;
   onDelete: (id: string) => void;
   onUpdateStartDate: (employeeId: string, startDate: string) => void;
+  sortConfig: SortConfig;
+  onSort: (column: SortConfig['column']) => void;
 }
 
-export default function EmployeeTable({ employees, onEdit, onDelete, onUpdateStartDate }: EmployeeTableProps) {
+export default function EmployeeTable({ 
+  employees, 
+  onEdit, 
+  onDelete, 
+  onUpdateStartDate,
+  sortConfig,
+  onSort 
+}: EmployeeTableProps) {
   const { getPTOBalance } = usePTO();
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [balances, setBalances] = useState<Record<string, { vacation: number; sick_leave: number }>>({});
@@ -45,6 +54,29 @@ export default function EmployeeTable({ employees, onEdit, onDelete, onUpdateSta
     loadBalances();
   }, [employees, getPTOBalance]);
 
+  const renderSortIcon = (column: SortConfig['column']) => {
+    if (sortConfig.column !== column) {
+      return null;
+    }
+    return sortConfig.direction === 'asc' ? (
+      <ChevronUp className="w-4 h-4 inline-block ml-1" />
+    ) : (
+      <ChevronDown className="w-4 h-4 inline-block ml-1" />
+    );
+  };
+
+  const renderSortableHeader = (column: SortConfig['column'], label: string) => (
+    <th 
+      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+      onClick={() => onSort(column)}
+    >
+      <div className="flex items-center">
+        {label}
+        {renderSortIcon(column)}
+      </div>
+    </th>
+  );
+
   return (
     <div>
       {/* Desktop Table View */}
@@ -52,21 +84,15 @@ export default function EmployeeTable({ employees, onEdit, onDelete, onUpdateSta
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Employee
-              </th>
+              {renderSortableHeader('name', 'Employee')}
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Contact
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Department
-              </th>
+              {renderSortableHeader('department', 'Department')}
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 PTO Balances
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
+              {renderSortableHeader('status', 'Status')}
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
@@ -74,7 +100,7 @@ export default function EmployeeTable({ employees, onEdit, onDelete, onUpdateSta
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {employees.map(employee => (
-              <tr key={employee.id}>
+              <tr key={employee.id} className={employee.status === 'inactive' ? 'bg-gray-50' : ''}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">
                     {employee.first_name} {employee.last_name}
@@ -152,7 +178,12 @@ export default function EmployeeTable({ employees, onEdit, onDelete, onUpdateSta
       {/* Mobile Card View */}
       <div className="md:hidden space-y-4">
         {employees.map(employee => (
-          <div key={employee.id} className="bg-white rounded-lg shadow-sm p-4">
+          <div 
+            key={employee.id} 
+            className={`bg-white rounded-lg shadow-sm p-4 ${
+              employee.status === 'inactive' ? 'bg-gray-50' : ''
+            }`}
+          >
             <div className="flex justify-between items-start mb-4">
               <div>
                 <h3 className="text-lg font-medium text-gray-900">
