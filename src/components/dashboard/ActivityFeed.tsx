@@ -122,13 +122,51 @@ export default function ActivityFeed() {
                   {format(new Date(entry.clock_in), 'h:mm a')}
                 </span>
               </div>
-              <div className="flex items-center text-sm text-gray-600 mt-1">
-                <MapPin className="w-4 h-4 mr-1" />
-                {jobLocations[entry.job_location_id]?.name || `Location #${entry.job_location_id}`}
+              <div className="space-y-1">
+                <div className="flex items-center text-sm text-gray-600">
+                  <MapPin className="w-4 h-4 mr-1" />
+                  {jobLocations[entry.job_location_id]?.name || `Location #${entry.job_location_id}`}
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  {/* Status badge */}
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    !entry.clock_out
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {!entry.clock_out ? 'Currently Working' : 'Clocked Out'}
+                  </span>
+                  
+                  {/* Break status if on break */}
+                  {entry.break_start && !entry.break_end && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800">
+                      On Break
+                    </span>
+                  )}
+                </div>
+
+                {/* Duration and times */}
+                <div className="text-sm text-gray-600">
+                  {entry.clock_out ? (
+                    <>
+                      Duration: {((new Date(entry.clock_out).getTime() - new Date(entry.clock_in).getTime()) / (1000 * 60 * 60)).toFixed(1)}h
+                      {entry.total_break_minutes > 0 && ` (${entry.total_break_minutes}m break)`}
+                      <span className="mx-2">•</span>
+                      Out: {format(new Date(entry.clock_out), 'h:mm a')}
+                    </>
+                  ) : (
+                    <>
+                      Duration: {((new Date().getTime() - new Date(entry.clock_in).getTime()) / (1000 * 60 * 60)).toFixed(1)}h
+                      {entry.total_break_minutes > 0 && ` (${entry.total_break_minutes}m break)`}
+                    </>
+                  )}
+                </div>
+
+                {entry.work_description && (
+                  <p className="text-sm text-gray-600">{entry.work_description}</p>
+                )}
               </div>
-              {entry.work_description && (
-                <p className="text-sm text-gray-600 mt-1">{entry.work_description}</p>
-              )}
             </div>
           </div>
         );
