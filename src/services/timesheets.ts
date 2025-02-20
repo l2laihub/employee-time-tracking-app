@@ -162,57 +162,122 @@ export async function listTimesheetsForOrganization(
     console.log('Fetching timesheets for organization:', organizationId);
     console.log('Filters:', { status, startDate, endDate });
 
-    // First get timesheets
-    const { data: timesheets, error: timesheetsError } = await supabase
+    // Get current user's employee record
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('No authenticated user found');
+    }
+
+    const { data: currentEmployee } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('email', user.email)
+      .single();
+
+    if (!currentEmployee) {
+      throw new Error('Employee record not found');
+    }
+
+    console.log('Current employee ID:', currentEmployee.id);
+
+    // First get current user's email from auth
+    console.log('Current user:', { id: user.id, email: user.email });
+
+    // Get employee record for current user
+    const { data: employeeData, error: employeeError } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('email', user.email)
+      .eq('organization_id', organizationId)
+      .single();
+
+    if (employeeError) throw employeeError;
+    console.log('Found employee data:', employeeData);
+
+    // Get timesheets for current user using employee_id
+    console.log('Fetching timesheets with params:', {
+      employee_id: employeeData.id,
+      organization_id: organizationId
+    });
+    
+    const { data: userTimesheets, error: userError } = await supabase
+      .from('timesheets')
+      .select('*')
+      .eq('employee_id', employeeData.id)
+      .eq('organization_id', organizationId);
+
+    if (userError) {
+      console.error('Error fetching user timesheets:', userError);
+      throw userError;
+    }
+    
+    console.log('Current user timesheets raw:', userTimesheets);
+    console.log('Current user timesheets details:', userTimesheets?.map(t => ({
+      id: t.id,
+      employee_id: t.employee_id,
+      status: t.status,
+      period: `${t.period_start_date} to ${t.period_end_date}`
+    })));
+
+    // Get other employees' non-draft timesheets
+    const { data: otherTimesheets, error: otherError } = await supabase
       .from('timesheets')
       .select('*')
       .eq('organization_id', organizationId)
-      .order('period_start_date', { ascending: false });
+      .neq('employee_id', currentEmployee.id)
+      .neq('status', 'draft');
 
-    if (timesheetsError) {
-      console.error('Error fetching timesheets:', timesheetsError);
-      throw timesheetsError;
+    if (otherError) throw otherError;
+    
+    // Log detailed timesheet data
+    if (otherTimesheets && otherTimesheets.length > 0) {
+      const firstTimesheet = otherTimesheets[0];
+      console.log('Example timesheet details:', {
+        timesheet: firstTimesheet,
+        employeeIdType: typeof firstTimesheet.employee_id,
+        currentEmployeeIdType: typeof currentEmployee.id,
+        employeeIds: otherTimesheets.map(t => t.employee_id),
+        currentEmployeeId: currentEmployee.id,
+        organizationMatch: firstTimesheet.organization_id === organizationId
+      });
     }
+    
+    console.log('Other employees timesheets:', otherTimesheets?.map(t => ({
+      id: t.id,
+      employee_id: t.employee_id,
+      status: t.status,
+      period: `${t.period_start_date} to ${t.period_end_date}`
+    })));
 
-    console.log('Fetched timesheets:', timesheets);
+    // Combine results
+    const allTimesheets: Timesheet[] = [
+      ...(userTimesheets || []),
+      ...(otherTimesheets || [])
+    ];
+    console.log('Combined timesheets:', allTimesheets.map(t => ({
+      id: t.id,
+      employee_id: t.employee_id,
+      status: t.status,
+      period: `${t.period_start_date} to ${t.period_end_date}`
+    })));
 
-    // Then get employees for these timesheets
-    if (timesheets && timesheets.length > 0) {
-      const employeeIds = [...new Set(timesheets.map(t => t.employee_id))];
-      console.log('Fetching employees:', employeeIds);
+    // Apply status filter if provided
+    const filteredTimesheets = status
+      ? allTimesheets.filter(timesheet => timesheet.status === status)
+      : allTimesheets;
 
-      const { data: employees, error: employeesError } = await supabase
-        .from('employees')
-        .select('id, first_name, last_name, department')
-        .in('id', employeeIds);
-
-      if (employeesError) {
-        console.error('Error fetching employees:', employeesError);
-        throw employeesError;
-      }
-
-      console.log('Fetched employees:', employees);
-
-      // Combine timesheet and employee data
-      const timesheetsWithEmployees = timesheets.map(timesheet => ({
-        ...timesheet,
-        employee: employees?.find(e => e.id === timesheet.employee_id)
-      }));
-
-      console.log('Combined data:', timesheetsWithEmployees);
-
-      return {
-        success: true,
-        data: timesheetsWithEmployees as Timesheet[]
-      };
-    }
+    // Sort by period start date descending
+    const sortedTimesheets = filteredTimesheets.sort((a, b) =>
+      new Date(b.period_start_date).getTime() - new Date(a.period_start_date).getTime()
+    );
 
     return {
       success: true,
-      data: timesheets as Timesheet[]
+      data: sortedTimesheets
     };
   } catch (error) {
-    console.error('Organization timesheet listing failed:', error);
+    console.error('Error in listTimesheetsForOrganization:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { format, parseISO } from 'date-fns';
-import { FileText, Check, X, Clock, User } from 'lucide-react';
+import { FileText, Check, X, Clock, User, ChevronUp, ChevronDown } from 'lucide-react';
 import type { Timesheet } from '../../types/custom.types';
 import { useEmployees } from '../../contexts/EmployeeContext';
 
@@ -10,8 +10,13 @@ interface TimesheetListProps {
   isAdmin: boolean;
 }
 
+type SortField = 'period' | 'employee' | 'status' | 'totalHours';
+type SortDirection = 'asc' | 'desc';
+
 export default function TimesheetList({ timesheets, onViewTimesheet, isAdmin }: TimesheetListProps) {
   const { employees } = useEmployees();
+  const [sortField, setSortField] = useState<SortField>('period');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   const formatDate = (date: Date | string | null | undefined) => {
     if (!date) return '';
@@ -52,39 +57,57 @@ export default function TimesheetList({ timesheets, onViewTimesheet, isAdmin }: 
   };
 
   const getEmployeeName = (timesheet: Timesheet) => {
-    console.log('Getting employee name for timesheet:', timesheet);
-    
-    // First try to get from nested employee data
     if (timesheet.employee?.first_name && timesheet.employee?.last_name) {
-      const name = `${timesheet.employee.first_name} ${timesheet.employee.last_name}`;
-      console.log('Found employee name from nested data:', name);
-      return name;
+      return `${timesheet.employee.first_name} ${timesheet.employee.last_name}`;
     }
     
-    // Fallback to employees context
-    console.log('Falling back to employees context. Available employees:', employees);
     const employee = employees?.find(emp => emp.id === timesheet.employee_id);
-    const name = employee ? `${employee.first_name} ${employee.last_name}` : 'Unknown Employee';
-    console.log('Found employee name from context:', name);
-    return name;
+    return employee ? `${employee.first_name} ${employee.last_name}` : 'Unknown Employee';
   };
 
   const getDepartment = (timesheet: Timesheet) => {
-    console.log('Getting department for timesheet:', timesheet);
-    
-    // First try to get from nested employee data
     if (timesheet.employee?.department) {
-      console.log('Found department from nested data:', timesheet.employee.department);
       return timesheet.employee.department;
     }
     
-    // Fallback to employees context
-    console.log('Falling back to employees context');
     const employee = employees?.find(emp => emp.id === timesheet.employee_id);
-    const department = employee?.department || 'N/A';
-    console.log('Found department from context:', department);
-    return department;
+    return employee?.department || 'N/A';
   };
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return null;
+    return sortDirection === 'asc' ? 
+      <ChevronUp className="w-4 h-4" /> : 
+      <ChevronDown className="w-4 h-4" />;
+  };
+
+  const sortedTimesheets = useMemo(() => {
+    return [...timesheets].sort((a, b) => {
+      const multiplier = sortDirection === 'asc' ? 1 : -1;
+      
+      switch (sortField) {
+        case 'period':
+          return multiplier * (new Date(a.period_start_date).getTime() - new Date(b.period_start_date).getTime());
+        case 'employee':
+          return multiplier * getEmployeeName(a).localeCompare(getEmployeeName(b));
+        case 'status':
+          return multiplier * a.status.localeCompare(b.status);
+        case 'totalHours':
+          return multiplier * ((a.total_hours || 0) - (b.total_hours || 0));
+        default:
+          return 0;
+      }
+    });
+  }, [timesheets, sortField, sortDirection]);
 
   if (!employees || employees.length === 0) {
     return (
@@ -107,64 +130,100 @@ export default function TimesheetList({ timesheets, onViewTimesheet, isAdmin }: 
   }
 
   return (
-    <div className="space-y-4">
-      {timesheets.map((timesheet) => {
-        const employeeName = getEmployeeName(timesheet);
-        const department = getDepartment(timesheet);
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            {isAdmin && (
+              <th scope="col" 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                  onClick={() => handleSort('employee')}>
+                <div className="flex items-center space-x-1">
+                  <span>Employee</span>
+                  {getSortIcon('employee')}
+                </div>
+              </th>
+            )}
+            <th scope="col" 
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                onClick={() => handleSort('period')}>
+              <div className="flex items-center space-x-1">
+                <span>Period</span>
+                {getSortIcon('period')}
+              </div>
+            </th>
+            <th scope="col" 
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                onClick={() => handleSort('totalHours')}>
+              <div className="flex items-center space-x-1">
+                <span>Total Hours</span>
+                {getSortIcon('totalHours')}
+              </div>
+            </th>
+            <th scope="col" 
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                onClick={() => handleSort('status')}>
+              <div className="flex items-center space-x-1">
+                <span>Status</span>
+                {getSortIcon('status')}
+              </div>
+            </th>
+            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Actions
+            </th>
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {sortedTimesheets.map((timesheet) => {
+            const employeeName = getEmployeeName(timesheet);
+            const department = getDepartment(timesheet);
 
-        return (
-          <div
-            key={timesheet.id}
-            className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex items-start space-x-4">
-                {getStatusIcon(timesheet.status)}
-                <div>
-                  {isAdmin && (
-                    <div className="flex items-center space-x-2 mb-1">
-                      <User className="w-4 h-4 text-gray-400" />
+            return (
+              <tr key={timesheet.id} className="hover:bg-gray-50">
+                {isAdmin && (
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
                       <div>
-                        <span className="font-medium text-gray-900">{employeeName}</span>
-                        <span className="text-sm text-gray-500 ml-2">({department})</span>
+                        <div className="text-sm font-medium text-gray-900">{employeeName}</div>
+                        <div className="text-sm text-gray-500">{department}</div>
                       </div>
                     </div>
-                  )}
-                  <h3 className="font-medium text-gray-700">
-                    Period: {formatDate(timesheet.period_start_date)} - {formatDate(timesheet.period_end_date)}
-                  </h3>
-                  <div className="mt-1 space-y-1">
-                    <p className="text-sm text-gray-500">
-                      Total Hours: <span className="font-medium">{timesheet.total_hours}</span>
-                    </p>
-                    {timesheet.submitted_at && (
-                      <p className="text-xs text-gray-500">
-                        Submitted: {formatDateTime(timesheet.submitted_at)}
-                      </p>
-                    )}
-                    {timesheet.reviewed_at && (
-                      <p className="text-xs text-gray-500">
-                        Reviewed: {formatDateTime(timesheet.reviewed_at)}
-                      </p>
-                    )}
+                  </td>
+                )}
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900">
+                    {formatDate(timesheet.period_start_date)} - {formatDate(timesheet.period_end_date)}
                   </div>
-                </div>
-              </div>
-              <div className="flex flex-col items-end space-y-2">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(timesheet.status)}`}>
-                  {timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
-                </span>
-                <button
-                  onClick={() => onViewTimesheet(timesheet)}
-                  className="px-3 py-1 text-sm text-blue-600 hover:text-blue-700 hover:underline"
-                >
-                  View Details
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })}
+                  {timesheet.submitted_at && (
+                    <div className="text-xs text-gray-500">
+                      Submitted: {formatDateTime(timesheet.submitted_at)}
+                    </div>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900">{timesheet.total_hours}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center space-x-2">
+                    {getStatusIcon(timesheet.status)}
+                    <span className={`px-2 py-1 text-xs rounded-full font-medium ${getStatusClass(timesheet.status)}`}>
+                      {timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
+                    </span>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <button
+                    onClick={() => onViewTimesheet(timesheet)}
+                    className="text-blue-600 hover:text-blue-900"
+                  >
+                    View Details
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
