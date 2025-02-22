@@ -87,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) throw error;
-      navigate('/');
+      navigate('/dashboard');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error signing in');
     } finally {

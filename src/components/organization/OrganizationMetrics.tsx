@@ -215,7 +215,7 @@ export function OrganizationMetrics() {
                 .map((user) => (
                   <tr key={user.email}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {user.email}
+                      {user.name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
                       {user.hours.toFixed(1)}

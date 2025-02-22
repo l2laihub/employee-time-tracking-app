@@ -30,6 +30,8 @@ interface TimeEntryWithUser {
   updated_at: string;
   user: {
     email: string;
+    first_name: string;
+    last_name: string;
   } | null;
   job_locations?: {
     name: string;
@@ -44,7 +46,7 @@ export interface OrganizationMetrics {
   averageHoursPerUser: number;
   timeEntriesCount: number;
   jobLocationDistribution: { name: string; hours: number }[];
-  userActivityDistribution: { email: string; hours: number }[];
+  userActivityDistribution: { name: string; email: string; hours: number }[];
   weeklyHours: { week: string; hours: number }[];
 }
 
@@ -129,12 +131,55 @@ export async function getOrganizationMetrics(organizationId: string, startDate?:
       ? timeEntriesResult.data
       : [timeEntriesResult.data];
 
-    const timeEntriesWithUsers = timeEntries.map(entry => ({
-      ...entry,
-      user: {
-        email: entry.user_id // We'll get the email from employees table later if needed
-      }
-    })) as TimeEntryWithUser[];
+    // Get all unique user IDs from time entries
+    const userIds = [...new Set(timeEntries.map(entry => entry.user_id))];
+    
+    // Fetch employee data for these users through organization_members
+    console.log('Fetching employee data for user IDs:', userIds);
+    
+    const { data: employees, error: employeeError } = await supabase
+      .from('organization_members')
+      .select(`
+        user_id,
+        employees!inner (
+          id,
+          email,
+          first_name,
+          last_name
+        )
+      `)
+      .eq('organization_id', organizationId)
+      .in('user_id', userIds);
+
+    if (employeeError) {
+      console.error('Error fetching employee data:', employeeError);
+    }
+
+    console.log('Retrieved employees:', employees);
+
+    // Create a map of user_id to employee data
+    const employeeMap = new Map(
+      employees?.map(member => {
+        const employeeData = member.employees[0];
+        return employeeData ? [member.user_id, employeeData] : null;
+      }).filter((entry): entry is [string, any] => entry !== null) || []
+    );
+
+    const timeEntriesWithUsers = timeEntries.map(entry => {
+      const employeeData = employeeMap.get(entry.user_id);
+      return {
+        ...entry,
+        user: employeeData ? {
+          email: employeeData.email,
+          first_name: employeeData.first_name,
+          last_name: employeeData.last_name
+        } : {
+          email: entry.user_id,
+          first_name: 'Unknown',
+          last_name: 'User'
+        }
+      };
+    }) as TimeEntryWithUser[];
 
     // No need to fetch job locations separately as they're included in the time entries response
 
@@ -165,17 +210,29 @@ export async function getOrganizationMetrics(organizationId: string, startDate?:
     });
 
     // Calculate user activity distribution - only for completed entries
-    const userMap = new Map<string, number>();
+    interface UserActivity {
+      hours: number;
+      displayName: string;
+    }
+    const userMap = new Map<string, UserActivity>();
     timeEntriesWithUsers.forEach(entry => {
       if (entry.status !== 'completed' || !entry.clock_out) return;
 
       const duration = new Date(entry.clock_out).getTime() - new Date(entry.clock_in).getTime();
       if (duration < 0) return; // Skip invalid durations
 
-      const userEmail = entry.user?.email || 'Unknown';
+      const userEmail = entry.user?.email || 'unknown';
+      const userName = entry.user ?
+        `${entry.user.first_name} ${entry.user.last_name}`.trim() || userEmail :
+        'Unknown User';
       const breakMinutes = entry.total_break_minutes || 0;
       const hours = Math.max(0, (duration / (1000 * 60 * 60)) - (breakMinutes / 60));
-      userMap.set(userEmail, (userMap.get(userEmail) || 0) + hours);
+      
+      const existing = userMap.get(userEmail);
+      userMap.set(userEmail, {
+        hours: (existing?.hours || 0) + hours,
+        displayName: userName
+      });
     });
 
     // Calculate weekly hours - only for completed entries
@@ -198,7 +255,11 @@ export async function getOrganizationMetrics(organizationId: string, startDate?:
       averageHoursPerUser: totalHours / (activeUsers || 1),
       timeEntriesCount: timeEntries.length,
       jobLocationDistribution: Array.from(locationMap.entries()).map(([name, hours]) => ({ name, hours })),
-      userActivityDistribution: Array.from(userMap.entries()).map(([email, hours]) => ({ email, hours })),
+      userActivityDistribution: Array.from(userMap.entries()).map(([email, data]) => ({
+        name: data.displayName,
+        email,
+        hours: data.hours
+      })),
       weeklyHours: Array.from(weekMap.entries())
         .map(([week, hours]) => ({ week, hours }))
         .sort((a, b) => a.week.localeCompare(b.week)),
