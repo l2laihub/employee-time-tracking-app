@@ -91,7 +91,7 @@ const Demo: React.FC = () => {
               onClick={() => window.location.href = '/signup'}
               className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
             >
-              Start Free Trial
+              Get Started Now
             </button>
           </div>
         </motion.div>

@@ -7,6 +7,20 @@ import { Organization } from '../types/supabase.types';
 import { createInvite } from '../services/invites';
 import { useEmail } from './EmailContext';
 
+// Default PTO structure
+const DEFAULT_PTO = {
+  vacation: {
+    beginningBalance: 0,
+    ongoingBalance: 0,
+    firstYearRule: 40,
+    used: 0
+  },
+  sickLeave: {
+    beginningBalance: 0,
+    used: 0
+  }
+};
+
 interface OrganizationContextType {
   organization: Organization | null;
   isLoading: boolean;
@@ -141,18 +155,26 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   }, [user?.id, authLoading, refreshTrigger]);
 
   const createOrganization = async (name: string) => {
-    if (!user) throw new Error('User not authenticated');
-
     try {
+      console.log('Getting current user session...');
+      const { data: { session } } = await supabase.auth.getSession();
+      const currentUser = session?.user;
+
+      if (!currentUser) {
+        console.error('No current user session found');
+        throw new Error('User not authenticated');
+      }
+
       console.log('Creating organization with name:', name);
       setIsLoading(true);
       const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
       
+      // Create organization and initial setup in a transaction
       const { data, error } = await supabase
         .rpc('create_organization_transaction', {
           p_name: name,
           p_slug: slug,
-          p_user_id: user.id,
+          p_user_id: currentUser.id,
           p_branding: null
         });
 
@@ -168,14 +190,51 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         throw error;
       }
 
+      // The response is an array with one object containing organization_id and member_id
+      const organizationId = Array.isArray(data) && data[0]?.organization_id;
+      const memberId = Array.isArray(data) && data[0]?.member_id;
+
+      if (!organizationId || !memberId) {
+        console.error('Invalid organization creation response:', data);
+        throw new Error('No organization ID or member ID returned from creation');
+      }
+
+      console.log('Organization created with ID:', organizationId);
+      console.log('Member created with ID:', memberId);
+
+      // Create the employee record using the member_id
+      const { error: employeeError } = await supabase
+        .from('employees')
+        .insert({
+          member_id: memberId,
+          organization_id: organizationId,
+          first_name: currentUser.user_metadata?.first_name || '',
+          last_name: currentUser.user_metadata?.last_name || '',
+          email: currentUser.email,
+          status: 'active',
+          role: 'admin',
+          start_date: new Date().toISOString().split('T')[0], // Required: current date
+          pto: DEFAULT_PTO // Required: default PTO structure
+        });
+
+      if (employeeError) {
+        console.error('Error creating employee:', employeeError);
+        throw employeeError;
+      }
+
+      console.log('Employee record created successfully');
+
       // Fetch the newly created organization
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
         .select('*')
-        .eq('id', data.organization_id)
+        .eq('id', organizationId)
         .single();
 
-      if (orgError) throw orgError;
+      if (orgError) {
+        console.error('Error fetching new organization:', orgError);
+        throw orgError;
+      }
 
       console.log('Setting newly created organization:', orgData);
       setOrganization(orgData);
@@ -279,15 +338,34 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       }
 
       // Add user to organization
-      const { error: memberError } = await supabase
+      const { data: memberData, error: memberError } = await supabase
         .from('organization_members')
         .insert({
           organization_id: invite.organization_id,
           user_id: currentUser.id,
           role: invite.role,
-        });
+        })
+        .select()
+        .single();
 
       if (memberError) throw memberError;
+
+      // Create employee record using the member_id
+      const { error: employeeError } = await supabase
+        .from('employees')
+        .insert({
+          member_id: memberData.id,
+          organization_id: invite.organization_id,
+          first_name: currentUser.user_metadata?.first_name || '',
+          last_name: currentUser.user_metadata?.last_name || '',
+          email: currentUser.email,
+          status: 'active',
+          role: invite.role,
+          start_date: new Date().toISOString().split('T')[0], // Required: current date
+          pto: DEFAULT_PTO // Required: default PTO structure
+        });
+
+      if (employeeError) throw employeeError;
 
       // Delete the invite
       await supabase

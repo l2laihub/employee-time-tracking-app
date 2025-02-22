@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { FiClock, FiUsers, FiCalendar, FiPieChart, FiShield, FiSettings } from 'react-icons/fi';
 import { FaCheckCircle, FaBuilding, FaHospital, FaStore, FaStar, FaAward, FaUserShield } from 'react-icons/fa';
+import { clearOnboardingState } from '../utils/onboardingStorage';
 
 const features = [
   {
@@ -169,6 +170,17 @@ const useCases = [
       "Labor cost optimization",
       "Multi-store support"
     ]
+  },
+  {
+    icon: <FaBuilding className="w-12 h-12 text-blue-600" />,
+    industry: "Contracting",
+    description: "Manage contractor schedules and track project-based work hours efficiently.",
+    benefits: [
+      "Contractor time tracking",
+      "Project-based billing",
+      "Contract compliance",
+      "Performance monitoring"
+    ]
   }
 ];
 
@@ -201,7 +213,8 @@ const Overview: React.FC = () => {
   const navigate = useNavigate();
 
   const handleStartFreeTrial = () => {
-    navigate('/signup');
+    clearOnboardingState();
+    navigate('/onboarding');
   };
 
   const handleViewDemo = () => {
@@ -230,7 +243,7 @@ const Overview: React.FC = () => {
                 onClick={handleStartFreeTrial}
                 className="bg-white text-blue-700 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition shadow-lg"
               >
-                Start Free Trial
+                Get Started Now
               </button>
               <button
                 onClick={handleViewDemo}
@@ -394,7 +407,7 @@ const Overview: React.FC = () => {
                 onClick={handleStartFreeTrial}
                 className="bg-white text-blue-700 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition shadow-lg"
               >
-                Start Your Free Trial
+                Get Started Now
               </button>
               <button
                 onClick={handleViewDemo}

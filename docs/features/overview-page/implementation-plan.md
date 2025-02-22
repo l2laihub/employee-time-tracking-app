@@ -8,7 +8,7 @@ Create a compelling landing page that effectively communicates ClockFlow's value
 ### 1. Hero Section
 - Large, attention-grabbing headline
 - Concise value proposition statement
-- Primary CTA: "Start Free Trial"
+- Primary CTA: "Get Started Now"
 - Secondary CTA: "View Demo"
 - Clean, modern design with ample whitespace
 

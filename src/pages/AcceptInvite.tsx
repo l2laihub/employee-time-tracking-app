@@ -216,22 +216,55 @@ export default function AcceptInvite() {
   }
 
   if (user.email !== invite.email) {
-    console.log('Wrong account detected', { userEmail: user.email, inviteEmail: invite.email });
+    console.log('Account mismatch detected', { userEmail: user.email, inviteEmail: invite.email });
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-yellow-500 text-xl mb-4">⚠️</div>
-          <h1 className="text-xl font-semibold text-gray-900 mb-2">Wrong Account</h1>
-          <p className="text-gray-600 mb-4">
-            This invite is for {invite.email}.<br />
-            Please log in with the correct account.
-          </p>
-          <Link
-            to={`/login?redirect=/accept-invite/${inviteCode}&email=${encodeURIComponent(invite.email)}`}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-          >
-            Log in with {invite.email}
-          </Link>
+        <div className="max-w-md w-full px-6">
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="text-center">
+              <div className="text-yellow-500 text-xl mb-4">⚠️</div>
+              <h1 className="text-xl font-semibold text-gray-900 mb-4">Different Account Detected</h1>
+              
+              {/* Current account info */}
+              <div className="bg-gray-50 rounded-md p-4 mb-4">
+                <p className="text-sm text-gray-500 mb-1">Currently logged in as:</p>
+                <p className="text-gray-900 font-medium">{user.email}</p>
+              </div>
+
+              {/* Explanation */}
+              <p className="text-gray-600 mb-6">
+                This invitation was sent to <span className="font-medium">{invite.email}</span> to join{' '}
+                <span className="font-medium">{invite.organization_name}</span>.
+              </p>
+
+              {/* Action options */}
+              <div className="space-y-3">
+                <Link
+                  to={`/login?redirect=/accept-invite/${inviteCode}&email=${encodeURIComponent(invite.email)}`}
+                  className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                >
+                  Switch to {invite.email}
+                </Link>
+
+                <button
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    navigate(`/login?redirect=/accept-invite/${inviteCode}&email=${encodeURIComponent(invite.email)}`);
+                  }}
+                  className="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  Log out and sign in with {invite.email}
+                </button>
+
+                <button
+                  onClick={() => navigate('/')}
+                  className="w-full inline-flex justify-center items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900"
+                >
+                  Return to Dashboard
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
