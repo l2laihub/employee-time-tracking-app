@@ -61,7 +61,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
   }, [fetchEmployeeData]);
 
   const navigation = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Time Entry', href: '/time-entry', icon: Clock },
     { name: 'PTO Requests', href: '/pto', icon: Calendar },
     ...(isAdmin ? [
