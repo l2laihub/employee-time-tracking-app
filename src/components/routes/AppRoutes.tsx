@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Dashboard from '../../pages/Dashboard';
 import TimeEntry from '../../pages/TimeEntry';
+import Overview from '../../pages/Overview';
+import Demo from '../../pages/Demo';
 import JobLocations from '../../pages/JobLocations';
 import Employees from '../../pages/Employees';
 import Timesheets from '../../pages/Timesheets';
@@ -55,21 +57,17 @@ export default function AppRoutes() {
 
   return (
     <Routes>
-      {/* Public routes - always accessible */}
-      <Route path="/accept-invite/:inviteId" element={<AcceptInvite />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
-
-      {/* Protected routes */}
       {user ? (
+        // User is authenticated
         !organization ? (
-          // User logged in but no organization
+          // No organization - show create org page
           <Route path="*" element={<CreateOrganization />} />
         ) : (
-          // User logged in with organization
+          // Has organization - show app routes
           <>
             <Route element={<Layout />}>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/settings" element={<UserSettings />} />
               <Route path="/time-entry" element={<TimeEntry />} />
               <Route path="/job-locations" element={<JobLocations />} />
@@ -84,19 +82,26 @@ export default function AppRoutes() {
                 </>
               )}
             </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </>
         )
       ) : (
-        // Not logged in - redirect to login except for invite paths
-        <Route
-          path="*"
-          element={
-            location.pathname.startsWith('/accept-invite') ? null : (
-              <Navigate to="/login" state={{ from: location }} replace />
-            )
-          }
-        />
+        // User is not authenticated - show public routes
+        <>
+          <Route path="/" element={<Overview />} />
+          <Route path="/demo" element={<Demo />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/accept-invite/:inviteId" element={<AcceptInvite />} />
+          <Route
+            path="*"
+            element={
+              location.pathname.startsWith('/accept-invite') ? null : (
+                <Navigate to="/login" state={{ from: location }} replace />
+              )
+            }
+          />
+        </>
       )}
     </Routes>
   );
