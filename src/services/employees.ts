@@ -93,6 +93,7 @@ export async function createEmployee(
     };
   }
 }
+
 export async function updateEmployee(
   employeeId: string,
   updates: Partial<Employee>
@@ -426,13 +427,13 @@ export async function importEmployees(
       throw new Error('User is not a member of this organization');
     }
 
-    // Check for existing employees with the same email
+    // Check for existing employees with the same email in this organization only
     const emails = employees.map(emp => emp.email);
-    console.log('Checking for existing employees with emails:', emails);
+    console.log('Checking for existing employees with emails in this organization:', emails);
     
     const { data: existingEmployees, error: existingError } = await supabase
       .from('employees')
-      .select('id, email, status')
+      .select('id, email, status, organization_id')
       .in('email', emails)
       .eq('organization_id', organizationId);
 
@@ -441,7 +442,7 @@ export async function importEmployees(
       throw existingError;
     }
 
-    console.log('Found existing employees:', existingEmployees);
+    console.log('Found existing employees in this organization:', existingEmployees);
 
     // Separate active and inactive employees
     const activeEmails = existingEmployees
@@ -451,8 +452,8 @@ export async function importEmployees(
     const inactiveEmployees = existingEmployees
       ?.filter(emp => emp.status === 'inactive') || [];
     
-    console.log('Active emails:', activeEmails);
-    console.log('Inactive employees:', inactiveEmployees);
+    console.log('Active emails in this organization:', activeEmails);
+    console.log('Inactive employees in this organization:', inactiveEmployees);
 
     // Prepare data for insert and update
     const newEmployees = employees.filter(emp => 
@@ -467,7 +468,7 @@ export async function importEmployees(
 
     console.log('New employees to insert:', newEmployees);
     console.log('Employees to reactivate:', reactivateEmployees);
-    console.log('Skipped employees (already active):', skippedEmails);
+    console.log('Skipped employees (already active in this organization):', skippedEmails);
 
     const results: EmployeeResult[] = [];
 
@@ -564,16 +565,17 @@ export async function importEmployees(
       }
     }
 
-    if (results.length === 0 && skippedEmails.length === 0) {
-      throw new Error('No employees were imported or reactivated');
-    }
-
-    // If we have some successes but also some skipped, add a note about skipped
+    // Add information about skipped employees
     if (skippedEmails.length > 0) {
       results.push({
         success: false,
-        error: `The following employees were skipped (already active): ${skippedEmails.join(', ')}`
+        error: `The following employees were skipped (already active in this organization): ${skippedEmails.join(', ')}`
       });
+    }
+
+    // If no employees were processed at all
+    if (results.length === 0) {
+      throw new Error('No employees were imported or reactivated');
     }
 
     return results;

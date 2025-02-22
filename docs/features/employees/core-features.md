@@ -26,6 +26,20 @@
 - Data retention for records
 - Cascade handling for related records
 
+## Multi-Organization Support
+
+### Organization-Specific Records
+- Employees can exist in multiple organizations simultaneously
+- Each organization maintains its own employee record
+- Separate status, role, and settings per organization
+- Organization-specific PTO tracking
+
+### Cross-Organization Handling
+- Email addresses can be used across different organizations
+- Each organization manages its own employee data independently
+- No data sharing between organizations
+- Organization-specific permissions and access control
+
 ## Bulk Import via CSV
 
 ### CSV Template
@@ -40,7 +54,8 @@ John,Doe,john.doe@example.com,123-456-7890,employee,Engineering,2025-01-01,activ
 3. Validation checks:
    - Required fields
    - Data format
-   - Duplicate detection
+   - Organization-specific duplicate detection
+   - Role validation
 4. Batch processing
 5. Error reporting
 
@@ -48,10 +63,11 @@ John,Doe,john.doe@example.com,123-456-7890,employee,Engineering,2025-01-01,activ
 - Detailed error messages for:
   - Missing required fields
   - Invalid data formats
-  - Duplicate emails
+  - Duplicate emails within the same organization
   - Role validation failures
 - Per-row error reporting
 - Transaction management
+- Clear feedback on skipped or updated records
 
 ## Role Management
 
