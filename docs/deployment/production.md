@@ -10,6 +10,7 @@ This guide covers the process of deploying ClockFlow to production environments.
 - Netlify account
 - GitHub repository connected to Netlify
 - Supabase project set up
+- Resend account and API key
 
 #### Steps
 
@@ -19,10 +20,17 @@ This guide covers the process of deploying ClockFlow to production environments.
    [build]
      command = "npm run build"
      publish = "dist"
-     
+     functions = "netlify/functions"
+      
    [build.environment]
      NODE_VERSION = "18"
-     
+      
+   [[redirects]]
+     from = "/api/resend/emails"
+     to = "/.netlify/functions/resend-emails"
+     status = 200
+     force = true
+
    [[redirects]]
      from = "/*"
      to = "/index.html"
@@ -35,6 +43,7 @@ This guide covers the process of deploying ClockFlow to production environments.
    VITE_SUPABASE_URL=your_supabase_url
    VITE_SUPABASE_ANON_KEY=your_supabase_key
    VITE_APP_URL=your_app_url
+   RESEND_API_KEY=your_resend_api_key  # Required for email functionality
    ```
 
 3. **Deploy**
@@ -377,4 +386,3 @@ export function checkThresholds(metrics: Metrics) {
     notify('High Response Time Alert');
   }
 }
-```
