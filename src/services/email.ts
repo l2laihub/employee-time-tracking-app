@@ -39,17 +39,6 @@ export class EmailServiceImpl implements EmailService {
         senderEmail: this.fromEmail
       });
     }
-
-    // Automatic configuration test disabled to prevent rate limiting
-    // To test configuration manually, call testConfiguration() directly
-    // this.testConfiguration().catch(error => {
-    //   console.error('Failed to test email configuration:', {
-    //     error,
-    //     isDevelopment: this.isDevelopment,
-    //     fromEmail: this.fromEmail,
-    //     verifiedEmail: this.VERIFIED_EMAIL
-    //   });
-    // });
   }
 
   private async sendEmail(options: {
@@ -70,7 +59,26 @@ export class EmailServiceImpl implements EmailService {
       })
     });
 
-    const data = await response.json();
+    let data;
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        data = await response.json();
+      } catch (error) {
+        console.error('Failed to parse JSON response:', error);
+        throw new Error('Invalid response from email service');
+      }
+    } else {
+      // Handle non-JSON response (like 404 HTML pages)
+      const text = await response.text();
+      console.error('Non-JSON response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        contentType,
+        text: text.substring(0, 200) // Log first 200 chars
+      });
+      throw new Error(`Email service error: ${response.status} ${response.statusText}`);
+    }
 
     if (!response.ok) {
       console.error('Resend API error:', {
@@ -98,6 +106,8 @@ export class EmailServiceImpl implements EmailService {
         } else {
           throw new Error('Email sending failed: Forbidden. Check Resend dashboard for details.');
         }
+      } else if (response.status === 404) {
+        throw new Error('Email service endpoint not found. Please check deployment configuration.');
       }
 
       throw new Error(data.message || data.error?.message || 'Failed to send email');

@@ -12,21 +12,38 @@ interface EmailRequest {
 }
 
 export const handler: Handler = async (event) => {
+  // Set JSON content type for all responses
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
+      headers,
       body: JSON.stringify({ error: 'Method not allowed' })
     };
   }
 
   try {
+    // Validate API key
+    if (!process.env.RESEND_API_KEY) {
+      console.error('Missing RESEND_API_KEY environment variable');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Email service configuration error' })
+      };
+    }
+
     const { from, to, subject, html, tags } = JSON.parse(event.body || '{}') as EmailRequest;
 
     // Validate required fields
     if (!from || !to || !subject || !html) {
       return {
         statusCode: 400,
+        headers,
         body: JSON.stringify({ error: 'Missing required fields' })
       };
     }
@@ -44,6 +61,7 @@ export const handler: Handler = async (event) => {
       console.error('Resend API error:', data.error);
       return {
         statusCode: 500,
+        headers,
         body: JSON.stringify({ 
           error: data.error.message || 'Failed to send email'
         })
@@ -52,13 +70,27 @@ export const handler: Handler = async (event) => {
 
     return {
       statusCode: 200,
+      headers,
       body: JSON.stringify(data)
     };
   } catch (error) {
     console.error('Email sending error:', error);
+    
+    // Handle JSON parse errors
+    if (error instanceof SyntaxError) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid JSON in request body' })
+      };
+    }
+
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Internal server error' })
+      headers,
+      body: JSON.stringify({ 
+        error: error instanceof Error ? error.message : 'Internal server error'
+      })
     };
   }
 }
