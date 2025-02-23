@@ -11,7 +11,11 @@ import { Card, Badge, LoadingSpinner, Button } from '../design-system';
 import { toast } from '../../lib/toast';
 
 interface EmployeeWithMember extends Employee {
-  user_id?: string;
+  organization_members?: {
+    id: string;
+    user_id: string;
+    role: string;
+  };
 }
 
 export default function ActivityFeed() {
@@ -45,20 +49,24 @@ export default function ActivityFeed() {
           // Get all employees
           const employeesResult = await listEmployees(organization.id);
           
-          // Create employee map using user_id as the key
-          const employeeMap = employeesResult.success && Array.isArray(employeesResult.data) 
-            ? employeesResult.data.reduce((acc: Record<string, EmployeeWithMember>, employee) => {
-                if (employee.id) {
-                  acc[employee.id] = {
-                    ...employee,
-                    user_id: employee.id // Map the id to user_id for compatibility
-                  };
+          console.log('Employees data:', employeesResult.data);
+          
+          // Create employee map using organization_members user_id as the key
+          const employeeMap = employeesResult.success && Array.isArray(employeesResult.data)
+            ? (employeesResult.data as EmployeeWithMember[]).reduce((acc: Record<string, EmployeeWithMember>, employee) => {
+                console.log('Processing employee:', employee);
+                if (employee.organization_members?.user_id) {
+                  console.log('Mapping user_id:', employee.organization_members.user_id);
+                  acc[employee.organization_members.user_id] = employee;
                 }
                 return acc;
               }, {})
             : {};
           
+          console.log('Final employee map:', employeeMap);
           setEmployees(employeeMap);
+
+          console.log('Time entries:', entries);
 
           // Fetch job location information
           const locationIds = [...new Set(entries.map(entry => entry.job_location_id))];
@@ -123,7 +131,12 @@ export default function ActivityFeed() {
   return (
     <div className="space-y-4">
       {timeEntries.map((entry) => {
+        console.log('Looking up employee for entry:', {
+          entryUserId: entry.user_id,
+          availableEmployees: Object.keys(employees)
+        });
         const employee = employees[entry.user_id];
+        console.log('Found employee:', employee);
         return (
           <Card
             key={entry.id}
@@ -134,7 +147,7 @@ export default function ActivityFeed() {
               <div className="flex-1">
                 <div className="flex justify-between">
                   <p className="font-medium text-neutral-900">
-                    {employee 
+                    {employee
                       ? `${employee.first_name} ${employee.last_name}`
                       : `Employee #${entry.user_id}`}
                   </p>

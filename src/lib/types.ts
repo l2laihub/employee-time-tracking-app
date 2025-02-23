@@ -51,7 +51,7 @@ export interface JobLocation {
 // Time Entry Types
 export interface TimeEntry {
   id: string;
-  employee_id: string;
+  user_id: string;
   job_location_id: string;
   clock_in: string;
   clock_out?: string;
