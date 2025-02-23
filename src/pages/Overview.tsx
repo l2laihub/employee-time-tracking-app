@@ -4,84 +4,86 @@ import { useNavigate } from 'react-router-dom';
 import { FiClock, FiUsers, FiCalendar, FiPieChart, FiShield, FiSettings } from 'react-icons/fi';
 import { FaCheckCircle, FaBuilding, FaHospital, FaStore, FaStar, FaAward, FaUserShield } from 'react-icons/fa';
 import { clearOnboardingState } from '../utils/onboardingStorage';
+import { Button } from '../components/design-system/Button';
+import { Card } from '../components/design-system/Card';
 
 const features = [
   {
     icon: <FiClock className="w-8 h-8" />,
     title: "Time Tracking",
-    description: "Effortless clock in/out, break management, and overtime tracking for your entire workforce.",
+    description: "Efficient time tracking with break management and job location features.",
     details: [
-      "Intuitive clock in/out interface",
-      "Automated break tracking",
-      "Overtime calculations",
-      "Mobile time tracking",
-      "GPS location verification",
-      "Offline mode support"
+      "Simple clock in/out interface",
+      "Basic break tracking",
+      "Job location tracking",
+      "Status management",
+      "Timesheet generation",
+      "Mobile access"
     ]
   },
   {
     icon: <FiUsers className="w-8 h-8" />,
     title: "Employee Management",
-    description: "Comprehensive tools for managing profiles, roles, departments, and performance tracking.",
+    description: "Comprehensive employee profile and role management system.",
     details: [
-      "Detailed employee profiles",
-      "Role-based access control",
+      "Employee profiles (CRUD)",
+      "Role assignments",
       "Department organization",
-      "Performance metrics",
-      "Custom fields",
-      "Bulk operations"
+      "Basic access control",
+      "Location assignments",
+      "Status tracking"
     ]
   },
   {
     icon: <FiCalendar className="w-8 h-8" />,
     title: "PTO Management",
-    description: "Streamlined leave requests, approvals, and balance tracking with calendar integration.",
+    description: "Basic leave management system with approval workflows.",
     details: [
-      "Leave request workflow",
-      "Balance tracking",
-      "Calendar integration",
-      "Accrual rules",
-      "Holiday management",
-      "Multi-level approvals"
+      "Leave request submission",
+      "Basic approval workflow",
+      "Status updates",
+      "Request listing",
+      "Balance viewing",
+      "Simple notifications"
     ]
   },
   {
     icon: <FiPieChart className="w-8 h-8" />,
-    title: "Advanced Analytics",
-    description: "Powerful reporting tools for cost analysis, time utilization, and attendance tracking.",
+    title: "Reporting",
+    description: "Essential reporting tools for time and attendance tracking.",
     details: [
-      "Real-time dashboards",
-      "Custom report builder",
-      "Cost analysis",
-      "Attendance insights",
-      "Export capabilities",
-      "Trend analysis"
+      "Weekly hours reports",
+      "Employee details",
+      "CSV exports",
+      "Time entry summaries",
+      "Basic filters",
+      "Status reports"
     ]
   },
   {
     icon: <FiShield className="w-8 h-8" />,
-    title: "Compliance & Security",
-    description: "Built-in labor law compliance, role-based access, and comprehensive audit trails.",
+    title: "Location Management",
+    description: "Job location tracking with geofencing capabilities.",
     details: [
-      "Labor law compliance",
-      "Working hours tracking",
-      "Break enforcement",
-      "Audit logging",
-      "Data encryption",
-      "Regular backups"
+      "Location management",
+      "User assignments",
+      "Geofence checking",
+      "Distance calculations",
+      "Location verification",
+      "Basic tracking"
     ]
   },
   {
     icon: <FiSettings className="w-8 h-8" />,
-    title: "Customization",
-    description: "Flexible workflows, custom fields, and integrations to match your business needs.",
+    title: "Basic Settings",
+    description: "Essential configuration options for your organization.",
     details: [
-      "Custom workflows",
-      "Field customization",
-      "API access",
-      "Integration options",
-      "White-labeling",
-      "Custom rules"
+      "Organization setup",
+      "User management",
+      "Basic permissions",
+      "Profile settings",
+      "Notification preferences",
+      "System preferences"
     ]
   }
 ];
@@ -93,43 +95,45 @@ const pricingTiers = [
     price: "Free",
     highlight: "Most Popular for Small Teams",
     features: [
-      "Up to 5 employees",
-      "Basic time tracking",
+      "Basic time tracking (clock in/out)",
       "Simple timesheet generation",
-      "Basic reporting",
-      "Mobile-responsive interface",
-      "PTO management",
       "Employee profiles",
+      "Basic reporting (weekly hours, CSV exports)",
+      "Up to 5 employees",
+      "Mobile-responsive interface",
       "Email support"
     ]
   },
   {
     name: "Professional",
     description: "For growing businesses",
-    price: "$12/user/mo",
+    price: "$7/user/mo",
     highlight: "Best for Growing Teams",
     features: [
       "Unlimited employees",
-      "Advanced time tracking",
-      "Job location tracking",
-      "Custom fields",
-      "Advanced reporting",
-      "Timesheet approvals",
-      "Priority email support",
-      "30-day data retention"
+      "Advanced time tracking with breaks",
+      "Job location tracking with geofencing",
+      "Department organization",
+      "Role-based access control",
+      "Basic PTO management",
+      "Location management",
+      "Advanced reporting with filters",
+      "Priority email support"
     ]
   },
   {
     name: "Business",
     description: "Advanced features for larger teams",
     price: "$20/user/mo",
-    highlight: "Recommended for Medium-Large Teams",
+    highlight: "Coming Soon - Q2 2025",
     features: [
+      "Advanced PTO management",
+      "Calendar integration",
+      "Comprehensive approval workflows",
+      "Data retention policies",
       "Advanced analytics",
-      "Custom approval workflows",
-      "API access",
-      "Advanced integrations",
       "Custom report builder",
+      "API access",
       "Phone support",
       "90-day data retention",
       "Labor law compliance"
@@ -224,47 +228,51 @@ const Overview: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
-      <section className="bg-gradient-to-b from-blue-900 to-blue-700 text-white py-24">
+      <section className="bg-[#4338CA] text-white py-32">
         <div className="container mx-auto px-4">
-          <motion.div 
+          <motion.div
             className="text-center"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
+            <h1 className="text-5xl md:text-7xl font-bold mb-8 max-w-5xl mx-auto leading-tight text-white">
               Transform Your Workforce Management
             </h1>
-            <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+            <p className="text-xl text-white/90 mb-12 max-w-2xl mx-auto">
               ClockFlow combines powerful time tracking with comprehensive workforce management tools to help your business thrive.
             </p>
-            <div className="flex justify-center gap-4">
-              <button
+            <div className="flex justify-center gap-6">
+              <Button
+                variant="primary"
+                size="lg"
                 onClick={handleStartFreeTrial}
-                className="bg-white text-blue-700 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition shadow-lg"
+                className="border-2 border-green-500 bg-white text-[#4338CA] hover:bg-white/10 hover:text-white px-8 py-4 text-lg font-semibold"
               >
                 Get Started Now
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="secondary"
+                size="lg"
                 onClick={handleViewDemo}
-                className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-700 transition"
+                className="border-2 border-blue-500 text-[#4338CA] hover:bg-white/10 hover:text-white px-8 py-4 text-lg font-semibold shadow-lg"
               >
                 View Demo
-              </button>
+              </Button>
             </div>
             
             {/* Trust Indicators */}
-            <div className="mt-16 grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+            <div className="mt-24 grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
               {trustIndicators.map((indicator, index) => (
                 <motion.div
                   key={index}
                   {...fadeInUp}
                   transition={{ delay: index * 0.1 }}
-                  className="flex flex-col items-center bg-white bg-opacity-10 rounded-lg p-6"
+                  className="flex flex-col items-center bg-white/10 backdrop-blur-sm rounded-2xl p-8"
                 >
-                  <div className="mb-3">{indicator.icon}</div>
-                  <h3 className="font-semibold mb-1">{indicator.title}</h3>
-                  <p className="text-blue-100 text-sm">{indicator.description}</p>
+                  <div className="mb-4 text-white/90">{indicator.icon}</div>
+                  <h3 className="font-semibold text-lg mb-2">{indicator.title}</h3>
+                  <p className="text-white/80">{indicator.description}</p>
                 </motion.div>
               ))}
             </div>
@@ -285,19 +293,24 @@ const Overview: React.FC = () => {
                 key={index}
                 {...fadeInUp}
                 transition={{ delay: index * 0.1 }}
-                className="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition"
               >
-                <div className="text-blue-600 mb-4">{feature.icon}</div>
-                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                <p className="text-gray-600 mb-4">{feature.description}</p>
-                <ul className="space-y-2">
-                  {feature.details.map((detail, i) => (
-                    <li key={i} className="flex items-center text-gray-600">
-                      <FaCheckCircle className="text-green-500 mr-2 flex-shrink-0" />
-                      <span>{detail}</span>
-                    </li>
-                  ))}
-                </ul>
+                <Card
+                  interactive
+                  elevation="sm"
+                  className="h-full hover:border-blue-200"
+                >
+                  <div className="text-blue-600 mb-4">{feature.icon}</div>
+                  <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
+                  <p className="text-gray-600 mb-4">{feature.description}</p>
+                  <ul className="space-y-2">
+                    {feature.details.map((detail, i) => (
+                      <li key={i} className="flex items-center text-gray-600">
+                        <FaCheckCircle className="text-green-500 mr-2 flex-shrink-0" />
+                        <span>{detail}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
               </motion.div>
             ))}
           </div>
@@ -317,34 +330,34 @@ const Overview: React.FC = () => {
                 key={index}
                 {...fadeInUp}
                 transition={{ delay: index * 0.1 }}
-                className={`bg-white rounded-xl p-6 ${
-                  tier.name === "Professional" ? "border-2 border-blue-600 shadow-xl" : "border border-gray-200"
-                }`}
               >
-                {tier.highlight && (
-                  <div className="text-blue-600 text-sm font-semibold mb-4">{tier.highlight}</div>
-                )}
-                <h3 className="text-xl font-semibold mb-2">{tier.name}</h3>
-                <p className="text-gray-600 mb-4">{tier.description}</p>
-                <div className="text-3xl font-bold mb-6">{tier.price}</div>
-                <ul className="space-y-3 mb-6">
-                  {tier.features.map((feature, i) => (
-                    <li key={i} className="flex items-center">
-                      <FaCheckCircle className="text-green-500 mr-2 flex-shrink-0" />
-                      <span className="text-gray-700">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  onClick={handleStartFreeTrial}
-                  className={`w-full py-2 rounded-lg font-semibold transition ${
-                    tier.name === "Professional"
-                      ? "bg-blue-600 text-white hover:bg-blue-700"
-                      : "bg-blue-100 text-blue-600 hover:bg-blue-200"
-                  }`}
+                <Card
+                  interactive
+                  elevation={tier.name === "Professional" ? "md" : "sm"}
+                  className={tier.name === "Professional" ? "border-2 border-blue-600" : ""}
                 >
-                  Get Started
-                </button>
+                  {tier.highlight && (
+                    <div className="text-blue-600 text-sm font-semibold mb-4">{tier.highlight}</div>
+                  )}
+                  <h3 className="text-xl font-semibold mb-2">{tier.name}</h3>
+                  <p className="text-gray-600 mb-4">{tier.description}</p>
+                  <div className="text-3xl font-bold mb-6">{tier.price}</div>
+                  <ul className="space-y-3 mb-6">
+                    {tier.features.map((feature, i) => (
+                      <li key={i} className="flex items-center">
+                        <FaCheckCircle className="text-green-500 mr-2 flex-shrink-0" />
+                        <span className="text-gray-700">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    variant={tier.name === "Professional" ? "primary" : "secondary"}
+                    fullWidth
+                    onClick={handleStartFreeTrial}
+                  >
+                    Get Started
+                  </Button>
+                </Card>
               </motion.div>
             ))}
           </div>
@@ -372,19 +385,24 @@ const Overview: React.FC = () => {
                 key={index}
                 {...fadeInUp}
                 transition={{ delay: index * 0.1 }}
-                className="bg-white p-8 rounded-xl shadow-sm hover:shadow-md transition"
               >
-                <div className="mb-6">{useCase.icon}</div>
-                <h3 className="text-xl font-semibold mb-4">{useCase.industry}</h3>
-                <p className="text-gray-600 mb-6">{useCase.description}</p>
-                <ul className="space-y-3">
-                  {useCase.benefits.map((benefit, i) => (
-                    <li key={i} className="flex items-center text-gray-600">
-                      <FaCheckCircle className="text-green-500 mr-2 flex-shrink-0" />
-                      {benefit}
-                    </li>
-                  ))}
-                </ul>
+                <Card
+                  interactive
+                  elevation="sm"
+                  className="h-full hover:border-blue-200"
+                >
+                  <div className="mb-6">{useCase.icon}</div>
+                  <h3 className="text-xl font-semibold mb-4">{useCase.industry}</h3>
+                  <p className="text-gray-600 mb-6">{useCase.description}</p>
+                  <ul className="space-y-3">
+                    {useCase.benefits.map((benefit, i) => (
+                      <li key={i} className="flex items-center text-gray-600">
+                        <FaCheckCircle className="text-green-500 mr-2 flex-shrink-0" />
+                        {benefit}
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
               </motion.div>
             ))}
           </div>
@@ -392,29 +410,33 @@ const Overview: React.FC = () => {
       </section>
 
       {/* Call to Action */}
-      <section className="bg-gradient-to-r from-blue-700 to-blue-900 text-white py-20">
+      <section className="bg-[#4338CA] text-white py-32">
         <div className="container mx-auto px-4 text-center">
           <motion.div
             {...fadeInUp}
-            className="max-w-3xl mx-auto"
+            className="max-w-4xl mx-auto"
           >
-            <h2 className="text-3xl font-bold mb-6">Ready to Transform Your Workforce Management?</h2>
-            <p className="text-xl mb-8">
+            <h2 className="text-4xl md:text-5xl text-white/90 font-bold mb-8">Ready to Transform Your Workforce Management?</h2>
+            <p className="text-xl text-white/90 mb-12">
               Join thousands of businesses that trust ClockFlow for their time tracking and workforce management needs.
             </p>
-            <div className="flex justify-center gap-4">
-              <button
+            <div className="flex justify-center gap-6">
+              <Button
+                variant="primary"
+                size="lg"
                 onClick={handleStartFreeTrial}
-                className="bg-white text-blue-700 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition shadow-lg"
+                className="border-2 border-green-500 bg-white text-[#4338CA] hover:bg-white/10 hover:text-white px-8 py-4 text-lg font-semibold"
               >
                 Get Started Now
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="secondary"
+                size="lg"
                 onClick={handleViewDemo}
-                className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-700 transition"
+                className="border-2 border-blue-500 text-[#4338CA] hover:bg-white/10 hover:text-white px-8 py-4 text-lg font-semibold shadow-lg"
               >
                 Schedule a Demo
-              </button>
+              </Button>
             </div>
           </motion.div>
         </div>

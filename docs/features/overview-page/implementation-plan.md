@@ -32,7 +32,7 @@ Display four distinct pricing tiers:
 - Mobile-responsive interface
 - Email support
 
-#### Professional ($12/user/month)
+#### Professional ($7/user/month)
 - Unlimited employees
 - PTO management
 - Job location tracking
