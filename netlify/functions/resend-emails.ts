@@ -1,7 +1,7 @@
 import { Handler } from '@netlify/functions';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.VITE_RESEND_API_KEY);
 
 interface EmailRequest {
   from: string;
@@ -28,8 +28,8 @@ export const handler: Handler = async (event) => {
 
   try {
     // Validate API key
-    if (!process.env.RESEND_API_KEY) {
-      console.error('Missing RESEND_API_KEY environment variable');
+    if (!process.env.VITE_RESEND_API_KEY) {
+      console.error('Missing VITE_RESEND_API_KEY environment variable');
       return {
         statusCode: 500,
         headers,

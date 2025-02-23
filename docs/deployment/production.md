@@ -24,7 +24,10 @@ This guide covers the process of deploying ClockFlow to production environments.
       
    [build.environment]
      NODE_VERSION = "18"
-      
+
+   [context.production.environment]
+     VITE_RESEND_API_KEY = "${VITE_RESEND_API_KEY}"
+
    [[redirects]]
      from = "/api/resend/emails"
      to = "/.netlify/functions/resend-emails"
@@ -43,8 +46,10 @@ This guide covers the process of deploying ClockFlow to production environments.
    VITE_SUPABASE_URL=your_supabase_url
    VITE_SUPABASE_ANON_KEY=your_supabase_key
    VITE_APP_URL=your_app_url
-   RESEND_API_KEY=your_resend_api_key  # Required for email functionality
+   VITE_RESEND_API_KEY=your_resend_api_key  # Required for email functionality
    ```
+
+   > **Important**: The VITE_RESEND_API_KEY must be set in the Netlify dashboard. This environment variable is used by both the frontend application and the Netlify functions for email sending.
 
 3. **Deploy**
    ```bash
@@ -111,6 +116,7 @@ This guide covers the process of deploying ClockFlow to production environments.
    docker run -d -p 80:80 \
      -e VITE_SUPABASE_URL=your_url \
      -e VITE_SUPABASE_ANON_KEY=your_key \
+     -e VITE_RESEND_API_KEY=your_resend_key \
      clockflow:latest
    ```
 

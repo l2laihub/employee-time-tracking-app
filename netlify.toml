@@ -6,6 +6,15 @@
 [build.environment]
   NODE_VERSION = "18"
 
+[context.production.environment]
+  VITE_RESEND_API_KEY = "${VITE_RESEND_API_KEY}"
+
+[context.deploy-preview.environment]
+  VITE_RESEND_API_KEY = "${VITE_RESEND_API_KEY}"
+
+[context.branch-deploy.environment]
+  VITE_RESEND_API_KEY = "${VITE_RESEND_API_KEY}"
+
 [[redirects]]
   from = "/api/resend/emails"
   to = "/.netlify/functions/resend-emails"
