@@ -1,26 +1,47 @@
 import React from 'react';
 import { Clock, Coffee, CheckCircle } from 'lucide-react';
+import { Badge } from '../design-system';
 
-interface StatusBadgeProps {
-  status: 'inactive' | 'active' | 'break';
+export type TimeEntryStatus = 'inactive' | 'active' | 'break';
+
+export interface StatusBadgeProps {
+  /**
+   * The current status of the time entry
+   */
+  status: TimeEntryStatus;
 }
 
+/**
+ * Status badge component for time entry states
+ */
 export default function StatusBadge({ status }: StatusBadgeProps) {
-  let color;
-  switch (status) {
-    case 'active':
-      color = 'bg-green-100 text-green-800';
-      break;
-    case 'break':
-      color = 'bg-yellow-100 text-yellow-800';
-      break;
-    default:
-      color = 'bg-gray-100 text-gray-800';
-  }
+  const statusConfig = {
+    active: {
+      variant: 'success' as const,
+      icon: <CheckCircle className="h-3 w-3" />,
+      label: 'Active'
+    },
+    break: {
+      variant: 'warning' as const,
+      icon: <Coffee className="h-3 w-3" />,
+      label: 'Break'
+    },
+    inactive: {
+      variant: 'default' as const,
+      icon: <Clock className="h-3 w-3" />,
+      label: 'Inactive'
+    }
+  };
+
+  const config = statusConfig[status];
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
+    <Badge
+      variant={config.variant}
+      size="sm"
+      leftIcon={config.icon}
+    >
+      {config.label}
+    </Badge>
   );
 }

@@ -17,6 +17,7 @@ import {
   Settings,
   UserPlus
 } from 'lucide-react';
+import { Button, Card } from './design-system';
 
 interface SidebarProps {
   onClose?: () => void;
@@ -81,23 +82,30 @@ export default function Sidebar({ onClose }: SidebarProps) {
   };
 
   return (
-    <div className="flex flex-col w-full h-full bg-white shadow-xl">
-      <div className="flex items-center justify-between p-4 border-b">
+    <Card
+      className="flex flex-col w-full h-full rounded-none"
+      elevation="lg"
+      padding={false}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-neutral-100">
         <div className="flex items-center space-x-3">
           <img src="/clockflow_logo.svg" alt="ClockFlow" className="h-8 w-8 object-contain" />
-          <h1 className="text-xl font-bold text-gray-900">ClockFlow</h1>
+          <h1 className="text-xl font-display font-semibold text-neutral-900">ClockFlow</h1>
         </div>
         {onClose && (
-          <button 
-            onClick={onClose} 
-            className="lg:hidden p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200"
+          <Button
+            variant="secondary"
+            onClick={onClose}
+            className="lg:hidden"
             aria-label="Close menu"
           >
             <X className="w-5 h-5" />
-          </button>
+          </Button>
         )}
       </div>
 
+      {/* Navigation */}
       <div className="flex-1 overflow-y-auto">
         <nav className="px-3 py-4 space-y-1">
           {navigation.map((item) => {
@@ -108,15 +116,22 @@ export default function Sidebar({ onClose }: SidebarProps) {
                 key={item.name}
                 to={item.href}
                 onClick={onClose}
-                className={`${
-                  isCurrentPath
-                    ? 'bg-blue-50 text-blue-600 border-blue-600'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-transparent'
-                } group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg border-l-4 transition-colors duration-200`}
+                className={`
+                  group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg
+                  transition-all duration-150 border-l-[3px]
+                  ${isCurrentPath
+                    ? 'bg-primary-50 text-primary-700 border-primary-600'
+                    : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent'
+                  }
+                `}
               >
-                <Icon className={`mr-3 h-5 w-5 flex-shrink-0 ${
-                  isCurrentPath ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'
-                }`} />
+                <Icon className={`
+                  mr-3 h-5 w-5 flex-shrink-0 transition-colors duration-150
+                  ${isCurrentPath
+                    ? 'text-primary-600'
+                    : 'text-neutral-400 group-hover:text-neutral-500'
+                  }
+                `} />
                 {item.name}
               </Link>
             );
@@ -124,31 +139,35 @@ export default function Sidebar({ onClose }: SidebarProps) {
         </nav>
       </div>
 
-      <div className="flex-shrink-0 border-t border-gray-200 p-4">
+      {/* Footer */}
+      <div className="flex-shrink-0 border-t border-neutral-100 p-4">
         <div className="flex-shrink-0 w-full group">
-            <Link
-              to="/settings"
-              onClick={onClose}
-              className="flex items-center p-2 rounded-lg hover:bg-gray-50 mb-2"
-            >
-              <div className="truncate flex-1">
-                <p className="text-sm font-medium text-gray-700">
-                  {employeeData?.first_name} {employeeData?.last_name}
-                </p>
-                <p className="text-xs font-medium text-gray-500 truncate capitalize">{userRole}</p>
-              </div>
-              <Settings className="h-5 w-5 text-gray-500" />
-            </Link>
-            <button
-              onClick={() => signOut()}
-              className="w-full flex items-center justify-center p-2 text-gray-500 hover:text-gray-700 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200"
-              aria-label="Sign out"
-            >
-              <span className="mr-2">Sign Out</span>
-              <LogOut className="h-5 w-5" />
-            </button>
+          <Link
+            to="/settings"
+            onClick={onClose}
+            className="flex items-center p-2 rounded-lg hover:bg-neutral-50 mb-2 transition-colors duration-150"
+          >
+            <div className="truncate flex-1">
+              <p className="text-sm font-medium text-neutral-900">
+                {employeeData?.first_name} {employeeData?.last_name}
+              </p>
+              <p className="text-xs font-medium text-neutral-500 truncate capitalize">
+                {userRole}
+              </p>
+            </div>
+            <Settings className="h-5 w-5 text-neutral-400" />
+          </Link>
+          <Button
+            variant="secondary"
+            onClick={() => signOut()}
+            className="w-full justify-center"
+            size="sm"
+          >
+            <span className="mr-2">Sign Out</span>
+            <LogOut className="h-5 w-5" />
+          </Button>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

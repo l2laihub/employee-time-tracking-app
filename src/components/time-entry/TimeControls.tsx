@@ -1,15 +1,42 @@
 import React from 'react';
 import { Clock, Coffee, CheckCircle } from 'lucide-react';
+import { Button } from '../design-system';
 
 interface TimeControlsProps {
+  /**
+   * Whether the user is currently clocked in
+   */
   isActive: boolean;
+
+  /**
+   * Whether the user is currently on break
+   */
   isOnBreak: boolean;
+
+  /**
+   * Callback when user clocks in
+   */
   onClockIn: () => void;
+
+  /**
+   * Callback when user clocks out
+   */
   onClockOut: () => void;
+
+  /**
+   * Callback when user starts a break
+   */
   onStartBreak: () => void;
+
+  /**
+   * Callback when user ends a break
+   */
   onEndBreak: () => void;
 }
 
+/**
+ * Time tracking control buttons component
+ */
 export default function TimeControls({
   isActive,
   isOnBreak,
@@ -20,41 +47,49 @@ export default function TimeControls({
 }: TimeControlsProps) {
   if (!isActive) {
     return (
-      <button
+      <Button
+        variant="primary"
         onClick={onClockIn}
-        className="w-full px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-base sm:text-sm"
+        fullWidth
+        size="lg"
+        leftIcon={<Clock className="h-5 w-5" />}
       >
-        <Clock className="inline-block w-5 h-5 mr-2" />
         Clock In
-      </button>
+      </Button>
     );
   }
 
   return (
     <div className="flex flex-col sm:flex-row w-full gap-3">
-      <button
+      <Button
+        variant="primary"
         onClick={onClockOut}
-        className="flex-1 px-4 py-3 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-base sm:text-sm"
+        fullWidth
+        leftIcon={<CheckCircle className="h-5 w-5" />}
       >
-        <CheckCircle className="inline-block w-5 h-5 mr-2" />
         Clock Out
-      </button>
+      </Button>
+      
       {isOnBreak ? (
-        <button
+        <Button
+          variant="primary"
           onClick={onEndBreak}
-          className="flex-1 px-4 py-3 sm:py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-base sm:text-sm"
+          fullWidth
+          className="!bg-success-600 hover:!bg-success-700"
+          leftIcon={<Coffee className="h-5 w-5" />}
         >
-          <Coffee className="inline-block w-5 h-5 mr-2" />
           End Break
-        </button>
+        </Button>
       ) : (
-        <button
+        <Button
+          variant="primary"
           onClick={onStartBreak}
-          className="flex-1 px-4 py-3 sm:py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors text-base sm:text-sm"
+          fullWidth
+          className="!bg-warning-600 hover:!bg-warning-700"
+          leftIcon={<Coffee className="h-5 w-5" />}
         >
-          <Coffee className="inline-block w-5 h-5 mr-2" />
           Start Break
-        </button>
+        </Button>
       )}
     </div>
   );

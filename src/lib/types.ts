@@ -35,4 +35,27 @@ export interface SortConfig {
   direction: 'asc' | 'desc';
 }
 
-// Other types...
+// Job Location Types
+export interface JobLocation {
+  id: string;
+  name: string;
+  type: 'commercial' | 'residential';
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  is_active: boolean;
+}
+
+// Time Entry Types
+export interface TimeEntry {
+  id: string;
+  employee_id: string;
+  job_location_id: string;
+  clock_in: string;
+  clock_out?: string;
+  status: 'active' | 'break' | 'completed';
+  work_description?: string;
+  created_at: string;
+  updated_at: string;
+}

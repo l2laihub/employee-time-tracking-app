@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Users, Clock, CalendarDays, FileText } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useOrganization } from '../../contexts/OrganizationContext';
+import { Card, LoadingSpinner, Button } from '../design-system';
 import ActivityFeed from './ActivityFeed';
 import StatsGrid from './StatsGrid';
 import { listTimesheetsForOrganization } from '../../services/timesheets';
@@ -9,6 +10,7 @@ import { listTimeEntries } from '../../services/timeEntries';
 import { listPTORequests } from '../../services/pto';
 import { supabase } from '../../lib/supabase';
 import { TimeEntry, Timesheet } from '../../types/custom.types';
+import { toast } from '../../lib/toast';
 
 interface Employee {
   id: string;
@@ -24,7 +26,6 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const { organization } = useOrganization();
   
-  // Add loading and error states
   const [isLoading, setIsLoading] = useState({
     employees: true,
     timesheets: true,
@@ -33,7 +34,6 @@ export default function AdminDashboard() {
   });
   const [error, setError] = useState<string | null>(null);
   
-  // Add data states
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
@@ -74,7 +74,13 @@ export default function AdminDashboard() {
         
         setEmployees(formattedEmployees);
       } catch (err) {
-        setError('Failed to fetch employees');
+        const message = 'Failed to fetch employees';
+        setError(message);
+        toast({
+          title: 'Error',
+          description: message,
+          variant: 'destructive'
+        });
         console.error('Error fetching employees:', err);
       } finally {
         setIsLoading(prev => ({ ...prev, employees: false }));
@@ -97,7 +103,13 @@ export default function AdminDashboard() {
           throw new Error(result.error || 'Failed to fetch timesheets');
         }
       } catch (err) {
-        setError('Failed to fetch timesheets');
+        const message = 'Failed to fetch timesheets';
+        setError(message);
+        toast({
+          title: 'Error',
+          description: message,
+          variant: 'destructive'
+        });
         console.error('Error fetching timesheets:', err);
       } finally {
         setIsLoading(prev => ({ ...prev, timesheets: false }));
@@ -129,7 +141,13 @@ export default function AdminDashboard() {
           throw new Error(result.error || 'Failed to fetch time entries');
         }
       } catch (err) {
-        setError('Failed to fetch time entries');
+        const message = 'Failed to fetch time entries';
+        setError(message);
+        toast({
+          title: 'Error',
+          description: message,
+          variant: 'destructive'
+        });
         console.error('Error fetching time entries:', err);
       } finally {
         setIsLoading(prev => ({ ...prev, timeEntries: false }));
@@ -152,7 +170,13 @@ export default function AdminDashboard() {
           throw new Error(result.error || 'Failed to fetch PTO requests');
         }
       } catch (err) {
-        setError('Failed to fetch PTO requests');
+        const message = 'Failed to fetch PTO requests';
+        setError(message);
+        toast({
+          title: 'Error',
+          description: message,
+          variant: 'destructive'
+        });
         console.error('Error fetching PTO requests:', err);
       } finally {
         setIsLoading(prev => ({ ...prev, ptoRequests: false }));
@@ -204,15 +228,17 @@ export default function AdminDashboard() {
 
   if (error) {
     return (
-      <div className="p-4 bg-red-50 text-red-800 rounded-lg">
-        <p>{error}</p>
-        <button
+      <Card className="p-4 bg-error-50 border-error-100">
+        <p className="text-error-700">{error}</p>
+        <Button
+          variant="secondary"
           onClick={() => window.location.reload()}
-          className="mt-2 text-sm text-red-600 hover:text-red-800"
+          className="mt-2"
+          size="sm"
         >
           Retry
-        </button>
-      </div>
+        </Button>
+      </Card>
     );
   }
 
@@ -221,38 +247,44 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">Overview of today's operations</p>
+        <h1 className="text-2xl font-display font-semibold text-neutral-900">
+          Dashboard
+        </h1>
+        <p className="text-neutral-600">Overview of today's operations</p>
       </div>
 
       {isLoadingAny ? (
         <div className="flex justify-center items-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <LoadingSpinner size="lg" />
         </div>
       ) : (
         <>
           <StatsGrid stats={stats} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white rounded-lg shadow p-6">
+            <Card>
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold">Recent Activity</h2>
+                <h2 className="text-lg font-display font-semibold text-neutral-900">
+                  Recent Activity
+                </h2>
                 <Link 
                   to="/time-entry" 
-                  className="text-sm text-blue-600 hover:text-blue-700"
+                  className="text-sm text-primary-600 hover:text-primary-700"
                 >
                   View All
                 </Link>
               </div>
               <ActivityFeed />
-            </div>
+            </Card>
 
-            <div className="bg-white rounded-lg shadow p-6">
+            <Card>
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold">Department Overview</h2>
+                <h2 className="text-lg font-display font-semibold text-neutral-900">
+                  Department Overview
+                </h2>
                 <Link 
                   to="/employees" 
-                  className="text-sm text-blue-600 hover:text-blue-700"
+                  className="text-sm text-primary-600 hover:text-primary-700"
                 >
                   Manage Employees
                 </Link>
@@ -263,10 +295,10 @@ export default function AdminDashboard() {
                   const activeUsers = deptUsers.filter(user => user.role !== 'inactive');
                   
                   return (
-                    <div key={dept} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div key={dept} className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg">
                       <div>
-                        <h3 className="font-medium text-gray-900">{dept}</h3>
-                        <p className="text-sm text-gray-500">
+                        <h3 className="font-medium text-neutral-900">{dept}</h3>
+                        <p className="text-sm text-neutral-500">
                           {activeUsers.length} active / {deptUsers.length} total
                         </p>
                       </div>
@@ -274,17 +306,17 @@ export default function AdminDashboard() {
                         {deptUsers.slice(0, 3).map((user) => (
                           <div
                             key={user.id}
-                            className="w-8 h-8 rounded-full bg-blue-100 border-2 border-white flex items-center justify-center"
+                            className="w-8 h-8 rounded-full bg-primary-100 border-2 border-white flex items-center justify-center"
                             title={`${user.first_name} ${user.last_name}`}
                           >
-                            <span className="text-xs text-blue-600 font-medium">
+                            <span className="text-xs text-primary-600 font-medium">
                               {user.first_name[0]}{user.last_name[0]}
                             </span>
                           </div>
                         ))}
                         {deptUsers.length > 3 && (
-                          <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
-                            <span className="text-xs text-gray-600 font-medium">
+                          <div className="w-8 h-8 rounded-full bg-neutral-100 border-2 border-white flex items-center justify-center">
+                            <span className="text-xs text-neutral-600 font-medium">
                               +{deptUsers.length - 3}
                             </span>
                           </div>
@@ -294,7 +326,7 @@ export default function AdminDashboard() {
                   );
                 })}
               </div>
-            </div>
+            </Card>
           </div>
         </>
       )}

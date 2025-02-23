@@ -1,9 +1,9 @@
 import React, { useRef, useState } from 'react';
-import { Upload, Download, X } from 'lucide-react';
-import Button from '../common/Button';
+import { Upload, Download } from 'lucide-react';
+import { Button, Modal, LoadingSpinner } from '../design-system';
 import { parseCSV } from '../../utils/csvParser';
-import { useEmployees } from '../../contexts/EmployeeContext';
 import { Employee } from '../../lib/types';
+import { toast } from '../../lib/toast';
 
 type EmployeeImport = Omit<Employee, 'id' | 'organization_id' | 'member_id'>;
 
@@ -77,8 +77,8 @@ export default function ImportEmployeesModal({ isOpen, onClose, onImport }: Impo
             // Set default values for optional fields
             validEmployees.push({
               ...emp,
-              phone: emp.phone || null,
-              department: emp.department || null,
+              phone: emp.phone || undefined,
+              department: emp.department || '',
               status: emp.status || 'active',
               pto: {
                 vacation: {
@@ -111,7 +111,11 @@ export default function ImportEmployeesModal({ isOpen, onClose, onImport }: Impo
       console.log('Valid employees to import:', validEmployees);
       await onImport(validEmployees);
       
-      alert(`Successfully imported ${validEmployees.length} employees`);
+      toast({
+        title: 'Success',
+        description: `Successfully imported ${validEmployees.length} employees`,
+        variant: 'default'
+      });
       
       // Reset the file input and close the modal
       if (fileInputRef.current) {
@@ -120,7 +124,11 @@ export default function ImportEmployeesModal({ isOpen, onClose, onImport }: Impo
       onClose();
     } catch (error) {
       console.error('Error importing employees:', error);
-      alert(error instanceof Error ? error.message : 'Please check the file format and try again');
+      toast({
+        title: 'Error importing employees',
+        description: error instanceof Error ? error.message : 'Please check the file format and try again',
+        variant: 'destructive'
+      });
     } finally {
       setIsLoading(false);
     }
@@ -131,75 +139,71 @@ export default function ImportEmployeesModal({ isOpen, onClose, onImport }: Impo
       const response = await fetch('/employee_template.csv');
       if (!response.ok) {
         e.preventDefault();
-        alert('Template file not found. Please contact support.');
+        toast({
+          title: 'Error',
+          description: 'Template file not found. Please contact support.',
+          variant: 'destructive'
+        });
       }
     } catch (error) {
       e.preventDefault();
-      alert('Failed to check template file. Please try again later.');
+      toast({
+        title: 'Error',
+        description: 'Failed to check template file. Please try again later.',
+        variant: 'destructive'
+      });
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-lg w-full p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold">Import Employees</h3>
-          <button 
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-            aria-label="Close modal"
-          >
-            <X className="w-5 h-5" />
-          </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Import Employees"
+    >
+      <div className="space-y-6">
+        <div className="text-sm text-neutral-500">
+          <p>Upload a CSV file containing employee information.</p>
+          <p className="mt-2">
+            Make sure to follow the template format. You can download the template below.
+          </p>
         </div>
 
-        <div className="space-y-6">
-          <div className="text-sm text-gray-500">
-            <p>Upload a CSV file containing employee information.</p>
-            <p className="mt-2">
-              Make sure to follow the template format. You can download the template below.
-            </p>
-          </div>
+        <div className="flex flex-col gap-4">
+          <Button
+            variant="secondary"
+            onClick={() => window.location.href = '/employee_template.csv'}
+            leftIcon={<Download className="h-4 w-4" />}
+          >
+            Download Template
+          </Button>
 
-          <div className="flex flex-col gap-4">
-            <a
-              href="/employee_template.csv"
-              download
-              onClick={handleDownloadTemplate}
-              className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800"
-            >
-              <Download className="w-4 h-4" />
-              Download Template
-            </a>
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".csv"
+            onChange={handleFileChange}
+            className="hidden"
+            aria-label="Import employees from CSV"
+          />
+          
+          <Button
+            variant="primary"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading}
+            leftIcon={isLoading ? <LoadingSpinner size="sm" /> : <Upload className="h-4 w-4" />}
+            fullWidth
+          >
+            {isLoading ? 'Importing...' : 'Select CSV File'}
+          </Button>
+        </div>
 
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept=".csv"
-              onChange={handleFileChange}
-              className="hidden"
-              aria-label="Import employees from CSV"
-            />
-            
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2"
-            >
-              <Upload className="w-4 h-4" />
-              {isLoading ? 'Importing...' : 'Select CSV File'}
-            </Button>
-          </div>
-
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-          </div>
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

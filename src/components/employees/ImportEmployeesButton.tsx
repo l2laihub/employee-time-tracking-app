@@ -1,13 +1,16 @@
 import React, { useRef, useState } from 'react';
-import { Button } from '../ui/Button';
 import { Upload, Download } from 'lucide-react';
+import { Button, LoadingSpinner } from '../design-system';
 import { parseCSV } from '../../utils/csvParser';
 import { useEmployees } from '../../contexts/EmployeeContext';
 import { Employee } from '../../lib/types';
-import { toast } from '../ui/Toast';
+import { toast } from '../../lib/toast';
 
 type EmployeeImport = Omit<Employee, 'id' | 'organization_id' | 'member_id'>;
 
+/**
+ * Button component for importing employees from CSV
+ */
 export default function ImportEmployeesButton() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -68,8 +71,8 @@ export default function ImportEmployeesButton() {
             // Set default values for optional fields
             validEmployees.push({
               ...emp,
-              phone: emp.phone || null,
-              department: emp.department || null,
+              phone: emp.phone || undefined,
+              department: emp.department || '',
               status: emp.status || 'active',
               pto: {
                 vacation: {
@@ -105,7 +108,7 @@ export default function ImportEmployeesButton() {
       toast({
         title: 'Success',
         description: `Successfully imported ${validEmployees.length} employees`,
-        type: 'success'
+        variant: 'default'
       });
       
       // Reset the file input
@@ -117,7 +120,7 @@ export default function ImportEmployeesButton() {
       toast({
         title: 'Error importing employees',
         description: error instanceof Error ? error.message : 'Please check the file format and try again',
-        type: 'error'
+        variant: 'destructive'
       });
     } finally {
       setIsLoading(false);
@@ -131,22 +134,21 @@ export default function ImportEmployeesButton() {
       toast({
         title: 'Error',
         description: 'Template file not found. Please contact support.',
-        type: 'error'
+        variant: 'destructive'
       });
     }
   };
 
   return (
-    <div className="flex gap-2">
-      <a
-        href="/employee_template.csv"
-        download
-        onClick={handleDownloadTemplate}
-        className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+    <div className="flex items-center gap-4">
+      <Button
+        variant="secondary"
+        onClick={() => window.location.href = '/employee_template.csv'}
+        leftIcon={<Download className="h-4 w-4" />}
       >
-        <Download className="w-4 h-4" />
         Download Template
-      </a>
+      </Button>
+
       <input
         type="file"
         ref={fileInputRef}
@@ -155,13 +157,13 @@ export default function ImportEmployeesButton() {
         className="hidden"
         aria-label="Import employees from CSV"
       />
+
       <Button
+        variant="primary"
         onClick={() => fileInputRef.current?.click()}
         disabled={isLoading}
-        variant="outline"
-        className="flex items-center gap-2"
+        leftIcon={isLoading ? <LoadingSpinner size="sm" /> : <Upload className="h-4 w-4" />}
       >
-        <Upload className="w-4 h-4" />
         {isLoading ? 'Importing...' : 'Import Employees'}
       </Button>
     </div>

@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
+import { Menu } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrganization } from '../contexts/OrganizationContext';
+import { Button, Card } from './design-system';
 import Sidebar from './Sidebar';
-import { Menu } from 'lucide-react';
-import { useState } from 'react';
 
 export default function Layout() {
   const { user, signOut } = useAuth();
@@ -12,63 +12,71 @@ export default function Layout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-neutral-50">
       {/* Mobile menu button */}
-      <button
+      <Button
+        variant="secondary"
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-20 p-2.5 rounded-lg bg-white shadow-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="lg:hidden fixed top-4 left-4 z-20"
         aria-label="Toggle menu"
       >
-        <Menu className="h-5 w-5 text-gray-600" />
-      </button>
+        <Menu className="h-5 w-5 text-neutral-600" />
+      </Button>
 
       {/* Backdrop */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-10 lg:hidden backdrop-blur-sm transition-opacity"
+          className="fixed inset-0 bg-neutral-900/50 z-10 lg:hidden backdrop-blur-sm transition-all duration-300"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
-      <div className={`
-        fixed inset-y-0 left-0 z-20 transform lg:relative lg:translate-x-0 
-        transition duration-300 ease-in-out w-[280px] lg:w-64
-        ${isSidebarOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full'}
-      `}>
+      <div
+        className={`
+          fixed inset-y-0 left-0 z-20 transform lg:relative lg:translate-x-0 
+          transition-all duration-300 ease-in-out w-[280px] lg:w-64
+          ${isSidebarOpen ? 'translate-x-0 shadow-lg' : '-translate-x-full'}
+        `}
+      >
         <Sidebar onClose={() => setIsSidebarOpen(false)} />
       </div>
 
       {/* Main content */}
       <div className="flex-1 overflow-auto">
-        {/* Simplified header */}
-        <header className="bg-white shadow-sm">
+        {/* Header */}
+        <Card
+          elevation="sm"
+          padding={false}
+          className="rounded-none border-x-0 border-t-0"
+        >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-end items-center h-16">
               <div className="flex items-center space-x-4">
                 <div className="flex flex-col items-end text-right">
-                  <span className="text-sm font-medium text-gray-700">
+                  <span className="text-sm font-medium text-neutral-900">
                     {user?.email}
                   </span>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-neutral-500">
                     {organization?.name}
                   </span>
                 </div>
                 <img
-                  className="h-8 w-8 rounded-full"
+                  className="h-8 w-8 rounded-full ring-2 ring-neutral-100"
                   src={user?.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${user?.email}`}
                   alt=""
                 />
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={signOut}
-                  className="ml-4 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 bg-white hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   Sign Out
-                </button>
+                </Button>
               </div>
             </div>
           </div>
-        </header>
+        </Card>
 
         {/* Page content */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">

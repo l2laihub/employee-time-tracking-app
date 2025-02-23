@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Edit2, Trash2, Mail, Phone, Calendar, Clock, Briefcase, Stethoscope, ChevronUp, ChevronDown } from 'lucide-react';
-import type { Employee, SortConfig } from '../../lib/types';
-import { formatDateForDisplay } from '../../utils/dateUtils';
+import { Edit2, Trash2, Mail, Phone, Calendar, Briefcase, Stethoscope } from 'lucide-react';
+import { Table, Badge, Button, LoadingSpinner } from '../design-system';
+import type { Column } from '../design-system/Table';
+import EmployeeCard from './EmployeeCard';
 import EmployeeStartDateForm from '../pto/EmployeeStartDateForm';
 import { usePTO } from '../../contexts/PTOContext';
+import type { Employee, SortConfig } from '../../lib/types';
+import { formatDateForDisplay } from '../../utils/dateUtils';
 
 interface EmployeeTableProps {
   employees: Employee[];
@@ -13,6 +16,8 @@ interface EmployeeTableProps {
   sortConfig: SortConfig;
   onSort: (column: SortConfig['column']) => void;
 }
+
+type ColumnKey = SortConfig['column'] | 'contact' | 'pto' | 'actions';
 
 export default function EmployeeTable({ 
   employees, 
@@ -54,202 +59,158 @@ export default function EmployeeTable({
     loadBalances();
   }, [employees, getPTOBalance]);
 
-  const renderSortIcon = (column: SortConfig['column']) => {
-    if (sortConfig.column !== column) {
-      return null;
+  const columns: Column<Employee, ColumnKey>[] = [
+    {
+      key: 'name',
+      header: 'Employee',
+      sortable: true,
+      render: (employee) => (
+        <div>
+          <div className="font-medium text-neutral-900">
+            {employee.first_name} {employee.last_name}
+          </div>
+          <div className="text-sm text-neutral-500">
+            {employee.role}
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'contact',
+      header: 'Contact',
+      render: (employee) => (
+        <div className="flex flex-col text-sm text-neutral-500">
+          <div className="flex items-center">
+            <Mail className="w-4 h-4 mr-1" />
+            {employee.email}
+          </div>
+          {employee.phone && (
+            <div className="flex items-center mt-1">
+              <Phone className="w-4 h-4 mr-1" />
+              {employee.phone}
+            </div>
+          )}
+        </div>
+      )
+    },
+    {
+      key: 'department',
+      header: 'Department',
+      sortable: true,
+      render: (employee) => (
+        <div>
+          <div className="text-neutral-900">{employee.department}</div>
+          <div className="flex items-center text-sm text-neutral-500">
+            <Calendar className="w-4 h-4 mr-1" />
+            {employee.start_date 
+              ? `Started ${formatDateForDisplay(employee.start_date)}`
+              : 'Start date not set'
+            }
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'pto',
+      header: 'PTO Balances',
+      render: (employee) => (
+        <div className="space-y-2">
+          <div className="flex items-center text-sm">
+            <Briefcase className="w-4 h-4 text-primary-500 mr-1" />
+            <span>
+              Vacation: {loadingBalances ? '...' : `${balances[employee.id]?.vacation || 0} hrs`}
+            </span>
+          </div>
+          <div className="flex items-center text-sm">
+            <Stethoscope className="w-4 h-4 text-success-500 mr-1" />
+            <span>
+              Sick Leave: {loadingBalances ? '...' : `${balances[employee.id]?.sick_leave || 0} hrs`}
+            </span>
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      sortable: true,
+      render: (employee) => (
+        <Badge
+          variant={employee.status === 'active' ? 'success' : 'error'}
+          size="sm"
+        >
+          {employee.status}
+        </Badge>
+      )
+    },
+    {
+      key: 'actions',
+      header: '',
+      cellClassName: 'text-right',
+      render: (employee) => (
+        <div className="flex justify-end space-x-3">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => onEdit(employee)}
+            leftIcon={<Edit2 className="w-4 h-4" />}
+          >
+            Edit
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="!text-error-600 !border-error-600 hover:!bg-error-50"
+            onClick={() => onDelete(employee.id)}
+            leftIcon={<Trash2 className="w-4 h-4" />}
+          >
+            Delete
+          </Button>
+        </div>
+      )
     }
-    return sortConfig.direction === 'asc' ? (
-      <ChevronUp className="w-4 h-4 inline-block ml-1" />
-    ) : (
-      <ChevronDown className="w-4 h-4 inline-block ml-1" />
-    );
-  };
+  ];
 
-  const renderSortableHeader = (column: SortConfig['column'], label: string) => (
-    <th 
-      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-      onClick={() => onSort(column)}
-    >
-      <div className="flex items-center">
-        {label}
-        {renderSortIcon(column)}
+  if (loadingBalances) {
+    return (
+      <div className="flex justify-center py-8">
+        <LoadingSpinner size="lg" />
       </div>
-    </th>
-  );
+    );
+  }
 
   return (
     <div>
       {/* Desktop Table View */}
-      <div className="hidden md:block overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              {renderSortableHeader('name', 'Employee')}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Contact
-              </th>
-              {renderSortableHeader('department', 'Department')}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                PTO Balances
-              </th>
-              {renderSortableHeader('status', 'Status')}
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {employees.map(employee => (
-              <tr key={employee.id} className={employee.status === 'inactive' ? 'bg-gray-50' : ''}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">
-                    {employee.first_name} {employee.last_name}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {employee.role}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex flex-col text-sm text-gray-500">
-                    <div className="flex items-center">
-                      <Mail className="w-4 h-4 mr-1" />
-                      {employee.email}
-                    </div>
-                    {employee.phone && (
-                      <div className="flex items-center mt-1">
-                        <Phone className="w-4 h-4 mr-1" />
-                        {employee.phone}
-                      </div>
-                    )}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">{employee.department}</div>
-                  <div className="flex items-center text-sm text-gray-500">
-                    <Calendar className="w-4 h-4 mr-1" />
-                    {employee.start_date ? `Started ${formatDateForDisplay(employee.start_date)}` : 'Start date not set'}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="space-y-2">
-                    <div className="flex items-center text-sm">
-                      <Briefcase className="w-4 h-4 text-blue-500 mr-1" />
-                      <span>
-                        Vacation: {loadingBalances ? '...' : `${balances[employee.id]?.vacation || 0} hrs`}
-                      </span>
-                    </div>
-                    <div className="flex items-center text-sm">
-                      <Stethoscope className="w-4 h-4 text-green-500 mr-1" />
-                      <span>
-                        Sick Leave: {loadingBalances ? '...' : `${balances[employee.id]?.sick_leave || 0} hrs`}
-                      </span>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    employee.status === 'active' 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {employee.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button
-                    onClick={() => onEdit(employee)}
-                    className="text-blue-600 hover:text-blue-900 mr-4"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => onDelete(employee.id)}
-                    className="text-red-600 hover:text-red-900"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="hidden md:block">
+        <Table<Employee, ColumnKey>
+          columns={columns}
+          data={employees}
+          keyExtractor={(employee) => employee.id}
+          sortConfig={{
+            key: sortConfig.column as ColumnKey,
+            direction: sortConfig.direction
+          }}
+          onSort={(key) => {
+            if (key === 'name' || key === 'department' || key === 'status') {
+              onSort(key);
+            }
+          }}
+        />
       </div>
 
       {/* Mobile Card View */}
       <div className="md:hidden space-y-4">
         {employees.map(employee => (
-          <div 
-            key={employee.id} 
-            className={`bg-white rounded-lg shadow-sm p-4 ${
-              employee.status === 'inactive' ? 'bg-gray-50' : ''
-            }`}
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">
-                  {employee.first_name} {employee.last_name}
-                </h3>
-                <p className="text-sm text-gray-500">{employee.role}</p>
-              </div>
-              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                employee.status === 'active' 
-                  ? 'bg-green-100 text-green-800' 
-                  : 'bg-red-100 text-red-800'
-              }`}>
-                {employee.status}
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center text-sm text-gray-500">
-                <Mail className="w-4 h-4 mr-2" />
-                <span className="truncate">{employee.email}</span>
-              </div>
-              {employee.phone && (
-                <div className="flex items-center text-sm text-gray-500">
-                  <Phone className="w-4 h-4 mr-2" />
-                  {employee.phone}
-                </div>
-              )}
-              <div className="flex items-center text-sm text-gray-500">
-                <Briefcase className="w-4 h-4 mr-2" />
-                {employee.department}
-              </div>
-              <div className="flex items-center text-sm text-gray-500">
-                <Calendar className="w-4 h-4 mr-2" />
-                {employee.start_date ? `Started ${formatDateForDisplay(employee.start_date)}` : 'Start date not set'}
-              </div>
-              <div className="flex items-center text-sm text-gray-500">
-                <Clock className="w-4 h-4 mr-2" />
-                <span>
-                  Vacation: {loadingBalances ? '...' : `${balances[employee.id]?.vacation || 0} hrs`}
-                </span>
-              </div>
-              <div className="flex items-center text-sm text-gray-500">
-                <Stethoscope className="w-4 h-4 mr-2" />
-                <span>
-                  Sick Leave: {loadingBalances ? '...' : `${balances[employee.id]?.sick_leave || 0} hrs`}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-4 flex justify-end space-x-3">
-              <button
-                onClick={() => onEdit(employee)}
-                className="inline-flex items-center px-3 py-2 border border-blue-600 text-sm font-medium rounded-md text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                <Edit2 className="w-4 h-4 mr-1" />
-                Edit
-              </button>
-              <button
-                onClick={() => onDelete(employee.id)}
-                className="inline-flex items-center px-3 py-2 border border-red-600 text-sm font-medium rounded-md text-red-600 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-              >
-                <Trash2 className="w-4 h-4 mr-1" />
-                Delete
-              </button>
-            </div>
-          </div>
+          <EmployeeCard
+            key={employee.id}
+            employee={employee}
+            vacationBalance={balances[employee.id]?.vacation || 0}
+            sickLeaveBalance={balances[employee.id]?.sick_leave || 0}
+            loadingBalances={loadingBalances}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
         ))}
       </div>
 
