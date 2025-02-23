@@ -48,7 +48,8 @@ export class EmailServiceImpl implements EmailService {
     html: string;
     tags?: Array<{ name: string; value: string }>;
   }): Promise<void> {
-    const response = await fetch('/api/resend/emails', {
+    // Use the full Netlify function path
+    const response = await fetch('/.netlify/functions/resend-emails', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

@@ -16,6 +16,12 @@
   VITE_RESEND_API_KEY = "${VITE_RESEND_API_KEY}"
 
 [[redirects]]
+  from = "/.netlify/functions/resend-emails"
+  to = "/.netlify/functions/resend-emails"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/resend/emails"
   to = "/.netlify/functions/resend-emails"
   status = 200
