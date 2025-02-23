@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useOrganization } from '../contexts/OrganizationContext';
 import { Button, Card } from './design-system';
 import Sidebar from './Sidebar';
+import UserAvatar from './UserAvatar';
 
 export default function Layout() {
   const { user, signOut } = useAuth();
@@ -61,11 +62,7 @@ export default function Layout() {
                     {organization?.name}
                   </span>
                 </div>
-                <img
-                  className="h-8 w-8 rounded-full ring-2 ring-neutral-100"
-                  src={user?.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${user?.email}`}
-                  alt=""
-                />
+                <UserAvatar />
                 <Button
                   variant="secondary"
                   size="sm"

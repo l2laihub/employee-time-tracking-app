@@ -9,6 +9,7 @@ export interface Employee {
   role: string;
   start_date?: string;
   status: 'active' | 'inactive';
+  photo_url?: string | null;
   pto: {
     vacation: {
       beginningBalance: number;

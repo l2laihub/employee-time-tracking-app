@@ -30,3 +30,6 @@ export type { TableProps, Column } from './Table';
 
 export { Modal } from './Modal';
 export type { ModalProps } from './Modal';
+
+export { ImageUpload } from './ImageUpload';
+export type { ImageUploadProps } from './ImageUpload';

@@ -165,7 +165,7 @@ export async function updateEmployee(
 
     // Determine if this is a user settings update or admin employee update
     const isUserSettingsUpdate = Object.keys(basicInfo).every(key =>
-      ['first_name', 'last_name', 'email', 'phone'].includes(key)
+      ['first_name', 'last_name', 'email', 'phone', 'photo_url'].includes(key)
     );
 
     let updatedEmployee;
@@ -179,7 +179,8 @@ export async function updateEmployee(
           new_first_name: basicInfo.first_name || undefined,
           new_last_name: basicInfo.last_name || undefined,
           new_email: basicInfo.email || undefined,
-          new_phone: basicInfo.phone || null
+          new_phone: basicInfo.phone || null,
+          new_photo_url: basicInfo.photo_url || null
         });
       updatedEmployee = data;
       updateError = error;
