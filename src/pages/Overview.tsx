@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { FiClock, FiUsers, FiCalendar, FiPieChart, FiShield, FiSettings } from 'react-icons/fi';
-import { FaCheckCircle, FaBuilding, FaHospital, FaStore, FaStar, FaAward, FaUserShield } from 'react-icons/fa';
+import { FaCheckCircle, FaBuilding, FaHospital, FaStore, FaStar, FaAward, FaUserShield, FaBriefcase, FaIndustry } from 'react-icons/fa';
 import { clearOnboardingState } from '../utils/onboardingStorage';
 import { Button } from '../components/design-system/Button';
 import { Card } from '../components/design-system/Card';
@@ -185,6 +185,28 @@ const useCases = [
       "Contract compliance",
       "Performance monitoring"
     ]
+  },
+  {
+    icon: <FaBriefcase className="w-12 h-12 text-blue-600" />,
+    industry: "Professional Services",
+    description: "Streamline billable hours tracking and project management for consulting firms.",
+    benefits: [
+      "Client billing automation",
+      "Project time allocation",
+      "Resource utilization",
+      "Productivity analytics"
+    ]
+  },
+  {
+    icon: <FaIndustry className="w-12 h-12 text-blue-600" />,
+    industry: "Manufacturing",
+    description: "Optimize workforce scheduling and track production time across multiple shifts.",
+    benefits: [
+      "Shift management",
+      "Production time tracking",
+      "Equipment utilization",
+      "Labor cost analysis"
+    ]
   }
 ];
 
@@ -221,8 +243,12 @@ const Overview: React.FC = () => {
     navigate('/onboarding');
   };
 
-  const handleViewDemo = () => {
-    navigate('/demo');
+  const handleContactUs = () => {
+    // Using verified sender email from email service
+    const emailAddress = 'l2laihub@gmail.com';
+    const subject = encodeURIComponent('Interested in ClockFlow');
+    const body = encodeURIComponent('Hi, I would like to learn more about ClockFlow for my business.');
+    window.location.href = `mailto:${emailAddress}?subject=${subject}&body=${body}`;
   };
 
   return (
@@ -263,15 +289,15 @@ const Overview: React.FC = () => {
                 onClick={handleStartFreeTrial}
                 className="border-2 border-green-500 bg-white text-[#4338CA] hover:bg-white/10 hover:text-white px-8 py-4 text-lg font-semibold"
               >
-                Get Started Now
+                Get Started Now for Free
               </Button>
               <Button
                 variant="secondary"
                 size="lg"
-                onClick={handleViewDemo}
+                onClick={handleContactUs}
                 className="border-2 border-blue-500 text-[#4338CA] hover:bg-white/10 hover:text-white px-8 py-4 text-lg font-semibold shadow-lg"
               >
-                View Demo
+                Schedule a Demo
               </Button>
             </div>
             
@@ -393,7 +419,7 @@ const Overview: React.FC = () => {
           <p className="text-gray-600 text-center mb-12 max-w-2xl mx-auto">
             See how businesses across different industries leverage ClockFlow to optimize their operations.
           </p>
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
             {useCases.map((useCase, index) => (
               <motion.div
                 key={index}
@@ -446,10 +472,10 @@ const Overview: React.FC = () => {
               <Button
                 variant="secondary"
                 size="lg"
-                onClick={handleViewDemo}
+                onClick={handleContactUs}
                 className="border-2 border-blue-500 text-[#4338CA] hover:bg-white/10 hover:text-white px-8 py-4 text-lg font-semibold shadow-lg"
               >
-                Schedule a Demo
+                Book a Demo
               </Button>
             </div>
           </motion.div>
