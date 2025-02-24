@@ -82,7 +82,7 @@ export default function AcceptInvite() {
         // redirect them to the dashboard instead of showing an error
         if (data.error === 'Invite already accepted' && user) {
           toast.success('You have already joined this organization');
-          navigate('/');
+          navigate('/dashboard');
           return;
         }
         
@@ -134,7 +134,7 @@ export default function AcceptInvite() {
       }
 
       toast.success('Successfully joined organization');
-      navigate('/');
+      navigate('/dashboard');
     } catch (error: any) {
       console.error('Error accepting invite:', {
         message: error.message,

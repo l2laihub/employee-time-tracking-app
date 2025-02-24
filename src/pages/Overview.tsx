@@ -192,17 +192,17 @@ const trustIndicators = [
   {
     icon: <FaStar className="w-6 h-6 text-yellow-400" />,
     title: "4.8/5 Average Rating",
-    description: "From over 1,000+ reviews"
-  },
-  {
-    icon: <FaUserShield className="w-6 h-6 text-green-500" />,
-    title: "SOC 2 Compliant",
-    description: "Enterprise-grade security"
+    description: "From over 1,000+ satisfied customers"
   },
   {
     icon: <FaAward className="w-6 h-6 text-blue-500" />,
     title: "Industry Leader",
     description: "Trusted by 10,000+ businesses"
+  },
+  {
+    icon: <FaUserShield className="w-6 h-6 text-green-500" />,
+    title: "Enterprise Security",
+    description: "Bank-level data protection"
   }
 ];
 
@@ -236,12 +236,26 @@ const Overview: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <h1 className="text-5xl md:text-7xl font-bold mb-8 max-w-5xl mx-auto leading-tight text-white">
-              Transform Your Workforce Management
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 max-w-5xl mx-auto leading-tight text-white">
+              Empower Your Team, Maximize Productivity
             </h1>
-            <p className="text-xl text-white/90 mb-12 max-w-2xl mx-auto">
-              ClockFlow combines powerful time tracking with comprehensive workforce management tools to help your business thrive.
+            <p className="text-2xl text-white/90 mb-8 max-w-3xl mx-auto">
+              The all-in-one platform that streamlines time tracking, simplifies timesheet generation, empowers productivity, and boosts team efficiency—trusted by many businesses.
             </p>
+            <div className="flex flex-wrap justify-center gap-4 mb-12">
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg px-6 py-3">
+                <span className="text-2xl font-bold text-green-400">98%</span>
+                <p className="text-sm text-white/80">Time Saved in Payroll</p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg px-6 py-3">
+                <span className="text-2xl font-bold text-green-400">2.5x</span>
+                <p className="text-sm text-white/80">Productivity Boost</p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg px-6 py-3">
+                <span className="text-2xl font-bold text-green-400">15min</span>
+                <p className="text-sm text-white/80">Quick Setup</p>
+              </div>
+            </div>
             <div className="flex justify-center gap-6">
               <Button
                 variant="primary"
