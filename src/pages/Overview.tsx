@@ -251,8 +251,23 @@ const Overview: React.FC = () => {
     window.location.href = `mailto:${emailAddress}?subject=${subject}&body=${body}`;
   };
 
+  const handleLogin = () => {
+    navigate('/login');
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 relative">
+      {/* Login Link */}
+      <div className="absolute top-4 right-4 z-10">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleLogin}
+          className="bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white border border-white/20 px-6 py-2 rounded-full font-medium"
+        >
+          Login
+        </Button>
+      </div>
       {/* Hero Section */}
       <section className="bg-[#4338CA] text-white py-32">
         <div className="container mx-auto px-4">
