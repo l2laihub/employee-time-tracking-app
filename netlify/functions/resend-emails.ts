@@ -39,6 +39,17 @@ export const handler: Handler = async (event) => {
 
     const { from, to, subject, html, tags } = JSON.parse(event.body || '{}') as EmailRequest;
 
+    // Log request details
+    console.log('Processing email request:', {
+      to,
+      from,
+      subject,
+      hasHtml: !!html,
+      htmlLength: html?.length,
+      tags,
+      timestamp: new Date().toISOString()
+    });
+
     // Validate required fields
     if (!from || !to || !subject || !html) {
       return {
@@ -49,32 +60,73 @@ export const handler: Handler = async (event) => {
     }
 
     // Send email using Resend
-    const data = await resend.emails.send({
-      from,
-      to,
-      subject,
-      html,
-      tags: tags || []
-    });
+    try {
+      console.log('Sending email via Resend:', {
+        to,
+        from,
+        subject,
+        timestamp: new Date().toISOString()
+      });
 
-    if ('error' in data && data.error) {
-      console.error('Resend API error:', data.error);
+      const data = await resend.emails.send({
+        from,
+        to,
+        subject,
+        html,
+        tags: tags || []
+      });
+
+      console.log('Resend API response:', {
+        data,
+        timestamp: new Date().toISOString()
+      });
+
+      if ('error' in data && data.error) {
+        console.error('Resend API error response:', {
+          error: data.error,
+          timestamp: new Date().toISOString()
+        });
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ 
+            error: data.error.message || 'Failed to send email',
+            details: data.error
+          })
+        };
+      }
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify(data)
+      };
+    } catch (resendError) {
+      console.error('Resend API error:', {
+        error: resendError,
+        errorName: resendError instanceof Error ? resendError.name : 'Unknown',
+        errorMessage: resendError instanceof Error ? resendError.message : 'Unknown error',
+        stack: resendError instanceof Error ? resendError.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
+
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ 
-          error: data.error.message || 'Failed to send email'
+          error: resendError instanceof Error ? resendError.message : 'Failed to send email',
+          details: resendError
         })
       };
     }
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(data)
-    };
   } catch (error) {
-    console.error('Email sending error:', error);
+    console.error('Email sending error:', {
+      error,
+      errorName: error instanceof Error ? error.name : 'Unknown',
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
     
     // Handle JSON parse errors
     if (error instanceof SyntaxError) {
@@ -89,7 +141,8 @@ export const handler: Handler = async (event) => {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Internal server error'
+        error: error instanceof Error ? error.message : 'Internal server error',
+        details: error
       })
     };
   }

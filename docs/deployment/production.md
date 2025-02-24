@@ -12,7 +12,34 @@ This guide covers the process of deploying ClockFlow to production environments.
 - Supabase project set up
 - Resend account and API key
 
-#### Steps
+#### Email Service Setup
+
+1. **Resend Configuration**
+   - Create a Resend account at https://resend.com
+   - Verify your domain in Resend:
+     1. Go to Resend Dashboard > Domains
+     2. Add your domain
+     3. Follow the DNS verification steps
+   - Or use Resend's verified sending domain (invites@resend.dev) for testing
+   - Generate an API key from Resend Dashboard > API Keys
+
+2. **Environment Variables**
+   Configure in Netlify dashboard:
+   ```env
+   VITE_SUPABASE_URL=your_supabase_url
+   VITE_SUPABASE_ANON_KEY=your_supabase_key
+   VITE_APP_URL=your_app_url
+   VITE_RESEND_API_KEY=your_resend_api_key  # Required for email functionality
+   ```
+
+   > **Important Notes**:
+   > - The VITE_RESEND_API_KEY must be set in the Netlify dashboard
+   > - In development, emails can only be sent to verified email addresses
+   > - In production, you must either:
+   >   a) Use Resend's verified domain (invites@resend.dev)
+   >   b) Verify your own domain in Resend dashboard
+
+#### Deployment Steps
 
 1. **Build Configuration**
    Create `netlify.toml`:

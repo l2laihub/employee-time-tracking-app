@@ -18,11 +18,11 @@ export class EmailServiceImpl implements EmailService {
   private fromEmail: string;
   private isDevelopment: boolean;
   private readonly VERIFIED_EMAIL = 'l2laihub@gmail.com';
-  private readonly SENDER_EMAIL = 'invites@resend.dev';
+  private readonly SENDER_EMAIL = 'invites@clockflow.app'; // Updated to use verified domain
 
   constructor(fromEmail: string) {
     this.isDevelopment = import.meta.env.MODE === 'development';
-    this.fromEmail = this.SENDER_EMAIL; // Always use Resend's verified domain
+    this.fromEmail = this.SENDER_EMAIL; // Always use verified domain
 
     console.log('Initializing EmailService:', {
       fromEmail,
@@ -102,7 +102,7 @@ export class EmailServiceImpl implements EmailService {
         } else if (options.from !== this.SENDER_EMAIL) {
           throw new Error(
             `Invalid sender email (${options.from}). ` +
-            `Must use Resend's verified domain: ${this.SENDER_EMAIL}`
+            `Must use verified domain: ${this.SENDER_EMAIL}`
           );
         } else {
           throw new Error('Email sending failed: Forbidden. Check Resend dashboard for details.');
@@ -141,7 +141,7 @@ export class EmailServiceImpl implements EmailService {
           message: 'Sending test email to verified address',
           to: this.VERIFIED_EMAIL,
           from: this.fromEmail,
-          note: 'Using Resend verified domain for sending'
+          note: 'Using verified domain for sending'
         });
       }
 
