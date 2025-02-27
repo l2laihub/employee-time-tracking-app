@@ -4,10 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useOrganization } from '../contexts/OrganizationContext';
 import { getEmployeeByEmail } from '../services/employees';
 import type { Employee } from '../lib/types';
-import { 
-  LayoutDashboard, 
-  Clock, 
-  MapPin, 
+import {
+  LayoutDashboard,
+  Clock,
+  MapPin,
   FileText,
   BarChart2,
   Users,
@@ -15,7 +15,8 @@ import {
   LogOut,
   X,
   Settings,
-  UserPlus
+  UserPlus,
+  CreditCard
 } from 'lucide-react';
 import { Button, Card } from './design-system';
 
@@ -73,7 +74,8 @@ export default function Sidebar({ onClose }: SidebarProps) {
     ...(isAdmin ? [
       { name: 'Reports', href: '/reports', icon: BarChart2 },
       { name: 'Organization Settings', href: '/admin/settings', icon: Settings },
-      { name: 'Manage Invites', href: '/admin/invites', icon: UserPlus }
+      { name: 'Manage Invites', href: '/admin/invites', icon: UserPlus },
+      { name: 'Subscription', href: '/admin/subscription', icon: CreditCard }
     ] : []),
   ];
 

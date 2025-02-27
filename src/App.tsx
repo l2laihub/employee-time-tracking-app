@@ -3,6 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import { OrganizationProvider } from './contexts/OrganizationContext';
+import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { BrandingProvider } from './contexts/BrandingContext';
 import { TimeEntryProvider } from './contexts/TimeEntryContext';
 import { EmployeeProvider } from './contexts/EmployeeContext';
@@ -17,23 +18,25 @@ export default function App() {
       <AuthProvider>
         <EmailProvider>
           <OrganizationProvider>
-            <BrandingProvider>
-              <TimeEntryProvider>
-                <EmployeeProvider>
-                  <TimesheetProvider>
-                    <PTOProvider>
-                      <Toaster 
-                        position="top-right" 
-                        expand={true} 
-                        richColors 
-                        duration={5000}
-                      />
-                      <AppRoutes />
-                    </PTOProvider>
-                  </TimesheetProvider>
-                </EmployeeProvider>
-              </TimeEntryProvider>
-            </BrandingProvider>
+            <SubscriptionProvider>
+              <BrandingProvider>
+                <TimeEntryProvider>
+                  <EmployeeProvider>
+                    <TimesheetProvider>
+                      <PTOProvider>
+                        <Toaster
+                          position="top-right"
+                          expand={true}
+                          richColors
+                          duration={5000}
+                        />
+                        <AppRoutes />
+                      </PTOProvider>
+                    </TimesheetProvider>
+                  </EmployeeProvider>
+                </TimeEntryProvider>
+              </BrandingProvider>
+            </SubscriptionProvider>
           </OrganizationProvider>
         </EmailProvider>
       </AuthProvider>
