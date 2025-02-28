@@ -82,7 +82,7 @@ export interface OnboardingState {
 export interface OnboardingContainerProps {
   currentStep: number;
   totalSteps: number;
-  onNext: () => void;
+  onNext?: () => void;
   onBack: () => void;
   onSave: () => void;
   children: ReactNode;

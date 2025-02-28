@@ -75,7 +75,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
       { name: 'Reports', href: '/reports', icon: BarChart2 },
       { name: 'Organization Settings', href: '/admin/settings', icon: Settings },
       { name: 'Manage Invites', href: '/admin/invites', icon: UserPlus },
-      { name: 'Subscription', href: '/admin/subscription', icon: CreditCard }
+      // { name: 'Subscription', href: '/admin/subscription', icon: CreditCard } //temporarily removed until the feature is ready
     ] : []),
   ];
 

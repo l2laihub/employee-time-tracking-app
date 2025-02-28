@@ -4,7 +4,6 @@ import { OnboardingContainerProps } from './types';
 const OnboardingContainer: React.FC<OnboardingContainerProps> = ({
   currentStep,
   totalSteps,
-  onNext,
   onBack,
   onSave,
   children
@@ -81,7 +80,7 @@ const OnboardingContainer: React.FC<OnboardingContainerProps> = ({
 
         {/* Navigation */}
         <div className="flex justify-between items-center">
-          <div className="flex gap-4">
+          <div>
             <button
               onClick={onBack}
               disabled={currentStep === 0}
@@ -92,17 +91,6 @@ const OnboardingContainer: React.FC<OnboardingContainerProps> = ({
               }`}
             >
               Back
-            </button>
-            <button
-              onClick={onNext}
-              disabled={currentStep === totalSteps - 1}
-              className={`px-4 py-2 rounded ${
-                currentStep === totalSteps - 1
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-500 text-white hover:bg-blue-600'
-              }`}
-            >
-              Next
             </button>
           </div>
 

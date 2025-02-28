@@ -191,7 +191,7 @@ const OnboardingContent: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [organization, admin, signUp, createOrganization, completeStep, nextStep]);
+  }, [organization, admin, signUp, createOrganization, completeStep, setStep, steps]);
 
   const handleTeamSubmit = useCallback(() => {
     setError(null);
@@ -322,7 +322,6 @@ const OnboardingContent: React.FC = () => {
     <OnboardingContainer
       currentStep={currentStep}
       totalSteps={steps.length}
-      onNext={nextStep}
       onBack={previousStep}
       onSave={handleSave}
     >
