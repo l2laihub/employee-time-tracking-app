@@ -199,36 +199,63 @@ export default function Signup() {
           // Verify organization membership
           let verifyRetryCount = 0;
           const verifyMaxRetries = 5;
-          while (verifyRetryCount < verifyMaxRetries) {
-            const { data: memberCheck } = await supabase
-              .from('organization_members')
-              .select('id')
-              .eq('user_id', currentUser.id)
-              .single();
+          
+          const verifyAndNavigate = async () => {
+            console.log('Starting organization membership verification');
+            
+            while (verifyRetryCount < verifyMaxRetries) {
+              try {
+                const { data: memberCheck, error: memberCheckError } = await supabase
+                  .from('organization_members')
+                  .select('id')
+                  .eq('user_id', currentUser.id)
+                  .single();
+                
+                console.log(`Verification attempt ${verifyRetryCount + 1}:`, { memberCheck, memberCheckError });
 
-            if (memberCheck) {
-              console.log('Organization membership confirmed');
-              
-              // Ensure loading toast is dismissed before showing success
-              toast.dismiss(toastId);
-              
-              // Show success and navigate
-              toast.success(`Successfully joined ${memberData.organization.name} as ${memberData.role}!`);
-              navigate('/');
-              return;
+                if (memberCheck) {
+                  console.log('Organization membership confirmed, preparing to navigate to dashboard');
+                  
+                  // Ensure loading toast is dismissed before showing success
+                  toast.dismiss(toastId);
+                  
+                  // Show success and explicitly navigate to dashboard
+                  toast.success(`Successfully joined ${memberData.organization.name} as ${memberData.role}!`);
+                  
+                  // Force a refresh of the organization context
+                  refreshOrganization();
+                  
+                  // Use a longer delay to ensure all state updates have completed
+                  console.log('Setting timeout for dashboard navigation');
+                  setTimeout(() => {
+                    console.log('Executing delayed navigation to dashboard');
+                    navigate('/dashboard', { replace: true });
+                  }, 500);
+                  
+                  return true;
+                }
+              } catch (verifyError) {
+                console.error('Error during verification:', verifyError);
+              }
+
+              verifyRetryCount++;
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              console.log(`Organization verification attempt ${verifyRetryCount}/${verifyMaxRetries}`);
             }
+            
+            return false;
+          };
+          
+          const verified = await verifyAndNavigate();
+          
+          if (!verified) {
+            // If we get here, verification failed
+            toast.dismiss(toastId);
+            toast.error('Could not verify organization access. Please try again.');
 
-            verifyRetryCount++;
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            console.log(`Organization verification attempt ${verifyRetryCount}/${verifyMaxRetries}`);
+            console.warn('Organization membership not confirmed after retries');
+            navigate('/');
           }
-
-          // If we get here, verification failed
-          toast.dismiss(toastId);
-          toast.error('Could not verify organization access. Please try again.');
-
-          console.warn('Organization membership not confirmed after retries');
-          navigate('/');
         } catch (error) {
           toast.dismiss(toastId);
           throw error;
@@ -236,11 +263,27 @@ export default function Signup() {
           setIsJoiningOrg(false);
         }
       } else {
-        // No invite, redirect to organization creation
-        if (redirectPath && !redirectPath.includes('accept-invite')) {
-          navigate(redirectPath);
+        // Handle redirects after signup
+        console.log('Handling post-signup navigation:', {
+          redirectPath,
+          hasInvite: redirectPath?.includes('accept-invite'),
+          currentUser: currentUser.id
+        });
+        
+        if (redirectPath) {
+          // If we have a redirect to an invite acceptance page, go there
+          if (redirectPath.includes('accept-invite')) {
+            console.log('Redirecting to accept invite page:', redirectPath);
+            navigate(redirectPath, { replace: true });
+          } else {
+            // For other redirects, follow them
+            console.log('Redirecting to specified path:', redirectPath);
+            navigate(redirectPath, { replace: true });
+          }
         } else {
-          navigate('/create-organization');
+          // No redirect path, go to organization creation
+          console.log('No redirect path, going to organization creation');
+          navigate('/create-organization', { replace: true });
         }
       }
     } catch (error) {

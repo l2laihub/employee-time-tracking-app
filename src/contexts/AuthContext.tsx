@@ -87,7 +87,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) throw error;
-      navigate('/dashboard');
+      console.log('Sign in successful, navigating to dashboard');
+      navigate('/dashboard', { replace: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error signing in');
     } finally {
@@ -144,7 +145,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      navigate('/login');
+      console.log('Sign out successful, navigating to login');
+      navigate('/login', { replace: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error signing out');
     } finally {

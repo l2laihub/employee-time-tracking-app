@@ -26,8 +26,8 @@ export default function AcceptInvite() {
   const inviteCode = inviteId || codeFromQuery;
 
   useEffect(() => {
-    console.log('AcceptInvite mounted', { 
-      inviteId, 
+    console.log('AcceptInvite mounted', {
+      inviteId,
       codeFromQuery,
       inviteCode,
       userEmail: user?.email,
@@ -44,17 +44,30 @@ export default function AcceptInvite() {
     }
   }, [inviteCode]);
 
+  // Re-validate when user changes (e.g., after signup)
   useEffect(() => {
-    console.log('User or invite changed', { 
-      userEmail: user?.email, 
+    if (inviteCode && user) {
+      console.log('User changed or became available, re-validating invite', {
+        inviteCode,
+        userId: user.id,
+        userEmail: user.email,
+        isLoading: loading
+      });
+      validateInvite();
+    }
+  }, [user, inviteCode]);
+
+  useEffect(() => {
+    console.log('User or invite changed', {
+      userEmail: user?.email,
       inviteEmail: invite?.email,
-      isMatch: invite && user && invite.email === user.email 
+      isMatch: invite && user && invite.email === user.email
     });
     
     if (invite && user && invite.email === user.email) {
       acceptInvite();
     }
-  }, [invite, user]);
+  }, [invite, user, inviteCode]); // Add inviteCode to dependencies
 
   const validateInvite = async () => {
     console.log('Validating invite:', inviteCode);
@@ -82,7 +95,8 @@ export default function AcceptInvite() {
         // redirect them to the dashboard instead of showing an error
         if (data.error === 'Invite already accepted' && user) {
           toast.success('You have already joined this organization');
-          navigate('/dashboard');
+          console.log('Invite already accepted, navigating to dashboard');
+          navigate('/dashboard', { replace: true });
           return;
         }
         
@@ -110,14 +124,20 @@ export default function AcceptInvite() {
   };
 
   const acceptInvite = async () => {
-    console.log('Accepting invite', { inviteCode, userId: user?.id });
+    console.log('Accepting invite', {
+      inviteCode,
+      userId: user?.id,
+      userEmail: user?.email,
+      inviteEmail: invite?.email
+    });
+    
     try {
       const { data, error } = await supabase.rpc('accept_organization_invite', {
         p_invite_id: inviteCode,
         p_user_id: user?.id
       });
 
-      console.log('Accept invite response:', { 
+      console.log('Accept invite response:', {
         data,
         error: error ? {
           message: error.message,
@@ -133,8 +153,11 @@ export default function AcceptInvite() {
         throw new Error(data.error);
       }
 
+      console.log('Successfully joined organization, navigating to dashboard');
+      console.log('Successfully joined organization, navigating to dashboard');
       toast.success('Successfully joined organization');
-      navigate('/dashboard');
+      // Use replace: true to ensure clean navigation history
+      navigate('/dashboard', { replace: true });
     } catch (error: any) {
       console.error('Error accepting invite:', {
         message: error.message,
