@@ -5,10 +5,12 @@ import { z } from 'zod';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { JobLocationFormData } from '../../lib/types';
 import { supabase } from '../../lib/supabase';
+import { useOrganization } from '../../contexts/OrganizationContext';
 
 interface ServiceType {
   id: string;
   name: string;
+  organization_id: string;
 }
 
 const formSchema = z.object({
@@ -32,6 +34,7 @@ interface JobLocationFormProps {
 export default function JobLocationForm({ isOpen, onClose, onSubmit, initialData }: JobLocationFormProps) {
   const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
   const [isLoadingServiceTypes, setIsLoadingServiceTypes] = useState(true);
+  const { organization } = useOrganization();
 
   const {
     register,
@@ -56,41 +59,35 @@ export default function JobLocationForm({ isOpen, onClose, onSubmit, initialData
   // Fetch service types from the database
   useEffect(() => {
     async function fetchServiceTypes() {
+      if (!organization?.id) return;
+      
       try {
         setIsLoadingServiceTypes(true);
         
-        // Fetch service types from the database
+        // Fetch service types from the database for the current organization
         const { data, error } = await supabase
           .from('service_types')
           .select('*')
+          .eq('organization_id', organization.id)
           .order('name');
         
         if (error) {
           console.error('Error fetching service types:', error);
-          // Fallback to default values
-          setServiceTypes([
-            { id: 'hvac', name: 'HVAC' },
-            { id: 'plumbing', name: 'Plumbing' },
-            { id: 'both', name: 'Both' }
-          ]);
+          // Fallback to empty array instead of default values
+          setServiceTypes([]);
         } else {
           setServiceTypes(data || []);
         }
       } catch (error) {
         console.error('Error fetching service types:', error);
-        // Fallback to default values
-        setServiceTypes([
-          { id: 'hvac', name: 'HVAC' },
-          { id: 'plumbing', name: 'Plumbing' },
-          { id: 'both', name: 'Both' }
-        ]);
+        setServiceTypes([]);
       } finally {
         setIsLoadingServiceTypes(false);
       }
     }
     
     fetchServiceTypes();
-  }, []);
+  }, [organization?.id]);
 
   const onSubmitForm = (data: JobLocationFormData) => {
     console.log('Form raw data:', JSON.stringify(data, null, 2));
@@ -213,9 +210,12 @@ export default function JobLocationForm({ isOpen, onClose, onSubmit, initialData
                 {...register('service_type')}
                 className="w-full px-3 py-2 border rounded-md"
                 disabled={isLoadingServiceTypes}
+                aria-label="Service Type"
               >
                 {isLoadingServiceTypes ? (
                   <option value="">Loading service types...</option>
+                ) : serviceTypes.length === 0 ? (
+                  <option value="">No service types available</option>
                 ) : (
                   serviceTypes.map((type) => (
                     <option key={type.id} value={type.id}>
@@ -234,8 +234,9 @@ export default function JobLocationForm({ isOpen, onClose, onSubmit, initialData
                 type="checkbox"
                 {...register('is_active')}
                 className="rounded border-gray-300"
+                id="is-active-checkbox"
               />
-              <label className="text-sm font-medium text-gray-700">
+              <label htmlFor="is-active-checkbox" className="text-sm font-medium text-gray-700">
                 Active
               </label>
             </div>

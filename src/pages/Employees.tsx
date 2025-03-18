@@ -5,7 +5,7 @@ import ImportEmployeesModal from '../components/employees/ImportEmployeesModal';
 import EmployeeFilters from '../components/employees/EmployeeFilters';
 import EmployeeTable from '../components/employees/EmployeeTable';
 import type { Employee, EmployeeFilters as EmployeeFiltersType, SortConfig } from '../lib/types';
-import { useEmployees } from '../contexts/EmployeeContext';
+import { useEmployees } from '../contexts/useEmployees';
 import { PTOProvider } from '../contexts/PTOContext';
 
 export default function Employees() {

@@ -27,6 +27,7 @@ export default function AppRoutes() {
   const { organization, userRole, isLoading } = useOrganization();
   const location = useLocation();
   const isAdmin = userRole === 'admin';
+  const isSuperAdmin = userRole === 'super_admin';
 
   if (isLoading) {
     return (
@@ -71,8 +72,11 @@ export default function AppRoutes() {
                   <Route path="/admin/settings" element={<OrganizationSettings />} />
                   <Route path="/admin/invites" element={<OrganizationInvites />} />
                   <Route path="/admin/subscription" element={<SubscriptionManagement />} />
-                  <Route path="/admin/system-settings" element={<AdminSettings />} />
                 </>
+              )}
+              {/* System settings accessible by both super admins and org admins */}
+              {(isAdmin || isSuperAdmin) && (
+                <Route path="/admin/system-settings" element={<AdminSettings />} />
               )}
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

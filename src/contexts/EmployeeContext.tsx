@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useState, useCallback, useEffect, useContext } from 'react';
 import { Employee } from '../lib/types';
 import * as employeeService from '../services/employees';
 import { useOrganization } from './OrganizationContext';
+import { initializeAppData } from '../utils/initialization';
 
 interface EmployeeContextType {
   employees: Employee[];
@@ -14,7 +15,15 @@ interface EmployeeContextType {
   importEmployees: (employees: Omit<Employee, 'id'>[]) => Promise<void>;
 }
 
-const EmployeeContext = createContext<EmployeeContextType | undefined>(undefined);
+export const EmployeeContext = createContext<EmployeeContextType | undefined>(undefined);
+
+export function useEmployees() {
+  const context = useContext(EmployeeContext);
+  if (context === undefined) {
+    throw new Error('useEmployees must be used within an EmployeeProvider');
+  }
+  return context;
+}
 
 export function EmployeeProvider({ children }: { children: React.ReactNode }) {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -168,6 +177,18 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
     refreshEmployees();
   }, [refreshEmployees]);
 
+  useEffect(() => {
+    const setupAppData = async () => {
+      try {
+        await initializeAppData();
+      } catch (error) {
+        console.error('Failed to initialize app data:', error);
+      }
+    };
+
+    setupAppData();
+  }, []);
+
   return (
     <EmployeeContext.Provider value={{
       employees,
@@ -182,12 +203,4 @@ export function EmployeeProvider({ children }: { children: React.ReactNode }) {
       {children}
     </EmployeeContext.Provider>
   );
-}
-
-export function useEmployees() {
-  const context = useContext(EmployeeContext);
-  if (context === undefined) {
-    throw new Error('useEmployees must be used within an EmployeeProvider');
-  }
-  return context;
 }

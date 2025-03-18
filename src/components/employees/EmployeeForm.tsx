@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Loader } from 'lucide-react';
-import { DEPARTMENTS } from '../../lib/constants/departments';
+import { getDepartments } from '../../services/departments';
 import type { Employee } from '../../lib/types';
 import { formatDateForInput, getTodayForInput } from '../../utils/dateUtils';
+import { useOrganization } from '../../contexts/OrganizationContext';
 
 interface EmployeeFormProps {
   employee: Employee | null;
@@ -15,7 +16,9 @@ export default function EmployeeForm({
   onClose, 
   onSubmit
 }: EmployeeFormProps) {
+  const { organization } = useOrganization();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [departments, setDepartments] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -44,8 +47,8 @@ export default function EmployeeForm({
   const [vacationOngoingBalanceInput, setVacationOngoingBalanceInput] = useState<string>('0');
   const [sickLeaveBalanceInput, setSickLeaveBalanceInput] = useState<string>('0');
 
-  // Reset form data when employee changes
   useEffect(() => {
+    // Populate form with employee data if editing
     if (employee) {
       // Ensure PTO data has proper structure with defaults
       const defaultPTO = {
@@ -73,7 +76,7 @@ export default function EmployeeForm({
         role: employee.role,
         department: employee.department || '',
         status: employee.status,
-        start_date: formatDateForInput(employee.start_date),
+        start_date: formatDateForInput(employee.start_date || ''),
         pto: {
           vacation: {
             beginningBalance: vacation.beginningBalance ?? defaultPTO.vacation.beginningBalance,
@@ -94,7 +97,21 @@ export default function EmployeeForm({
       setVacationOngoingBalanceInput(String(vacation.ongoingBalance ?? defaultPTO.vacation.ongoingBalance));
       setSickLeaveBalanceInput(String(sickLeave.beginningBalance ?? defaultPTO.sickLeave.beginningBalance));
     }
-  }, [employee]);
+
+    // Fetch departments from the database
+    const loadDepartments = async () => {
+      try {
+        if (organization?.id) {
+          const fetchedDepartments = await getDepartments();
+          setDepartments(fetchedDepartments);
+        }
+      } catch (error) {
+        console.error('Failed to load departments:', error);
+      }
+    };
+
+    loadDepartments();
+  }, [employee, organization?.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -235,7 +252,7 @@ export default function EmployeeForm({
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
               >
                 <option value="">Select Department</option>
-                {DEPARTMENTS.map(dept => (
+                {departments.map(dept => (
                   <option key={dept} value={dept}>{dept}</option>
                 ))}
               </select>

@@ -1,5 +1,5 @@
 // Core application types
-export type UserRole = 'admin' | 'manager' | 'employee';
+export type UserRole = 'super_admin' | 'admin' | 'manager' | 'employee';
 
 // Location types
 export interface JobLocation {

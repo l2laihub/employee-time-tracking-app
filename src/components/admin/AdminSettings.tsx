@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Settings, Wrench, Users } from 'lucide-react';
+import { Settings, Wrench, Users, Briefcase } from 'lucide-react';
 import ServiceTypeManagement from './ServiceTypeManagement';
+import DepartmentManagement from './DepartmentManagement';
 
 export default function AdminSettings() {
-  const [activeTab, setActiveTab] = useState<'general' | 'service-types' | 'users'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'service-types' | 'users' | 'departments'>('general');
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -48,6 +49,18 @@ export default function AdminSettings() {
               <Users className="mr-3 h-5 w-5" />
               <span>User Management</span>
             </button>
+            
+            <button
+              onClick={() => setActiveTab('departments')}
+              className={`flex items-center px-3 py-2 text-sm font-medium rounded-md w-full ${
+                activeTab === 'departments'
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`}
+            >
+              <Briefcase className="mr-3 h-5 w-5" />
+              <span>Departments</span>
+            </button>
           </nav>
         </div>
         
@@ -75,6 +88,10 @@ export default function AdminSettings() {
               </p>
               {/* User management content will go here */}
             </div>
+          )}
+          
+          {activeTab === 'departments' && (
+            <DepartmentManagement />
           )}
         </div>
       </div>
