@@ -143,7 +143,7 @@ describe('time entries service', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe(mockError.message);
+      expect(result.error).toBe(`Error validating service type: ${mockError.message}`);
     });
   })
 

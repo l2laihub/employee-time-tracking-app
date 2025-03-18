@@ -162,44 +162,83 @@ export async function listTimesheetsForOrganization(
   endDate?: Date
 ): Promise<TimesheetResult> {
   try {
-    // Get all timesheets for the organization
-    const { data: timesheets, error: timesheetsError } = await supabase
+    // First, get the timesheets
+    let query = supabase
       .from('timesheets')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .order('period_start_date', { ascending: false });
+      .select(`
+        id,
+        employee_id,
+        organization_id,
+        period_start_date,
+        period_end_date,
+        status,
+        review_notes,
+        total_hours,
+        created_at,
+        updated_at
+      `)
+      .eq('organization_id', organizationId);
+
+    // Add status filter if provided
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    // Add date range filters if provided
+    if (startDate) {
+      query = query.gte('period_start_date', startDate.toISOString().split('T')[0]);
+    }
+
+    if (endDate) {
+      query = query.lte('period_end_date', endDate.toISOString().split('T')[0]);
+    }
+
+    const { data: timesheets, error: timesheetsError } = await query;
 
     if (timesheetsError) throw timesheetsError;
 
-    // Get employee details for all timesheets
-    const employeeIds = [...new Set(timesheets.map(t => t.employee_id))];
-    const { data: employees, error: employeesError } = await supabase
-      .from('employees')
-      .select('id, first_name, last_name, department')
-      .in('id', employeeIds);
-
-    if (employeesError) throw employeesError;
-
-    // Create employee lookup map
-    const employeeMap = employees.reduce<Record<string, EmployeeDetails>>((map, emp) => {
-      map[emp.id] = emp;
-      return map;
-    }, {});
-
-    // Combine timesheet data with employee details
-    const timesheetsWithEmployees = timesheets.map(timesheet => ({
-      ...timesheet,
-      employee: employeeMap[timesheet.employee_id]
-    }));
-
-    // Apply status filter if provided
-    const filteredTimesheets = status
-      ? timesheetsWithEmployees.filter(timesheet => timesheet.status === status)
-      : timesheetsWithEmployees;
-
+    // If we have timesheets, get the employee details for each
+    if (timesheets && timesheets.length > 0) {
+      // Extract unique employee IDs
+      const employeeIds = [...new Set(timesheets.map(t => t.employee_id))];
+      
+      // Get employee details
+      const { data: employees, error: employeesError } = await supabase
+        .from('employees')
+        .select('id, first_name, last_name, department, member_id')
+        .in('id', employeeIds);
+      
+      if (employeesError) throw employeesError;
+      
+      // Create a map of employee details by ID
+      interface EmployeeDetails {
+        id: string;
+        first_name: string;
+        last_name: string;
+        department?: string;
+        member_id?: string;
+      }
+      
+      const employeeMap = employees.reduce<Record<string, EmployeeDetails>>((map, emp) => {
+        map[emp.id] = emp;
+        return map;
+      }, {});
+      
+      // Combine timesheet data with employee details
+      const timesheetsWithEmployees = timesheets.map(timesheet => ({
+        ...timesheet,
+        employees: employeeMap[timesheet.employee_id]
+      }));
+      
+      return {
+        success: true,
+        data: timesheetsWithEmployees as Timesheet[]
+      };
+    }
+    
     return {
       success: true,
-      data: filteredTimesheets
+      data: timesheets as Timesheet[]
     };
   } catch (error) {
     console.error('Error in listTimesheetsForOrganization:', error);
@@ -616,6 +655,30 @@ export async function updateTimeEntry(entry: TimeEntry & { timesheet_id?: string
   try {
     console.log('Updating time entry:', entry);
 
+    // Handle service_type properly - ensure it's a UUID or null
+    let serviceTypeId: string | null = null;
+    
+    if (typeof entry.service_type === 'object' && entry.service_type !== null && 'id' in entry.service_type) {
+      serviceTypeId = (entry.service_type as {id: string}).id;
+      console.log('TimesheetService: Using service type ID from object:', serviceTypeId);
+    } else if (typeof entry.service_type === 'string') {
+      // Check if the string is a valid UUID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(entry.service_type)) {
+        serviceTypeId = entry.service_type;
+        console.log('TimesheetService: Using service type ID from string:', serviceTypeId);
+      } else {
+        console.log('TimesheetService: String service type is not a UUID, setting to null:', entry.service_type);
+        serviceTypeId = null;
+      }
+    } else if (entry.service_type === null) {
+      console.log('TimesheetService: Entry has null service type, proceeding without service type');
+      serviceTypeId = null;
+    } else {
+      console.error('TimesheetService: Invalid service type:', entry.service_type);
+      serviceTypeId = null;
+    }
+
     // First update the time entry
     const { error: updateError } = await supabase
       .from('time_entries')
@@ -627,7 +690,7 @@ export async function updateTimeEntry(entry: TimeEntry & { timesheet_id?: string
         break_end: entry.break_end,
         total_break_minutes: entry.total_break_minutes || 0,
         work_description: entry.work_description,
-        service_type: entry.service_type,
+        service_type: serviceTypeId, // Use the properly processed service type ID
         status: entry.status
       })
       .eq('id', entry.id);

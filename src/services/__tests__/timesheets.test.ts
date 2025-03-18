@@ -210,7 +210,7 @@ describe('timesheet service', () => {
       expect(result.success).toBe(true)
       expect(result.data).toEqual([{
         ...mockTimesheet,
-        employee: mockEmployees[0]
+        employees: mockEmployees[0]
       }])
       expect(mockTimesheetBuilder.eq).toHaveBeenCalledWith('organization_id', 'org-123')
     })

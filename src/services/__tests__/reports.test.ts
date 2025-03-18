@@ -78,7 +78,6 @@ describe('reports service', () => {
         id: mockWeeklyHours.id,
         name: mockWeeklyHours.name,
         jobLocationIds: [],
-        statuses: [],
         hours: {
           monday: mockWeeklyHours.monday,
           tuesday: mockWeeklyHours.tuesday,

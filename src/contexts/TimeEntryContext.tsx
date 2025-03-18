@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { TimeEntry } from '../lib/types';
+import { TimeEntry } from '../types/custom.types';
 import { useAuth } from './AuthContext';
 import { getActiveTimeEntry, startBreak as startBreakService, endBreak as endBreakService } from '../services/timeEntries';
 
@@ -28,8 +28,8 @@ export function TimeEntryProvider({ children }: { children: ReactNode }) {
       }
 
       const result = await getActiveTimeEntry(user.id);
-      if (result.success) {
-        setActiveEntry(result.data);
+      if (result.success && result.data) {
+        setActiveEntry(result.data as TimeEntry);
       } else {
         setError(result.error);
       }
@@ -44,7 +44,7 @@ export function TimeEntryProvider({ children }: { children: ReactNode }) {
     
     setIsLoading(true);
     const result = await startBreakService(activeEntry.id);
-    if (result.success) {
+    if (result.success && result.data) {
       setActiveEntry(result.data as TimeEntry);
     } else {
       setError(result.error);
@@ -57,7 +57,7 @@ export function TimeEntryProvider({ children }: { children: ReactNode }) {
     
     setIsLoading(true);
     const result = await endBreakService(activeEntry.id);
-    if (result.success) {
+    if (result.success && result.data) {
       setActiveEntry(result.data as TimeEntry);
     } else {
       setError(result.error);

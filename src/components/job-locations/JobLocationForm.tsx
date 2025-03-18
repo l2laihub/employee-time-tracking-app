@@ -1,14 +1,20 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { JobLocationFormData } from '../../lib/types';
+import { supabase } from '../../lib/supabase';
+
+interface ServiceType {
+  id: string;
+  name: string;
+}
 
 const formSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   type: z.enum(['commercial', 'residential']),
-  service_type: z.enum(['hvac', 'plumbing', 'both']),
+  service_type: z.string().min(1, 'Service type is required'),
   is_active: z.boolean(),
   address: z.string().transform(str => str || null).nullable(),
   city: z.string().transform(str => str || null).nullable(),
@@ -24,6 +30,9 @@ interface JobLocationFormProps {
 }
 
 export default function JobLocationForm({ isOpen, onClose, onSubmit, initialData }: JobLocationFormProps) {
+  const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
+  const [isLoadingServiceTypes, setIsLoadingServiceTypes] = useState(true);
+
   const {
     register,
     handleSubmit,
@@ -34,7 +43,7 @@ export default function JobLocationForm({ isOpen, onClose, onSubmit, initialData
     defaultValues: {
       name: '',
       type: 'commercial',
-      service_type: 'both',
+      service_type: '',
       is_active: true,
       address: null,
       city: null,
@@ -43,6 +52,45 @@ export default function JobLocationForm({ isOpen, onClose, onSubmit, initialData
       ...initialData,
     },
   });
+
+  // Fetch service types from the database
+  useEffect(() => {
+    async function fetchServiceTypes() {
+      try {
+        setIsLoadingServiceTypes(true);
+        
+        // Fetch service types from the database
+        const { data, error } = await supabase
+          .from('service_types')
+          .select('*')
+          .order('name');
+        
+        if (error) {
+          console.error('Error fetching service types:', error);
+          // Fallback to default values
+          setServiceTypes([
+            { id: 'hvac', name: 'HVAC' },
+            { id: 'plumbing', name: 'Plumbing' },
+            { id: 'both', name: 'Both' }
+          ]);
+        } else {
+          setServiceTypes(data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching service types:', error);
+        // Fallback to default values
+        setServiceTypes([
+          { id: 'hvac', name: 'HVAC' },
+          { id: 'plumbing', name: 'Plumbing' },
+          { id: 'both', name: 'Both' }
+        ]);
+      } finally {
+        setIsLoadingServiceTypes(false);
+      }
+    }
+    
+    fetchServiceTypes();
+  }, []);
 
   const onSubmitForm = (data: JobLocationFormData) => {
     console.log('Form raw data:', JSON.stringify(data, null, 2));
@@ -79,7 +127,7 @@ export default function JobLocationForm({ isOpen, onClose, onSubmit, initialData
         reset({
           name: '',
           type: 'commercial',
-          service_type: 'both',
+          service_type: serviceTypes.length > 0 ? serviceTypes[0].id : '',
           is_active: true,
           address: null,
           city: null,
@@ -88,7 +136,7 @@ export default function JobLocationForm({ isOpen, onClose, onSubmit, initialData
         });
       }
     }
-  }, [isOpen, initialData, reset]);
+  }, [isOpen, initialData, reset, serviceTypes]);
 
   const description = initialData 
     ? 'Update the details of this job location.' 
@@ -164,10 +212,17 @@ export default function JobLocationForm({ isOpen, onClose, onSubmit, initialData
               <select
                 {...register('service_type')}
                 className="w-full px-3 py-2 border rounded-md"
+                disabled={isLoadingServiceTypes}
               >
-                <option value="hvac">HVAC</option>
-                <option value="plumbing">Plumbing</option>
-                <option value="both">Both</option>
+                {isLoadingServiceTypes ? (
+                  <option value="">Loading service types...</option>
+                ) : (
+                  serviceTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))
+                )}
               </select>
               {errors.service_type && (
                 <p className="text-sm text-red-500">{errors.service_type.message}</p>

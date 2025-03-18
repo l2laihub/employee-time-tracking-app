@@ -13,6 +13,7 @@ import PTO from '../../pages/PTO';
 import OrganizationSettings from '../../pages/OrganizationSettings';
 import OrganizationInvites from '../../pages/OrganizationInvites';
 import SubscriptionManagement from '../../pages/SubscriptionManagement';
+import AdminSettings from '../../pages/AdminSettings';
 import Overview from '../../pages/Overview';
 import Demo from '../../pages/Demo';
 import Login from '../../pages/Login';
@@ -70,6 +71,7 @@ export default function AppRoutes() {
                   <Route path="/admin/settings" element={<OrganizationSettings />} />
                   <Route path="/admin/invites" element={<OrganizationInvites />} />
                   <Route path="/admin/subscription" element={<SubscriptionManagement />} />
+                  <Route path="/admin/system-settings" element={<AdminSettings />} />
                 </>
               )}
             </Route>

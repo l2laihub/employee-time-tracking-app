@@ -1,6 +1,12 @@
-import React from 'react';
-import { Building2, Home, MapPin, Phone } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Building2, Home, MapPin } from 'lucide-react';
 import type { JobLocation } from '../../lib/types';
+import { supabase } from '../../lib/supabase';
+
+interface ServiceType {
+  id: string;
+  name: string;
+}
 
 interface JobLocationListProps {
   locations: JobLocation[];
@@ -9,6 +15,53 @@ interface JobLocationListProps {
 }
 
 export default function JobLocationList({ locations, onEdit, onDelete }: JobLocationListProps) {
+  const [serviceTypes, setServiceTypes] = useState<Record<string, string>>({});
+
+  // Fetch all service types once when the component mounts
+  useEffect(() => {
+    const fetchServiceTypes = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('service_types')
+          .select('id, name');
+        
+        if (error) {
+          console.error('Error fetching service types:', error);
+        } else if (data) {
+          // Create a mapping of id -> name for quick lookups
+          const typeMap: Record<string, string> = {};
+          data.forEach((type: ServiceType) => {
+            typeMap[type.id] = type.name;
+          });
+          setServiceTypes(typeMap);
+        }
+      } catch (error) {
+        console.error('Error fetching service types:', error);
+      }
+    };
+
+    fetchServiceTypes();
+  }, []);
+
+  // Function to get the service type name from the UUID
+  const getServiceTypeName = (serviceTypeId: string): string => {
+    if (!serviceTypeId) return 'Unknown';
+    return serviceTypes[serviceTypeId] || 'Loading...';
+  };
+
+  // Function to get the appropriate CSS class for the service type badge
+  const getServiceTypeClass = (serviceTypeId: string): string => {
+    const typeName = getServiceTypeName(serviceTypeId);
+    if (typeName === 'Both') {
+      return 'bg-purple-100 text-purple-800';
+    } else if (typeName === 'HVAC') {
+      return 'bg-blue-100 text-blue-800';
+    } else if (typeName === 'Plumbing') {
+      return 'bg-green-100 text-green-800';
+    }
+    return 'bg-gray-100 text-gray-800';
+  };
+
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-gray-200">
@@ -67,13 +120,11 @@ export default function JobLocationList({ locations, onEdit, onDelete }: JobLoca
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                  location.service_type === 'both'
-                    ? 'bg-purple-100 text-purple-800'
-                    : location.service_type === 'hvac'
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'bg-green-100 text-green-800'
+                  getServiceTypeClass(location.service_type)
                 }`}>
-                  {location.service_type === 'both' ? 'HVAC & Plumbing' : location.service_type.toUpperCase()}
+                  {getServiceTypeName(location.service_type) === 'Both' 
+                    ? 'HVAC & Plumbing' 
+                    : getServiceTypeName(location.service_type)}
                 </span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">

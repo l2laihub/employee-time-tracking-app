@@ -16,7 +16,7 @@ import {
   X,
   Settings,
   UserPlus,
-  CreditCard
+  Wrench
 } from 'lucide-react';
 import { Button, Card } from './design-system';
 
@@ -29,6 +29,8 @@ export default function Sidebar({ onClose }: SidebarProps) {
   const { user, signOut } = useAuth();
   const { userRole, organization } = useOrganization();
   const isAdmin = userRole === 'admin' || userRole === 'manager';
+  // Super admin is identified by having the admin role
+  const isSuperAdmin = userRole === 'admin';
   const [employeeData, setEmployeeData] = React.useState<Employee | null>(null);
 
   // Function to fetch employee data
@@ -75,7 +77,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
       { name: 'Reports', href: '/reports', icon: BarChart2 },
       { name: 'Organization Settings', href: '/admin/settings', icon: Settings },
       { name: 'Manage Invites', href: '/admin/invites', icon: UserPlus },
-      // { name: 'Subscription', href: '/admin/subscription', icon: CreditCard } //temporarily removed until the feature is ready
+    ] : []),
+    ...(isSuperAdmin ? [
+      { name: 'System Settings', href: '/admin/system-settings', icon: Wrench },
     ] : []),
   ];
 

@@ -46,6 +46,19 @@ export interface JobLocation {
   state: string;
   zip: string;
   is_active: boolean;
+  service_type: string; // UUID reference to service_types table
+  organization_id?: string;
+}
+
+export interface JobLocationFormData {
+  name: string;
+  type: 'commercial' | 'residential';
+  service_type: string;
+  is_active: boolean;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
 }
 
 // Time Entry Types

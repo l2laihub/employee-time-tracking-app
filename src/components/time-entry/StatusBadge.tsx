@@ -1,8 +1,7 @@
-import React from 'react';
-import { Clock, Coffee, CheckCircle } from 'lucide-react';
+import { Clock, Coffee, CheckCircle, CheckSquare } from 'lucide-react';
 import { Badge } from '../design-system';
 
-export type TimeEntryStatus = 'inactive' | 'active' | 'break';
+export type TimeEntryStatus = 'inactive' | 'active' | 'break' | 'completed';
 
 export interface StatusBadgeProps {
   /**
@@ -30,6 +29,11 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
       variant: 'default' as const,
       icon: <Clock className="h-3 w-3" />,
       label: 'Inactive'
+    },
+    completed: {
+      variant: 'primary' as const,
+      icon: <CheckSquare className="h-3 w-3" />,
+      label: 'Completed'
     }
   };
 

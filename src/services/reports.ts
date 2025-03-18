@@ -46,7 +46,6 @@ interface WeeklyHoursRow {
   name: string;
   organization_id: string;
   job_location_ids: string[];
-  statuses: string[];
   monday: number | null;
   tuesday: number | null;
   wednesday: number | null;
@@ -88,7 +87,7 @@ export class ReportsService {
         start_date: filters.startDate.toISOString(),
         end_date: filters.endDate.toISOString(),
         org_id: member.organization_id
-      }) as { data: WeeklyHoursRow[] | null; error: any };
+      }) as { data: WeeklyHoursRow[] | null; error: Error };
 
     if (error) {
       console.error('Error fetching weekly hours:', error);
@@ -101,7 +100,6 @@ export class ReportsService {
       id: row.id,
       name: row.name,
       jobLocationIds: row.job_location_ids || [],
-      statuses: row.statuses || [],
       hours: {
         monday: Number(row.monday) || 0,
         tuesday: Number(row.tuesday) || 0,
@@ -296,7 +294,7 @@ export class ReportsService {
   /**
    * Debug weekly hours calculation for a specific employee
    */
-  async debugWeeklyHours(employeeId: string, filters: ReportFilters): Promise<any> {
+  async debugWeeklyHours(employeeId: string, filters: ReportFilters): Promise<Record<string, unknown>> {
     // First get the user's current organization
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError) throw userError;

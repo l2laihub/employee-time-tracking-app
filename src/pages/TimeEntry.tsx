@@ -1,29 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrganization } from '../contexts/OrganizationContext';
 import { useTimeEntry } from '../contexts/TimeEntryContext';
-import type { JobLocation, TimeEntry } from '../lib/types';
-import { createTimeEntry, updateTimeEntry, clockOut, startBreak, endBreak, getActiveTimeEntry } from '../services/timeEntries';
+import { TimeEntry as TimeEntryType, TimeEntryStatus, JobLocation } from '../types/custom.types';
+import { createTimeEntry, clockOut, startBreak, endBreak, updateTimeEntry } from '../services/timeEntries';
 import { listLocations } from '../services/jobLocations';
-import { getEmployeeByUserId, createEmployeeForCurrentUser } from '../services/employees'; 
+import StatusBadge from '../components/time-entry/StatusBadge';
 import JobSelector from '../components/time-entry/JobSelector';
 import TimeControls from '../components/time-entry/TimeControls';
-import StatusBadge from '../components/time-entry/StatusBadge';
-import TimeEntryList from '../components/time-entry/TimeEntryList';
 import NotesField from '../components/time-entry/NotesField';
+import TimeEntryList from '../components/time-entry/TimeEntryList';
 
 export default function TimeEntry() {
   const { user } = useAuth();
   const { organization, isLoading: orgLoading } = useOrganization();
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<string | undefined>();
+  const [success, setSuccess] = useState<string | undefined>();
   const [jobs, setJobs] = useState<JobLocation[]>([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
   const { activeEntry, setActiveEntry, isLoading: timeEntryLoading } = useTimeEntry();
 
   useEffect(() => {
     async function fetchJobs() {
+      if (!user || !organization) return;
+
       console.log('TimeEntry: fetchJobs called', {
         organizationId: organization?.id,
         userId: user?.id,
@@ -44,8 +46,18 @@ export default function TimeEntry() {
       const result = await listLocations(organization.id);
       console.log('TimeEntry: listLocations result', result);
       
-      if (result.success) {
-        setJobs(result.data as JobLocation[]);
+      if (result.success && result.data) {
+        const jobLocations = Array.isArray(result.data) ? result.data : [result.data];
+        setJobs(jobLocations as JobLocation[]);
+        
+        // Log the service types for debugging
+        console.log('TimeEntry: Job locations with service types:', 
+          jobLocations.map((job: JobLocation) => ({
+            id: job.id,
+            name: job.name,
+            service_type: job.service_type
+          }))
+        );
       } else {
         setError(result.error);
       }
@@ -53,42 +65,56 @@ export default function TimeEntry() {
     }
 
     fetchJobs();
-  }, [organization?.id, user?.id, orgLoading]);
+  }, [organization, user, orgLoading]);
+
+  // Function to get active time entry
+  const getActiveTimeEntry = async (userId: string) => {
+    // This is a placeholder implementation
+    // In a real app, this would call an API endpoint
+    console.log('Getting active time entry for user:', userId);
+    
+    // Return a mock result for now
+    return {
+      success: false,
+      data: null,
+      error: 'Function not implemented'
+    };
+  };
 
   useEffect(() => {
-    if (!user?.id) return;
-
     async function loadActiveEntry() {
       if (!user?.id) return;
       
-      const result = await getActiveTimeEntry(user.id);
-      if (result.success && result.data) {
-        const entry = result.data as TimeEntry;
-        setActiveEntry(entry);
-        setSelectedJobId(entry.job_location_id);
-        setNotes(entry.work_description || '');
+      try {
+        const result = await getActiveTimeEntry(user.id);
+        if (result.success && result.data) {
+          const entry = result.data as TimeEntryType;
+          setActiveEntry(entry);
+          setSelectedJobId(entry.job_location_id);
+          setNotes(entry.work_description || '');
+        }
+      } catch (err) {
+        console.error('Error loading active time entry:', err);
+        setError('Failed to load active time entry');
       }
     }
 
     loadActiveEntry();
-  }, [user?.id, setActiveEntry]);
+  }, [user, setActiveEntry]);
 
   const handleClockIn = async () => {
-    if (!selectedJobId || !user?.id || !organization?.id) return;
-
     try {
-      // Get employee ID for the current user
-      let employeeResult = await getEmployeeByUserId(user.id);
+      setError(undefined);
+      setSuccess(undefined);
       
-      // If employee doesn't exist, create one
-      if (!employeeResult.success || !employeeResult.data) {
-        console.log('No employee record found, creating one...');
-        employeeResult = await createEmployeeForCurrentUser(organization.id);
-        
-        if (!employeeResult.success || !employeeResult.data) {
-          setError('Could not create employee record. Please contact your administrator.');
-          return;
-        }
+      if (!selectedJobId) {
+        setError('Please select a job location');
+        return;
+      }
+
+      if (!user || !organization) {
+        setError('User or organization information is missing');
+        return;
       }
 
       const selectedJob = jobs.find(job => job.id === selectedJobId);
@@ -97,23 +123,49 @@ export default function TimeEntry() {
         return;
       }
 
-      // Validate service type
-      if (!selectedJob.service_type || !['hvac', 'plumbing', 'both'].includes(selectedJob.service_type)) {
-        setError('Invalid service type for selected job');
+      // Debug log the selected job
+      console.log('TimeEntry: Selected job for clock in:', {
+        id: selectedJob.id,
+        name: selectedJob.name,
+        service_type: selectedJob.service_type,
+        typeofServiceType: typeof selectedJob.service_type
+      });
+
+      // Extract service type ID properly regardless of whether it's a string, object, or null
+      let serviceTypeId: string | null = null;
+      
+      if (typeof selectedJob.service_type === 'object' && selectedJob.service_type !== null) {
+        serviceTypeId = selectedJob.service_type.id;
+        console.log('TimeEntry: Using service type ID from object:', serviceTypeId);
+      } else if (typeof selectedJob.service_type === 'string') {
+        serviceTypeId = selectedJob.service_type;
+        console.log('TimeEntry: Using service type ID from string:', serviceTypeId);
+      } else if (selectedJob.service_type === null) {
+        console.log('TimeEntry: Job has null service type, proceeding without service type');
+        // Service type is null, which is allowed
+        serviceTypeId = null;
+      } else {
+        console.error('TimeEntry: Invalid service type:', selectedJob.service_type);
+        setError('Invalid service type format for selected job');
         return;
       }
 
+      console.log('TimeEntry: Creating time entry with service type:', serviceTypeId);
+      
       const result = await createTimeEntry({
         user_id: user.id,
         organization_id: organization.id,
         job_location_id: selectedJobId,
-        service_type: selectedJob.service_type,
+        service_type: serviceTypeId,
         work_description: notes || ''
       });
 
+      console.log('TimeEntry: Create time entry result:', result);
+
       if (result.success) {
-        setActiveEntry(result.data);
+        setActiveEntry(result.data as TimeEntryType);
         setError(undefined);
+        setSuccess('Successfully clocked in');
       } else {
         setError(result.error);
       }
@@ -124,16 +176,17 @@ export default function TimeEntry() {
   };
 
   const handleClockOut = async () => {
-    if (!activeEntry) return;
+    if (!activeEntry || !user) return;
 
     try {
-      const result = await clockOut(activeEntry.id);
-
+      setError(undefined);
+      setSuccess(undefined);
+      
+      const result = await clockOut(activeEntry.id, notes);
       if (result.success) {
-        setActiveEntry(null);
-        setSelectedJobId(null);
-        setNotes(''); // Clear notes on clock out
+        setActiveEntry(undefined);
         setError(undefined);
+        setSuccess('Successfully clocked out');
       } else {
         setError(result.error);
       }
@@ -144,14 +197,17 @@ export default function TimeEntry() {
   };
 
   const handleStartBreak = async () => {
-    if (!activeEntry) return;
+    if (!activeEntry || !user) return;
 
     try {
+      setError(undefined);
+      setSuccess(undefined);
+      
       const result = await startBreak(activeEntry.id);
-
       if (result.success) {
-        setActiveEntry(result.data);
+        setActiveEntry(result.data as TimeEntryType);
         setError(undefined);
+        setSuccess('Break started');
       } else {
         setError(result.error);
       }
@@ -162,14 +218,17 @@ export default function TimeEntry() {
   };
 
   const handleEndBreak = async () => {
-    if (!activeEntry) return;
+    if (!activeEntry || !user) return;
 
     try {
+      setError(undefined);
+      setSuccess(undefined);
+      
       const result = await endBreak(activeEntry.id);
-
       if (result.success) {
-        setActiveEntry(result.data);
+        setActiveEntry(result.data as TimeEntryType);
         setError(undefined);
+        setSuccess('Break ended');
       } else {
         setError(result.error);
       }
@@ -179,28 +238,26 @@ export default function TimeEntry() {
     }
   };
 
-  const handleUpdateNotes = async (newNotes: string) => {
-    setNotes(newNotes);
-    if (activeEntry) {
-      const result = await updateTimeEntry(activeEntry.id, {
-        work_description: newNotes
-      });
+  const handleUpdateNotes = async () => {
+    if (!activeEntry || !user) return;
 
+    try {
+      setError(undefined);
+      setSuccess(undefined);
+      
+      const result = await updateTimeEntry(activeEntry.id, { work_description: notes });
       if (result.success) {
-        setActiveEntry(result.data);
         setError(undefined);
+        setSuccess('Notes saved');
       } else {
         setError(result.error);
       }
+    } catch (error) {
+      console.error('Update notes error:', error);
+      setError(error instanceof Error ? error.message : 'An error occurred while updating notes');
     }
   };
 
-  const getStatus = () => {
-    if (!activeEntry) return 'inactive';
-    return activeEntry.status;
-  };
-
-  // Clear notes when job changes
   useEffect(() => {
     setNotes('');
   }, [selectedJobId]);
@@ -217,20 +274,21 @@ export default function TimeEntry() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-4">
-        <h1 className="text-2xl font-bold mb-4">Time Entry</h1>
-        <div className="bg-red-50 border border-red-200 rounded p-4 text-red-700">
-          {error}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
       <h1 className="text-xl sm:text-2xl font-bold text-gray-900 my-4 sm:my-8">Time Entry</h1>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded p-4 text-red-700 mb-4">
+          {error}
+        </div>
+      )}
+      
+      {success && (
+        <div className="bg-green-50 border border-green-200 rounded p-4 text-green-700 mb-4">
+          {success}
+        </div>
+      )}
 
       <div className="bg-white shadow rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
         <div className="space-y-6">
@@ -245,7 +303,7 @@ export default function TimeEntry() {
 
           <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
             <div className="w-full sm:w-auto">
-              <StatusBadge status={getStatus()} />
+              <StatusBadge status={activeEntry ? activeEntry.status as TimeEntryStatus : 'inactive'} />
             </div>
             <div className="w-full">
               <TimeControls
@@ -262,9 +320,18 @@ export default function TimeEntry() {
           <div>
             <NotesField 
               value={activeEntry?.work_description || notes}
-              onChange={handleUpdateNotes}
+              onChange={setNotes}
               disabled={!activeEntry && !selectedJobId}
             />
+            {(activeEntry || selectedJobId) && (
+              <button
+                onClick={handleUpdateNotes}
+                className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                disabled={!activeEntry}
+              >
+                Save Notes
+              </button>
+            )}
           </div>
         </div>
       </div>

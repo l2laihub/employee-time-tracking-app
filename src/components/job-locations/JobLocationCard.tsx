@@ -1,6 +1,7 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
 import { MapPin, Building2, Home, Wrench, Edit2, Trash2 } from 'lucide-react';
 import type { JobLocation } from '../../lib/types';
+import { supabase } from '../../lib/supabase';
 
 interface JobLocationCardProps {
   location: JobLocation;
@@ -9,6 +10,30 @@ interface JobLocationCardProps {
 }
 
 export default function JobLocationCard({ location, onEdit, onDelete }: JobLocationCardProps) {
+  const [serviceTypeName, setServiceTypeName] = useState<string | null>(null);
+  
+  useEffect(() => {
+    // Fetch the service type name based on the UUID
+    const fetchServiceTypeName = async () => {
+      if (location.service_type) {
+        const { data, error } = await supabase
+          .from('service_types')
+          .select('name')
+          .eq('id', location.service_type)
+          .single();
+        
+        if (data && !error) {
+          setServiceTypeName(data.name);
+        } else {
+          console.error('Error fetching service type:', error);
+          setServiceTypeName('Unknown');
+        }
+      }
+    };
+    
+    fetchServiceTypeName();
+  }, [location.service_type]);
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <div className="flex items-start justify-between mb-4">
@@ -47,9 +72,9 @@ export default function JobLocationCard({ location, onEdit, onDelete }: JobLocat
         <div className="flex items-center">
           <Wrench className="w-4 h-4 text-gray-400 mr-2" />
           <p className="text-gray-600 capitalize">
-            {location.service_type === 'both' 
+            {serviceTypeName === 'Both' 
               ? 'HVAC & Plumbing' 
-              : location.service_type.toUpperCase()}
+              : serviceTypeName}
           </p>
         </div>
       </div>

@@ -7,13 +7,16 @@ interface ToastOptions {
 }
 
 export const toast = ({ title, description, variant = 'default' }: ToastOptions) => {
-  if (variant === 'destructive') {
-    sonnerToast.error(title || 'Error', {
-      description
-    });
-  } else {
-    sonnerToast.success(title || 'Success', {
-      description
-    });
-  }
+  // Use setTimeout to ensure toast is not shown during render phase
+  setTimeout(() => {
+    if (variant === 'destructive') {
+      sonnerToast.error(title || 'Error', {
+        description
+      });
+    } else {
+      sonnerToast.success(title || 'Success', {
+        description
+      });
+    }
+  }, 0);
 };

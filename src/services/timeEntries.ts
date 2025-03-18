@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import { TimeEntry } from '../types/custom.types'
+import { TimeEntry, TimeEntryStatus } from '../types/custom.types'
 
 export interface TimeEntryResult {
   success: boolean
@@ -8,102 +8,232 @@ export interface TimeEntryResult {
 }
 
 // Validation helper functions
-async function hasActiveTimeEntry(userId: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('time_entries')
-    .select('id')
-    .eq('user_id', userId)
-    .in('status', ['active', 'break'])
-    .limit(1);
-
-  if (error) throw error;
-  return data && data.length > 0;
-}
-
-async function getTimeEntryStatus(timeEntryId: string): Promise<string | null> {
+async function getTimeEntryStatus(timeEntryId: string): Promise<TimeEntryStatus | null> {
   const { data, error } = await supabase
     .from('time_entries')
     .select('status')
     .eq('id', timeEntryId)
     .single();
 
-  if (error) throw error;
-  return data?.status || null;
+  if (error) {
+    console.error('Error fetching time entry status:', error);
+    return null;
+  }
+  
+  return data?.status as TimeEntryStatus | null;
 }
 
-function validateTimeEntry(entry: Partial<TimeEntry>) {
+/**
+ * Validates that a service type is valid for a job location
+ */
+export async function validateServiceTypeForJobLocation(
+  jobLocationId: string,
+  serviceType: string | null
+): Promise<{ valid: boolean; message?: string }> {
+  try {
+    console.log('Validating service type for job location:', {
+      jobLocationId,
+      serviceType
+    });
+
+    // If service type is null, we'll allow it (some job locations might not require a service type)
+    if (serviceType === null) {
+      console.log('Service type is null, allowing it');
+      return { valid: true };
+    }
+
+    // Fetch the job location to get its service type
+    const { data, error } = await supabase
+      .from('job_locations')
+      .select(`
+        id,
+        name,
+        service_type,
+        service_types:service_type (
+          id,
+          name
+        )
+      `)
+      .eq('id', jobLocationId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching job location:', error);
+      return {
+        valid: false,
+        message: `Error validating service type: ${error.message}`
+      };
+    }
+
+    if (!data) {
+      console.error('Job location not found:', jobLocationId);
+      return {
+        valid: false,
+        message: 'Job location not found'
+      };
+    }
+
+    console.log('Job location data:', data);
+
+    // If the job location doesn't have a service type, any service type is valid
+    if (data.service_type === null) {
+      console.log('Job location has no service type requirement, all service types are valid');
+      return { valid: true };
+    }
+
+    // Normalize service types to strings for comparison
+    const jobServiceType = typeof data.service_type === 'object' && data.service_type !== null
+      ? data.service_type.id
+      : String(data.service_type);
+
+    const normalizedServiceType = String(serviceType);
+
+    console.log('Comparing service types:', {
+      jobServiceType,
+      normalizedServiceType,
+      match: jobServiceType === normalizedServiceType
+    });
+
+    if (jobServiceType !== normalizedServiceType) {
+      // Get the service type name for a more helpful error message
+      let serviceName = 'Unknown';
+      
+      // Handle the service_types field safely
+      if (data.service_types) {
+        // First convert to unknown, then to the expected type to avoid TypeScript errors
+        const serviceTypeData = data.service_types as unknown;
+        
+        // Check if it's an object with a name property
+        if (serviceTypeData && 
+            typeof serviceTypeData === 'object' && 
+            'name' in serviceTypeData && 
+            typeof serviceTypeData.name === 'string') {
+          serviceName = serviceTypeData.name;
+        }
+      }
+
+      return {
+        valid: false,
+        message: `Invalid service type for selected job. Expected: ${serviceName} (${jobServiceType})`
+      };
+    }
+
+    return { valid: true };
+  } catch (error) {
+    console.error('Service type validation error:', error);
+    return {
+      valid: false,
+      message: error instanceof Error ? error.message : 'Unknown error validating service type'
+    };
+  }
+}
+
+/**
+ * Validates time entry data
+ */
+export function validateTimeEntry(entry: Partial<TimeEntry>): void {
+  console.log('Validating time entry data:', entry);
+  
   if (!entry.user_id) {
     throw new Error('User ID is required');
   }
+
   if (!entry.organization_id) {
     throw new Error('Organization ID is required');
   }
+
   if (!entry.job_location_id) {
     throw new Error('Job location ID is required');
   }
-  if (!entry.service_type) {
-    throw new Error('Service type is required');
-  }
-  if (!['hvac', 'plumbing', 'both'].includes(entry.service_type)) {
-    throw new Error('Service type must be one of: hvac, plumbing, both');
-  }
+
+  // Service type is optional, so we don't validate it here
+  // The validateServiceTypeForJobLocation function will handle validation if a service type is provided
+  
+  console.log('Time entry validation passed');
 }
 
 export async function createTimeEntry(entry: Partial<TimeEntry>): Promise<TimeEntryResult> {
   try {
-    // Validate the entry
+    // Validate the entry data
     validateTimeEntry(entry);
 
-    // Get current time
-    const now = new Date();
+    // Check if there's already an active entry for this user
+    const activeEntryResult = await getActiveTimeEntry(entry.user_id!);
+    if (activeEntryResult.success && activeEntryResult.data) {
+      return {
+        success: false,
+        error: 'User already has an active time entry'
+      };
+    }
 
-    const timeEntryData = {
-      user_id: entry.user_id,
+    // Validate that the service type is valid for the job location
+    // Only validate if a service type is provided
+    if (entry.service_type) {
+      console.log('Validating service type for job location:', {
+        jobLocationId: entry.job_location_id,
+        serviceType: entry.service_type
+      });
+      
+      const serviceTypeValidation = await validateServiceTypeForJobLocation(
+        entry.job_location_id!,
+        entry.service_type
+      );
+
+      if (!serviceTypeValidation.valid) {
+        console.error('Service type validation failed:', serviceTypeValidation.message);
+        return {
+          success: false,
+          error: serviceTypeValidation.message
+        };
+      }
+    } else {
+      console.log('No service type provided, skipping validation');
+    }
+
+    console.log('Service type validation passed or skipped, creating time entry');
+
+    // Create the time entry with only fields from the TimeEntry interface
+    const now = new Date().toISOString();
+    const timeEntry: Partial<TimeEntry> = {
       organization_id: entry.organization_id,
+      user_id: entry.user_id,
       job_location_id: entry.job_location_id,
       service_type: entry.service_type,
-      clock_in: now.toISOString(),
+      work_description: entry.work_description || '',
+      status: 'active',
+      clock_in: now,
       clock_out: null,
       break_start: null,
       break_end: null,
-      status: 'active' as const,
-      work_description: entry.work_description || '',
       total_break_minutes: 0
     };
 
-    console.log('Creating time entry with data:', timeEntryData);
+    console.log('Creating time entry with data:', timeEntry);
 
     const { data, error } = await supabase
       .from('time_entries')
-      .insert(timeEntryData)
+      .insert(timeEntry)
       .select()
       .single();
 
-    console.log('Time entry creation result:', { data, error });
-
     if (error) {
-      console.error('Time entry creation error:', error);
+      console.error('Error creating time entry:', error);
       return {
         success: false,
         error: error.message
       };
     }
-    if (!data) {
-      return {
-        success: false,
-        error: 'No data returned after insert'
-      };
-    }
 
+    console.log('Time entry created successfully:', data);
     return {
       success: true,
-      data: data as TimeEntry
+      data
     };
   } catch (error) {
-    console.error('Time entry creation error:', error);
+    console.error('Error in createTimeEntry:', error);
     return {
       success: false,
-      error: 'Database error'
+      error: error instanceof Error ? error.message : 'An error occurred while creating time entry'
     };
   }
 }
@@ -264,46 +394,69 @@ export async function getTimeEntryById(timeEntryId: string): Promise<TimeEntryRe
   }
 }
 
+/**
+ * Get the active time entry for a user
+ */
 export async function getActiveTimeEntry(userId: string): Promise<TimeEntryResult> {
   try {
     console.log('Getting active time entry for user:', userId);
+    
+    // First, try to get the active time entry without the job_locations join
+    // to avoid potential schema issues
     const { data, error } = await supabase
       .from('time_entries')
-      .select(`
-        *,
-        job_locations (
-          id,
-          name,
-          service_type
-        )
-      `)
+      .select('*')
       .eq('user_id', userId)
       .is('clock_out', null)
       .in('status', ['active', 'break'])
       .order('clock_in', { ascending: false })
-      .limit(1)
-      .single();
-
-    console.log('Active time entry result:', {
-      data,
-      error,
-      hasData: !!data
-    });
+      .limit(1);
 
     if (error) {
-      // PGRST116 means no rows returned, which is expected when there's no active entry
-      if (error.code === 'PGRST116') {
-        return {
-          success: true,
-          data: undefined
+      console.error('Error fetching active time entry:', error);
+      throw error;
+    }
+
+    // If no active time entry is found
+    if (!data || data.length === 0) {
+      console.log('No active time entry found for user:', userId);
+      return { success: true };
+    }
+
+    // If we found an active time entry, get the job location details separately
+    const timeEntry = data[0] as TimeEntry;
+    console.log('Found active time entry:', timeEntry);
+
+    // If the time entry has a job_location_id, fetch the job location details
+    if (timeEntry.job_location_id) {
+      const { data: jobLocationData, error: jobLocationError } = await supabase
+        .from('job_locations')
+        .select(`
+          id,
+          name,
+          address,
+          service_type,
+          service_types:service_type (
+            id,
+            name
+          )
+        `)
+        .eq('id', timeEntry.job_location_id)
+        .single();
+
+      if (!jobLocationError && jobLocationData) {
+        // Add the job location data to the time entry
+        timeEntry.job_location = {
+          id: jobLocationData.id,
+          name: jobLocationData.name,
+          address: jobLocationData.address || ''
         };
       }
-      throw error;
     }
 
     return {
       success: true,
-      data: data as TimeEntry
+      data: timeEntry
     };
   } catch (error) {
     console.error('Failed to get active time entry:', error);
@@ -434,7 +587,7 @@ export async function endBreak(timeEntryId: string): Promise<TimeEntryResult> {
   }
 }
 
-export async function clockOut(timeEntryId: string): Promise<TimeEntryResult> {
+export async function clockOut(timeEntryId: string, workDescription?: string): Promise<TimeEntryResult> {
   try {
     // Check current status
     const currentStatus = await getTimeEntryStatus(timeEntryId);
@@ -457,12 +610,19 @@ export async function clockOut(timeEntryId: string): Promise<TimeEntryResult> {
       };
     }
 
+    const updateData: Partial<TimeEntry> = {
+      status: 'completed',
+      clock_out: new Date().toISOString()
+    };
+
+    // Add work description if provided
+    if (workDescription !== undefined) {
+      updateData.work_description = workDescription;
+    }
+
     const { data, error } = await supabase
       .from('time_entries')
-      .update({
-        status: 'completed',
-        clock_out: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', timeEntryId)
       .select()
       .single();

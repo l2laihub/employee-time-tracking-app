@@ -7,7 +7,7 @@ export interface JobLocation {
   organization_id: string;
   name: string;
   address: string;
-  service_type: 'hvac' | 'plumbing' | 'both';
+  service_type: string | { id: string; name: string }; 
   type: 'commercial' | 'residential';
   created_at?: string;
   updated_at?: string;
@@ -16,6 +16,9 @@ export interface JobLocation {
 
 // Timesheet types
 export type TimesheetStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
+
+// Time entry types
+export type TimeEntryStatus = 'active' | 'break' | 'completed' | 'inactive';
 
 export interface Timesheet {
   id: string;
@@ -48,7 +51,7 @@ export interface TimeEntry {
   total_break_minutes: number;
   service_type: string | null;
   work_description: string | null;
-  status: string | null;
+  status: TimeEntryStatus | null;
   job_location?: {
     id: string;
     name: string;

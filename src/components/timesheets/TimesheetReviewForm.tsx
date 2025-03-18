@@ -4,6 +4,7 @@ import { Timesheet, TimeEntry, JobLocation } from '../../types/custom.types';
 import { getTimesheetDetails, updateTimeEntry } from '../../services/timesheets';
 import { listLocations } from '../../services/jobLocations';
 import { useOrganization } from '../../contexts/OrganizationContext';
+import { listServiceTypes, ServiceType } from '../../services/serviceTypes';
 
 interface TimesheetReviewFormProps {
   timesheet: Timesheet;
@@ -12,30 +13,24 @@ interface TimesheetReviewFormProps {
   isAdmin?: boolean;
 }
 
-export default function TimesheetReviewForm({ 
-  timesheet: initialTimesheet, 
-  onSubmit, 
+const TimesheetReviewForm: React.FC<TimesheetReviewFormProps> = ({
+  timesheet: initialTimesheet,
+  onSubmit,
   onClose,
   isAdmin = false
-}: TimesheetReviewFormProps) {
+}) => {
   const { organization } = useOrganization();
   const [timesheet, setTimesheet] = useState<Timesheet>(initialTimesheet);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
-  const [jobLocations, setJobLocations] = useState<JobLocation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [reviewNotes, setReviewNotes] = useState(initialTimesheet.review_notes || '');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [reviewNotes, setReviewNotes] = useState<string>(initialTimesheet.review_notes || '');
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [editingHours, setEditingHours] = useState<number>(0);
+  const [jobLocations, setJobLocations] = useState<JobLocation[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
   const [error, setError] = useState<string>('');
 
-  useEffect(() => {
-    loadDetails();
-    if (organization?.id) {
-      loadJobLocations();
-    }
-  }, [initialTimesheet.id, organization?.id]);
-
-  const loadDetails = async () => {
+  const loadDetails = useCallback(async () => {
     try {
       const details = await getTimesheetDetails(initialTimesheet.id);
       if (details.timesheet) {
@@ -50,20 +45,33 @@ export default function TimesheetReviewForm({
     } finally {
       setLoading(false);
     }
-  };
+  }, [initialTimesheet.id]);
 
-  const loadJobLocations = async () => {
+  const loadJobLocations = useCallback(async () => {
+    if (!organization?.id) return;
+    
     try {
-      const result = await listLocations(organization!.id);
+      const result = await listLocations(organization.id);
       if (result.success && Array.isArray(result.data)) {
         setJobLocations(result.data);
       }
     } catch (error) {
       console.error('Error loading job locations:', error);
     }
-  };
+  }, [organization]);
 
-  const calculateTotalHours = (entry: TimeEntry) => {
+  const loadServiceTypes = useCallback(async () => {
+    try {
+      const result = await listServiceTypes();
+      if (result.success && Array.isArray(result.data)) {
+        setServiceTypes(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading service types:', error);
+    }
+  }, []);
+
+  const calculateTotalHours = useCallback((entry: TimeEntry) => {
     if (!entry.clock_in || !entry.clock_out) return 0;
     
     try {
@@ -83,36 +91,16 @@ export default function TimesheetReviewForm({
       console.error('Error calculating total hours:', error);
       return 0;
     }
-  };
+  }, []);
 
-  const calculateTimesheetTotal = (entries: TimeEntry[]) => {
+  const calculateTimesheetTotal = useCallback((entries: TimeEntry[]) => {
     const total = entries.reduce((sum, entry) => {
       return sum + calculateTotalHours(entry);
     }, 0);
     return Math.round(total * 100) / 100;
-  };
+  }, [calculateTotalHours]);
 
-  useEffect(() => {
-    // Update total hours whenever time entries change
-    if (timesheet && timeEntries.length > 0) {
-      const total = calculateTimesheetTotal(timeEntries);
-      console.log('Updating timesheet total hours:', total);
-      setTimesheet({
-        ...timesheet,
-        total_hours: total
-      });
-    }
-  }, [timeEntries]);
-
-  useEffect(() => {
-    // Update total hours whenever editing entry changes
-    if (editingEntry) {
-      const hours = calculateTotalHours(editingEntry);
-      setEditingHours(hours);
-    }
-  }, [editingEntry?.clock_in, editingEntry?.clock_out, editingEntry?.total_break_minutes]);
-
-  const formatTimeForInput = (dateString: string | null) => {
+  const formatTimeForInput = useCallback((dateString: string | null) => {
     if (!dateString) return '';
     try {
       const date = new Date(dateString);
@@ -122,15 +110,14 @@ export default function TimesheetReviewForm({
       console.error('Error formatting time for input:', error);
       return '';
     }
-  };
+  }, []);
 
-  // Check if the timesheet can be edited
   const canEdit = useCallback(() => {
     if (isAdmin) return true;
     return timesheet.status === 'draft' || timesheet.status === 'submitted';
   }, [isAdmin, timesheet.status]);
 
-  const handleEditEntry = (entry: TimeEntry) => {
+  const handleEditEntry = useCallback((entry: TimeEntry) => {
     // Only allow editing if user has permission
     if (!canEdit()) return;
     
@@ -145,9 +132,9 @@ export default function TimesheetReviewForm({
       work_description: entry.work_description || '',
       status: entry.status || null
     });
-  };
+  }, [canEdit, formatTimeForInput]);
 
-  const handleSaveEntry = async () => {
+  const handleSaveEntry = useCallback(async () => {
     if (!editingEntry || !canEdit()) return;
 
     try {
@@ -160,12 +147,23 @@ export default function TimesheetReviewForm({
       const clockIn = parseISO(editingEntry.clock_in);
       const clockOut = editingEntry.clock_out ? parseISO(editingEntry.clock_out) : null;
 
+      // Process service_type to ensure it's in the correct format
+      const serviceType = editingEntry.service_type;
+      
+      // Log the current service type for debugging
+      console.log('Current service type before update:', {
+        serviceType,
+        typeOf: typeof serviceType,
+        isObject: typeof serviceType === 'object' && serviceType !== null
+      });
+
       const updatedEntry = {
         ...editingEntry,
         timesheet_id: timesheet.id,
         clock_in: clockIn.toISOString(),
         clock_out: clockOut ? clockOut.toISOString() : null,
         total_break_minutes: editingEntry.total_break_minutes || 0,
+        service_type: serviceType, // Keep the service type as is, the service will handle it
         total_hours: clockOut ? calculateTotalHours({
           ...editingEntry,
           clock_in: clockIn.toISOString(),
@@ -173,6 +171,8 @@ export default function TimesheetReviewForm({
         }) : 0
       };
 
+      console.log('Saving updated entry:', updatedEntry);
+      
       await updateTimeEntry(updatedEntry);
       await loadDetails();
       setEditingEntry(null);
@@ -181,19 +181,21 @@ export default function TimesheetReviewForm({
       console.error('Error updating time entry:', error);
       setError('Failed to update time entry');
     }
-  };
+  }, [canEdit, editingEntry, loadDetails, timesheet.id, calculateTotalHours]);
 
-  const handleEditingChange = (field: keyof TimeEntry, value: string | number | null) => {
-    if (!editingEntry) return;
-    
-    const updatedEntry = {
-      ...editingEntry,
-      [field]: value
-    };
-    setEditingEntry(updatedEntry);
-  };
+  const handleEditingChange = useCallback((field: keyof TimeEntry, value: string | number | null) => {
+    // Use functional update pattern to avoid the setState during render warning
+    // and completely remove the dependency on editingEntry
+    setEditingEntry(prevEntry => {
+      if (!prevEntry) return prevEntry;
+      return {
+        ...prevEntry,
+        [field]: value
+      };
+    });
+  }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError(''); // Clear any previous errors
     console.log('Submitting timesheet:', { timesheet, reviewNotes });
@@ -221,7 +223,39 @@ export default function TimesheetReviewForm({
       setError(error instanceof Error ? error.message : 'Failed to submit timesheet');
       // Don't close form on error - let user try again
     }
-  };
+  }, [onSubmit, onClose, timesheet, reviewNotes, timeEntries, calculateTimesheetTotal]);
+
+  useEffect(() => {
+    loadDetails();
+    if (organization?.id) {
+      loadJobLocations();
+    }
+    loadServiceTypes();
+  }, [loadDetails, loadJobLocations, organization?.id, loadServiceTypes]);
+
+  useEffect(() => {
+    // Update total hours whenever time entries change
+    if (timesheet && timeEntries.length > 0) {
+      const total = calculateTimesheetTotal(timeEntries);
+      console.log('Updating timesheet total hours:', total);
+      
+      // Only update if the total has actually changed to prevent infinite loops
+      if (total !== timesheet.total_hours) {
+        setTimesheet(prevTimesheet => ({
+          ...prevTimesheet,
+          total_hours: total
+        }));
+      }
+    }
+  }, [timeEntries, calculateTimesheetTotal, timesheet]);
+
+  useEffect(() => {
+    // Update total hours whenever editing entry changes
+    if (editingEntry) {
+      const hours = calculateTotalHours(editingEntry);
+      setEditingHours(hours);
+    }
+  }, [editingEntry, editingEntry?.clock_in, editingEntry?.clock_out, editingEntry?.total_break_minutes, calculateTotalHours]);
 
   if (loading) {
     return (
@@ -286,6 +320,7 @@ export default function TimesheetReviewForm({
                                 onChange={(e) => handleEditingChange('clock_in', e.target.value)}
                                 required
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                title="Clock In Time"
                               />
                             </div>
                             
@@ -296,6 +331,7 @@ export default function TimesheetReviewForm({
                                 value={editingEntry.clock_out || ''}
                                 onChange={(e) => handleEditingChange('clock_out', e.target.value)}
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                title="Clock Out Time"
                               />
                             </div>
                           </div>
@@ -309,6 +345,7 @@ export default function TimesheetReviewForm({
                                 onChange={(e) => handleEditingChange('total_break_minutes', Number(e.target.value))}
                                 min="0"
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                title="Break Minutes"
                               />
                             </div>
 
@@ -319,6 +356,7 @@ export default function TimesheetReviewForm({
                                 onChange={(e) => handleEditingChange('job_location_id', e.target.value)}
                                 required
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                title="Job Location"
                               >
                                 <option value="">Select a location</option>
                                 {jobLocations.map((location) => (
@@ -333,14 +371,19 @@ export default function TimesheetReviewForm({
                           <div>
                             <label className="block text-sm font-medium text-gray-700">Service Type</label>
                             <select
-                              value={editingEntry.service_type || ''}
+                              value={typeof editingEntry.service_type === 'object' && editingEntry.service_type !== null && 'id' in editingEntry.service_type 
+                                ? (editingEntry.service_type as {id: string}).id 
+                                : (editingEntry.service_type || '')}
                               onChange={(e) => handleEditingChange('service_type', e.target.value || null)}
                               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              title="Service Type"
                             >
                               <option value="">Select a service type</option>
-                              <option value="hvac">HVAC</option>
-                              <option value="plumbing">Plumbing</option>
-                              <option value="both">Both</option>
+                              {serviceTypes.map((type) => (
+                                <option key={type.id} value={type.id}>
+                                  {type.name}
+                                </option>
+                              ))}
                             </select>
                           </div>
 
@@ -502,4 +545,6 @@ export default function TimesheetReviewForm({
       </div>
     </div>
   );
-}
+};
+
+export default TimesheetReviewForm;
