@@ -91,12 +91,8 @@ SELECT
   o.id
 FROM 
   (VALUES 
-    ('Residential'),
-    ('Commercial'),
-    ('Industrial'),
-    ('Maintenance'),
-    ('Installation'),
-    ('Repair')
+    ('Standard'),
+    ('Premium')
   ) AS s(name)
 CROSS JOIN (
   SELECT id FROM public.organizations

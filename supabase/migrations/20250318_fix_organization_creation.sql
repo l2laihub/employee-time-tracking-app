@@ -29,12 +29,8 @@ BEGIN
   -- Create default service types for the organization
   INSERT INTO public.service_types (name, organization_id)
   VALUES 
-    ('Residential', v_org_id),
-    ('Commercial', v_org_id),
-    ('Industrial', v_org_id),
-    ('Maintenance', v_org_id),
-    ('Installation', v_org_id),
-    ('Repair', v_org_id)
+    ('Standard', v_org_id),
+    ('Premium', v_org_id)
   ON CONFLICT (name, organization_id) DO NOTHING;
   
   -- Refresh any materialized views (without CONCURRENTLY)

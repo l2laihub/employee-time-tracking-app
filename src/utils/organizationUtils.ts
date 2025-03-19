@@ -19,12 +19,8 @@ const DEFAULT_DEPARTMENTS = [
 
 // Default service types to create for each organization
 const DEFAULT_SERVICE_TYPES = [
-  'Residential',
-  'Commercial',
-  'Industrial',
-  'Maintenance',
-  'Installation',
-  'Repair'
+  'Standard',
+  'Premium'
 ];
 
 /**
