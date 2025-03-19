@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import Logo from '../components/Logo';
+import { supabase } from '../lib/supabase';
 
 export default function Login() {
   const location = useLocation();
@@ -38,10 +39,42 @@ export default function Login() {
     try {
       await signIn(email, password);
       
+      // Check if this user has any pending invites
+      const { data: inviteData, error: inviteError } = await supabase
+        .from('organization_invites')
+        .select(`
+          id,
+          organization_id,
+          role,
+          status,
+          expires_at,
+          organization:organizations (
+            name
+          )
+        `)
+        .eq('email', email.toLowerCase())
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle();
+      
+      console.log('Login: Checking for pending invites', { inviteData, inviteError });
+
+      // If there's a pending invite and no specific redirect path, redirect to accept the invite
+      if (inviteData && !redirectPath) {
+        const inviteAcceptPath = `/accept-invite/${inviteData.id}`;
+        console.log('Login: Found pending invite, redirecting to:', inviteAcceptPath);
+        navigate(inviteAcceptPath);
+        return;
+      }
+      
       // Handle redirect after successful login
       if (redirectPath) {
         console.log('Login: Redirecting to:', redirectPath);
         navigate(redirectPath);
+      } else {
+        // Default redirect to dashboard
+        console.log('Login: No redirect path specified, redirecting to dashboard');
+        navigate('/dashboard');
       }
     } catch (error) {
       console.error('Login: Error during sign in:', error);

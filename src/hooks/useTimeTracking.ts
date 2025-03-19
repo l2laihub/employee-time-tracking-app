@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useOrganization } from '../contexts/OrganizationContext';
 import { TimeTrackingService } from '../services/timeTracking';
 import { OrganizationClient } from '../lib/supabase';
 import type { Database } from '../types/database.types';
-import type { JobLocation, JobLocationFormData } from '../lib/types';
 
+// Define types from Database types
 type JobLocation = Database['public']['Tables']['job_locations']['Row'];
 type TimeEntry = Database['public']['Tables']['time_entries']['Row'];
 
@@ -100,16 +100,23 @@ export function useTimeTracking() {
 
   // Real-time subscriptions
   const subscribeToTimeEntries = useCallback(
-    (userId: string, callback: (payload: any) => void) => {
+    (userId: string, callback: (payload: unknown) => void) => {
       return service.subscribeToTimeEntries(userId, callback);
     },
     [service]
   );
 
-  const subscribeToJobLocations = useCallback((callback: (payload: any) => void) => {
+  const subscribeToJobLocations = useCallback((callback: (payload: unknown) => void) => {
     console.log('Setting up job locations subscription for organization:', organization.id);
     return service.subscribeToJobLocations(callback);
   }, [service, organization.id]);
+
+  // Import/Export functions
+  const downloadJobLocationsTemplate = useCallback(async (organizationId: string) => {
+    // Import the function dynamically to avoid circular dependencies
+    const { downloadJobLocationsTemplate } = await import('../lib/importJobLocations');
+    return downloadJobLocationsTemplate(organizationId);
+  }, []);
 
   return {
     createJobLocation,
@@ -124,5 +131,6 @@ export function useTimeTracking() {
     getTimeEntryById,
     subscribeToTimeEntries,
     subscribeToJobLocations,
+    downloadJobLocationsTemplate,
   };
 }

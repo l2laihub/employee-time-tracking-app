@@ -3,6 +3,7 @@ import { Download, Upload, AlertCircle } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { importJobLocations, validateJobLocation, downloadJobLocationsTemplate } from '../../lib/importJobLocations';
 import type { JobLocationImport } from '../../lib/importJobLocations';
+import { useOrganization } from '../../contexts/OrganizationContext';
 
 interface ImportLocationsModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export default function ImportLocationsModal({
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const { organization } = useOrganization();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -90,7 +92,16 @@ export default function ImportLocationsModal({
           <div className="space-y-4">
             <div>
               <button
-                onClick={downloadJobLocationsTemplate}
+                onClick={() => {
+                  if (organization) {
+                    downloadJobLocationsTemplate(organization.id)
+                      .catch(err => {
+                        setError(err instanceof Error ? err.message : 'Failed to download template');
+                      });
+                  } else {
+                    setError('Organization not found. Please refresh the page and try again.');
+                  }
+                }}
                 className="flex items-center text-blue-600 hover:text-blue-700"
               >
                 <Download className="w-4 h-4 mr-2" />

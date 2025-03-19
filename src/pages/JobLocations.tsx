@@ -1,21 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Upload, Plus, LayoutGrid, List } from 'lucide-react';
 import ImportLocationsModal from '../components/job-locations/ImportLocationsModal';
 import JobLocationForm from '../components/job-locations/JobLocationForm';
 import JobLocationCard from '../components/job-locations/JobLocationCard';
 import JobLocationList from '../components/job-locations/JobLocationList';
 import { useTimeTracking } from '../hooks/useTimeTracking';
+import { useOrganization } from '../contexts/OrganizationContext';
+import { supabase } from '../lib/supabase';
 import { toast } from '../lib/toast';
 import type { JobLocation, JobLocationFormData } from '../lib/types';
 import type { JobLocationImport } from '../lib/importJobLocations';
 
 export default function JobLocations() {
+  const { organization } = useOrganization();
   const { 
     getJobLocations, 
     createJobLocation, 
     updateJobLocation, 
     deleteJobLocation,
-    subscribeToJobLocations 
+    subscribeToJobLocations
   } = useTimeTracking();
   
   const [locations, setLocations] = useState<JobLocation[]>([]);
@@ -26,7 +29,7 @@ export default function JobLocations() {
   const [initialFormData, setInitialFormData] = useState<JobLocationFormData | undefined>();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  const loadLocations = async () => {
+  const loadLocations = useCallback(async () => {
     try {
       setIsLoading(true);
       const { data, error } = await getJobLocations();
@@ -56,12 +59,12 @@ export default function JobLocations() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [getJobLocations]);
 
   useEffect(() => {
     console.log('Initial load of locations');
     loadLocations();
-  }, []);
+  }, [loadLocations]);
 
   useEffect(() => {
     console.log('Setting up job locations subscription');
@@ -74,23 +77,51 @@ export default function JobLocations() {
       console.log('Cleaning up job locations subscription');
       subscription?.unsubscribe();
     };
-  }, [subscribeToJobLocations]);
+  }, [subscribeToJobLocations, loadLocations]);
 
   const handleImportLocations = async (importedLocations: JobLocationImport[]) => {
     try {
       console.log('Importing locations:', importedLocations);
       
+      if (!organization) {
+        throw new Error('Organization not found');
+      }
+      
       // Get existing locations first
       const { data: existingLocations, error: fetchError } = await getJobLocations();
       if (fetchError) throw fetchError;
 
+      // Fetch service types to map names to IDs
+      const { data: serviceTypes, error: serviceTypesError } = await supabase
+        .from('service_types')
+        .select('id, name')
+        .eq('organization_id', organization.id);
+      
+      if (serviceTypesError) throw serviceTypesError;
+      
+      if (!serviceTypes || serviceTypes.length === 0) {
+        throw new Error('No service types found for your organization. Please create service types first.');
+      }
+      
+      // Create a map of service type names to IDs
+      const serviceTypeMap = serviceTypes.reduce((map: Record<string, string>, type: { id: string, name: string }) => {
+        // Convert names to lowercase for case-insensitive matching
+        map[type.name.toLowerCase()] = type.id;
+        return map;
+      }, {} as Record<string, string>);
+      
+      console.log('Service type mapping:', serviceTypeMap);
+      console.log('Available service types:', serviceTypes.map((st: { name: string }) => st.name));
+
       // Track statistics for user feedback
       let imported = 0;
       let skipped = 0;
+      let errors = 0;
+      const invalidServiceTypes: string[] = [];
       
       for (const loc of importedLocations) {
         // Check for duplicate based on name and address combination
-        const isDuplicate = existingLocations?.some(existing => 
+        const isDuplicate = existingLocations?.some((existing: JobLocation) => 
           existing.name.toLowerCase() === loc.name.toLowerCase() && 
           existing.address?.toLowerCase() === loc.address.toLowerCase()
         );
@@ -100,35 +131,76 @@ export default function JobLocations() {
           skipped++;
           continue;
         }
+        
+        // Look up the service type ID from the name
+        const serviceTypeId = serviceTypeMap[loc.serviceType.toLowerCase()];
+        
+        if (!serviceTypeId) {
+          console.error(`Service type "${loc.serviceType}" not found in your organization`);
+          errors++;
+          if (!invalidServiceTypes.includes(loc.serviceType)) {
+            invalidServiceTypes.push(loc.serviceType);
+          }
+          continue;
+        }
 
-        const { error } = await createJobLocation({
-          name: loc.name,
-          type: loc.type,
-          address: loc.address,
-          city: loc.city,
-          state: loc.state,
-          zip: loc.zip,
-          service_type: loc.serviceType,
-          is_active: true
-        });
+        // Ensure the type is either 'commercial' or 'residential'
+        const locationType = loc.type.toLowerCase() === 'commercial' ? 'commercial' : 'residential';
 
-        if (error) throw error;
-        imported++;
+        try {
+          // Use the createJobLocation function from the useTimeTracking hook
+          // This function is already set up to work with the organization's RLS policies
+          const { error } = await createJobLocation({
+            name: loc.name,
+            type: locationType as 'commercial' | 'residential',
+            address: loc.address,
+            city: loc.city,
+            state: loc.state,
+            zip: loc.zip,
+            service_type: serviceTypeId,
+            is_active: true,
+            organization_id: organization.id
+          });
+
+          if (error) {
+            console.error('Error creating location:', error);
+            errors++;
+            continue;
+          }
+          
+          imported++;
+        } catch (insertError) {
+          console.error('Exception creating location:', insertError);
+          errors++;
+          continue;
+        }
       }
 
       // Reload locations immediately after successful import
       await loadLocations();
 
+      let message = `Successfully imported ${imported} location${imported !== 1 ? 's' : ''}.`;
+      if (skipped > 0) {
+        message += ` Skipped ${skipped} duplicate${skipped !== 1 ? 's' : ''}.`;
+      }
+      if (errors > 0) {
+        message += ` Failed to import ${errors} location${errors !== 1 ? 's' : ''}.`;
+        
+        if (invalidServiceTypes.length > 0) {
+          message += ` Invalid service types: ${invalidServiceTypes.join(', ')}. Available types are: ${serviceTypes.map((st: { name: string }) => st.name).join(', ')}.`;
+        }
+      }
+
       toast({
         title: 'Import Complete',
-        description: `Successfully imported ${imported} location${imported !== 1 ? 's' : ''}. ${skipped ? `Skipped ${skipped} duplicate${skipped !== 1 ? 's' : ''}.` : ''}`
+        description: message
       });
       setIsImportModalOpen(false);
     } catch (error) {
       console.error('Error importing locations:', error);
       toast({
         title: 'Error',
-        description: 'Failed to import locations. Please try again.',
+        description: error instanceof Error ? error.message : 'Failed to import locations. Please try again.',
         variant: 'destructive'
       });
     }
@@ -156,12 +228,12 @@ export default function JobLocations() {
       };
 
       // Helper function to normalize address fields
-      const normalizeLocation = (location: any) => ({
+      const normalizeLocation = (location: JobLocation | JobLocationFormData) => ({
         name: normalizeString(location.name),
-        address: normalizeString(location.address),
-        city: normalizeString(location.city),
-        state: normalizeString(location.state),
-        zip: normalizeString(location.zip)
+        address: normalizeString(location.address as string),
+        city: normalizeString(location.city as string),
+        state: normalizeString(location.state as string),
+        zip: normalizeString(location.zip as string)
       });
 
       // Normalize new location
@@ -169,7 +241,7 @@ export default function JobLocations() {
       console.log('Normalized new location:', newLocation);
 
       // Check for duplicates
-      const isDuplicate = existingLocations?.some(existing => {
+      const isDuplicate = existingLocations?.some((existing: JobLocation) => {
         const existingLocation = normalizeLocation(existing);
         console.log('Comparing with existing location:', {
           id: existing.id,
@@ -216,7 +288,10 @@ export default function JobLocations() {
       }
 
       console.log('No duplicate found - creating new location');
-      const { data, error } = await createJobLocation(locationData);
+      const { data, error } = await createJobLocation({
+        organization_id: organization.id,
+        ...locationData
+      });
       console.log('Create location response:', { data, error });
 
       if (error) {
@@ -295,7 +370,10 @@ export default function JobLocations() {
     if (!selectedLocation) return;
     
     try {
-      const { data, error } = await updateJobLocation(selectedLocation.id, locationData);
+      const { data, error } = await updateJobLocation(selectedLocation.id, {
+        organization_id: organization.id,
+        ...locationData
+      });
       
       if (error) throw error;
       
@@ -345,6 +423,8 @@ export default function JobLocations() {
                   ? 'bg-blue-50 text-blue-600 border-blue-600'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               }`}
+              aria-label="Grid view"
+              title="Grid view"
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
@@ -355,6 +435,8 @@ export default function JobLocations() {
                   ? 'bg-blue-50 text-blue-600 border-blue-600'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               }`}
+              aria-label="List view"
+              title="List view"
             >
               <List className="w-4 h-4" />
             </button>
@@ -362,9 +444,11 @@ export default function JobLocations() {
           <button
             onClick={() => setIsImportModalOpen(true)}
             className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 flex items-center"
+            aria-label="Import job locations"
+            title="Import job locations"
           >
             <Upload className="w-4 h-4 mr-2" />
-            Import Locations
+            Import
           </button>
           <button
             onClick={() => setIsFormModalOpen(true)}

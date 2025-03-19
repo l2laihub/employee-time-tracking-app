@@ -21,13 +21,16 @@ import Signup from '../../pages/Signup';
 import AcceptInvite from '../../pages/AcceptInvite';
 import CreateOrganization from '../../pages/CreateOrganization';
 import Onboarding from '../../pages/Onboarding';
+import DevVerify from '../../pages/DevVerify';
 
 export default function AppRoutes() {
   const { user } = useAuth();
   const { organization, userRole, isLoading } = useOrganization();
   const location = useLocation();
   const isAdmin = userRole === 'admin';
+  const isManager = userRole === 'manager';
   const isSuperAdmin = userRole === 'super_admin';
+  const hasAdminAccess = isAdmin || isManager;
 
   if (isLoading) {
     return (
@@ -46,6 +49,11 @@ export default function AppRoutes() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/onboarding" element={<Onboarding />} />
       <Route path="/accept-invite/:inviteId" element={<AcceptInvite />} />
+      
+      {/* Development-only routes */}
+      {process.env.NODE_ENV === 'development' && (
+        <Route path="/dev/verify" element={<DevVerify />} />
+      )}
 
       {/* Protected Routes */}
       {user ? (
@@ -63,11 +71,11 @@ export default function AppRoutes() {
               <Route path="/settings" element={<UserSettings />} />
               <Route path="/time-entry" element={<TimeEntry />} />
               <Route path="/job-locations" element={<JobLocations />} />
-              {isAdmin && <Route path="/employees" element={<Employees />} />}
+              {hasAdminAccess && <Route path="/employees" element={<Employees />} />}
               <Route path="/timesheets" element={<Timesheets />} />
-              {isAdmin && <Route path="/reports" element={<Reports />} />}
+              {hasAdminAccess && <Route path="/reports" element={<Reports />} />}
               <Route path="/pto" element={<PTO />} />
-              {isAdmin && (
+              {hasAdminAccess && (
                 <>
                   <Route path="/admin/settings" element={<OrganizationSettings />} />
                   <Route path="/admin/invites" element={<OrganizationInvites />} />
@@ -75,7 +83,7 @@ export default function AppRoutes() {
                 </>
               )}
               {/* System settings accessible by both super admins and org admins */}
-              {(isAdmin || isSuperAdmin) && (
+              {(hasAdminAccess || isSuperAdmin) && (
                 <Route path="/admin/system-settings" element={<AdminSettings />} />
               )}
             </Route>

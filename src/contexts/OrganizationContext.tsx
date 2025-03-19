@@ -6,18 +6,25 @@ import { useAuth } from './AuthContext';
 import { Organization } from '../types/supabase.types';
 import { createInvite } from '../services/invites';
 import { useEmail } from './EmailContext';
+import { createOrganizationFallback } from '../utils/organizationUtils';
 
 // Default PTO structure
 const DEFAULT_PTO = {
   vacation: {
     beginningBalance: 0,
-    ongoingBalance: 0,
-    firstYearRule: 40,
-    used: 0
+    accrualRate: 6.67, // 80 hours per year ÷ 12 months
+    accrued: 0,
+    used: 0,
+    pending: 0,
+    carryover: 0
   },
-  sickLeave: {
+  sick: {
     beginningBalance: 0,
-    used: 0
+    accrualRate: 3.33, // 40 hours per year ÷ 12 months
+    accrued: 0,
+    used: 0,
+    pending: 0,
+    carryover: 0
   }
 };
 
@@ -167,77 +174,13 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
       console.log('Creating organization with name:', name);
       setIsLoading(true);
-      const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
       
-      // Create organization and initial setup in a transaction
-      const { data, error } = await supabase
-        .rpc('create_organization_transaction', {
-          p_name: name,
-          p_slug: slug,
-          p_user_id: currentUser.id,
-          p_branding: null
-        });
-
-      console.log('Create organization response:', { data, error });
-
-      if (error) {
-        console.error('Create organization error details:', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint
-        });
-        throw error;
-      }
-
-      // The response is an array with one object containing organization_id and member_id
-      const organizationId = Array.isArray(data) && data[0]?.organization_id;
-      const memberId = Array.isArray(data) && data[0]?.member_id;
-
-      if (!organizationId || !memberId) {
-        console.error('Invalid organization creation response:', data);
-        throw new Error('No organization ID or member ID returned from creation');
-      }
-
-      console.log('Organization created with ID:', organizationId);
-      console.log('Member created with ID:', memberId);
-
-      // Create the employee record using the member_id
-      const { error: employeeError } = await supabase
-        .from('employees')
-        .insert({
-          member_id: memberId,
-          organization_id: organizationId,
-          first_name: currentUser.user_metadata?.first_name || '',
-          last_name: currentUser.user_metadata?.last_name || '',
-          email: currentUser.email,
-          status: 'active',
-          role: 'admin',
-          start_date: new Date().toISOString().split('T')[0], // Required: current date
-          pto: DEFAULT_PTO // Required: default PTO structure
-        });
-
-      if (employeeError) {
-        console.error('Error creating employee:', employeeError);
-        throw employeeError;
-      }
-
-      console.log('Employee record created successfully');
-
-      // Fetch the newly created organization
-      const { data: orgData, error: orgError } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('id', organizationId)
-        .single();
-
-      if (orgError) {
-        console.error('Error fetching new organization:', orgError);
-        throw orgError;
-      }
-
-      console.log('Setting newly created organization:', orgData);
-      setOrganization(orgData);
+      // Skip the transaction function entirely and use the fallback method directly
+      console.log('Using direct organization creation method...');
+      const result = await createOrganizationFallback(supabase, name, currentUser);
+      
+      console.log('Organization creation successful:', result);
+      setOrganization(result.organization);
       setUserRole('admin' as UserRole);
       setError(null);
     } catch (err) {
@@ -249,7 +192,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           stack: err.stack
         });
       }
-      throw err;
+      setError(err as Error);
     } finally {
       setIsLoading(false);
     }

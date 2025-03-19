@@ -1,8 +1,9 @@
 import { OrganizationClient } from '../lib/supabase';
 import type { Database } from '../types/database.types';
-import type { JobLocationFormData, JobLocation } from '../lib/types';
+import type { JobLocation } from '../lib/types';
 
 type TimeEntry = Database['public']['Tables']['time_entries']['Row'];
+type JobLocationCreate = Omit<Database['public']['Tables']['job_locations']['Row'], 'id' | 'created_at' | 'updated_at'>;
 
 export class TimeTrackingService {
   private client: OrganizationClient;
@@ -12,7 +13,7 @@ export class TimeTrackingService {
   }
 
   // Job Locations
-  async createJobLocation(data: JobLocationFormData) {
+  async createJobLocation(data: JobLocationCreate) {
     console.log('TimeTrackingService.createJobLocation:', {
       organizationId: this.client.organizationId,
       data

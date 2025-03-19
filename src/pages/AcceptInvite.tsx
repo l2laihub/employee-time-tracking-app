@@ -3,12 +3,14 @@ import { useNavigate, useParams, useLocation, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
+import { useOrganization } from '../contexts/OrganizationContext';
 
 interface InviteDetails {
   email: string;
   organization_name: string;
   expires_at: string;
   status: string;
+  organization_id: string;
 }
 
 export default function AcceptInvite() {
@@ -18,6 +20,7 @@ export default function AcceptInvite() {
   const codeFromQuery = searchParams.get('code');
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { refreshOrganization } = useOrganization();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [invite, setInvite] = useState<InviteDetails | null>(null);
@@ -67,11 +70,21 @@ export default function AcceptInvite() {
     if (invite && user && invite.email === user.email) {
       acceptInvite();
     }
-  }, [invite, user, inviteCode]); // Add inviteCode to dependencies
+  }, [invite, user, inviteCode]);
 
   const validateInvite = async () => {
     console.log('Validating invite:', inviteCode);
     try {
+      // First, check if the invite exists directly in the database
+      const { data: inviteData, error: inviteQueryError } = await supabase
+        .from('organization_invites')
+        .select('*')
+        .eq('id', inviteCode)
+        .single();
+      
+      console.log('Direct invite query result:', { inviteData, inviteQueryError });
+      
+      // Now call the validation function
       const { data, error } = await supabase.rpc('validate_organization_invite', {
         p_invite_id: inviteCode
       });
@@ -98,6 +111,26 @@ export default function AcceptInvite() {
           console.log('Invite already accepted, navigating to dashboard');
           navigate('/dashboard', { replace: true });
           return;
+        }
+        
+        // If invite not found but user is logged in, check if they're already a member
+        if (data.error === 'Invite not found or already used' && user) {
+          console.log('Checking if user is already a member of an organization');
+          
+          const { data: memberData, error: memberError } = await supabase
+            .from('organization_members')
+            .select('organization_id')
+            .eq('user_id', user.id)
+            .maybeSingle();
+            
+          console.log('Organization membership check:', { memberData, memberError });
+          
+          if (memberData) {
+            toast.success('You are already a member of an organization');
+            console.log('User is already a member, navigating to dashboard');
+            navigate('/dashboard', { replace: true });
+            return;
+          }
         }
         
         setError(data.error);
@@ -132,6 +165,32 @@ export default function AcceptInvite() {
     });
     
     try {
+      // First, check if the user is already a member of this organization
+      if (invite?.organization_id) {
+        const { data: memberData, error: memberError } = await supabase
+          .from('organization_members')
+          .select('*')
+          .eq('user_id', user?.id)
+          .eq('organization_id', invite.organization_id)
+          .maybeSingle();
+          
+        console.log('Checking existing membership:', { memberData, memberError });
+        
+        if (memberData) {
+          console.log('User is already a member of this organization');
+          toast.success('You are already a member of this organization');
+          
+          // Refresh organization context before navigating
+          refreshOrganization();
+          
+          // Add a small delay to ensure context is updated
+          setTimeout(() => {
+            navigate('/dashboard', { replace: true });
+          }, 1000);
+          return;
+        }
+      }
+
       const { data, error } = await supabase.rpc('accept_organization_invite', {
         p_invite_id: inviteCode,
         p_user_id: user?.id
@@ -150,14 +209,47 @@ export default function AcceptInvite() {
       if (error) throw error;
 
       if (!data.success) {
+        // If the invite was not found but user is logged in, check if they're already a member
+        if (data.error === 'Invite not found or already used' && user) {
+          console.log('Checking if user is already a member of an organization after failed accept');
+          
+          const { data: memberData, error: memberError } = await supabase
+            .from('organization_members')
+            .select('organization_id')
+            .eq('user_id', user.id)
+            .maybeSingle();
+            
+          console.log('Organization membership check after failed accept:', { memberData, memberError });
+          
+          if (memberData) {
+            toast.success('You are already a member of an organization');
+            console.log('User is already a member, navigating to dashboard');
+            
+            // Refresh organization context before navigating
+            refreshOrganization();
+            
+            // Add a small delay to ensure context is updated
+            setTimeout(() => {
+              navigate('/dashboard', { replace: true });
+            }, 1000);
+            return;
+          }
+        }
+        
         throw new Error(data.error);
       }
 
-      console.log('Successfully joined organization, navigating to dashboard');
-      console.log('Successfully joined organization, navigating to dashboard');
+      console.log('Successfully joined organization, refreshing context and navigating to dashboard');
       toast.success('Successfully joined organization');
-      // Use replace: true to ensure clean navigation history
-      navigate('/dashboard', { replace: true });
+      
+      // Refresh organization context before navigating
+      refreshOrganization();
+      
+      // Add a small delay to ensure context is updated
+      setTimeout(() => {
+        // Use replace: true to ensure clean navigation history
+        navigate('/dashboard', { replace: true });
+      }, 1000);
     } catch (error: any) {
       console.error('Error accepting invite:', {
         message: error.message,
