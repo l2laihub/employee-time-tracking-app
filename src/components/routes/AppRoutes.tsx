@@ -22,6 +22,7 @@ import AcceptInvite from '../../pages/AcceptInvite';
 import CreateOrganization from '../../pages/CreateOrganization';
 import Onboarding from '../../pages/Onboarding';
 import DevVerify from '../../pages/DevVerify';
+import StorageDebugPage from '../../pages/StorageDebugPage';
 
 export default function AppRoutes() {
   const { user } = useAuth();
@@ -52,8 +53,14 @@ export default function AppRoutes() {
       
       {/* Development-only routes */}
       {process.env.NODE_ENV === 'development' && (
-        <Route path="/dev/verify" element={<DevVerify />} />
+        <>
+          <Route path="/dev/verify" element={<DevVerify />} />
+          <Route path="/dev/storage-debug" element={<Navigate to="/storage-debug" replace />} />
+        </>
       )}
+
+      {/* Debug routes - accessible in all environments but hidden from navigation */}
+      <Route path="/storage-debug" element={<StorageDebugPage />} />
 
       {/* Protected Routes */}
       {user ? (

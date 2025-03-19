@@ -49,9 +49,9 @@ export function OrganizationBranding() {
     setError(null);
 
     try {
-      // Validate file size (max 2MB)
-      if (file.size > 2 * 1024 * 1024) {
-        throw new Error('File size must be less than 2MB');
+      // Validate file size (max 1MB for base64)
+      if (file.size > 1 * 1024 * 1024) {
+        throw new Error('File size must be less than 1MB');
       }
 
       // Validate file type
@@ -60,46 +60,20 @@ export function OrganizationBranding() {
         throw new Error('File must be an image (JPEG, PNG, GIF, or SVG)');
       }
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${organization.id}/${type}/${type}-${Date.now()}.${fileExt}`;
+      // Convert file to base64
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+      });
 
-      // First, try to delete the old file if it exists
-      if (formData[type === 'logo' ? 'logo_url' : 'favicon_url']) {
-        try {
-          const oldUrl = formData[type === 'logo' ? 'logo_url' : 'favicon_url']!;
-          const oldPath = oldUrl.split('/').slice(-3).join('/'); // Get org_id/type/filename
-          await supabase.storage
-            .from('branding')
-            .remove([oldPath]);
-        } catch (err) {
-          console.warn('Failed to delete old file:', err);
-          // Continue with upload even if delete fails
-        }
-      }
+      console.log('Image converted to base64 successfully');
 
-      // Upload the new file
-      const { error: uploadError, data } = await supabase.storage
-        .from('branding')
-        .upload(fileName, file, { 
-          upsert: true,
-          contentType: file.type,
-          cacheControl: '3600'
-        });
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw new Error(uploadError.message);
-      }
-
-      // Get the public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('branding')
-        .getPublicUrl(fileName);
-
-      // Update the form data with the new URL
+      // Update the form data with the base64 string
       setFormData(prev => ({
         ...prev,
-        [type === 'logo' ? 'logo_url' : 'favicon_url']: publicUrl,
+        [type === 'logo' ? 'logo_url' : 'favicon_url']: base64,
       }));
 
       setSuccess(`${type.charAt(0).toUpperCase() + type.slice(1)} uploaded successfully`);
@@ -165,6 +139,8 @@ export function OrganizationBranding() {
             value={formData.company_name || ''}
             onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            aria-label="Company name"
+            title="Company name"
           />
         </div>
 
@@ -177,6 +153,8 @@ export function OrganizationBranding() {
             value={formData.company_website || ''}
             onChange={(e) => setFormData({ ...formData, company_website: e.target.value })}
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            aria-label="Company website"
+            title="Company website"
           />
         </div>
 
@@ -191,12 +169,16 @@ export function OrganizationBranding() {
               onClick={() => setShowColorPicker(prev => prev === 'primary' ? null : 'primary')}
               className="h-8 w-8 rounded border border-gray-300"
               style={{ backgroundColor: formData.primary_color }}
+              aria-label="Select primary color"
+              title="Select primary color"
             />
             <input
               type="text"
               value={formData.primary_color}
               onChange={(e) => setFormData({ ...formData, primary_color: e.target.value })}
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              aria-label="Primary color hex value"
+              title="Primary color hex value"
             />
           </div>
           {showColorPicker === 'primary' && (
@@ -219,12 +201,16 @@ export function OrganizationBranding() {
               onClick={() => setShowColorPicker(prev => prev === 'secondary' ? null : 'secondary')}
               className="h-8 w-8 rounded border border-gray-300"
               style={{ backgroundColor: formData.secondary_color }}
+              aria-label="Select secondary color"
+              title="Select secondary color"
             />
             <input
               type="text"
               value={formData.secondary_color}
               onChange={(e) => setFormData({ ...formData, secondary_color: e.target.value })}
               className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              aria-label="Secondary color hex value"
+              title="Secondary color hex value"
             />
           </div>
           {showColorPicker === 'secondary' && (
@@ -254,6 +240,8 @@ export function OrganizationBranding() {
                 accept="image/*"
                 onChange={(e) => handleFileUpload(e, 'logo')}
                 className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                aria-label="Upload logo"
+                title="Upload logo"
               />
             </div>
           </div>
@@ -276,6 +264,8 @@ export function OrganizationBranding() {
                 accept="image/x-icon,image/png"
                 onChange={(e) => handleFileUpload(e, 'favicon')}
                 className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                aria-label="Upload favicon"
+                title="Upload favicon"
               />
             </div>
           </div>
@@ -288,6 +278,7 @@ export function OrganizationBranding() {
         <div
           className="mt-4 p-6 rounded-lg"
           style={{ backgroundColor: formData.primary_color + '10' }}
+          aria-label="Branding preview"
         >
           <div className="flex items-center space-x-4">
             {formData.logo_url && (

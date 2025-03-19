@@ -6,7 +6,6 @@ import { Employee } from '../../lib/types';
 import * as employeeService from '../../services/employees';
 import { Card, Input, Button, LoadingSpinner, ImageUpload } from '../design-system';
 import { toast } from '../../lib/toast';
-import { supabase } from '../../lib/supabase';
 
 export default function UserSettings() {
   const { updateEmployee, refreshEmployees } = useEmployees();
@@ -71,73 +70,101 @@ export default function UserSettings() {
     
     setIsUploadingPhoto(true);
     try {
-      const filePath = `${user.id}/${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('employee-photos')
-        .upload(filePath, file);
+      console.log('Converting image to base64');
+      
+      // Check file size
+      if (file.size > 1 * 1024 * 1024) { // 1MB limit for base64
+        throw new Error('File size must be less than 1MB');
+      }
 
-      if (uploadError) throw uploadError;
+      // Check file type
+      const allowedTypes = ['image/jpeg', 'image/png'];
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('Only JPEG and PNG files are allowed');
+      }
+      
+      // Convert file to base64
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+      });
+      
+      console.log('Image converted to base64 successfully');
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('employee-photos')
-        .getPublicUrl(filePath);
-
+      // Update employee record with base64 photo
       await updateEmployee(currentEmployee.id, {
-        photo_url: publicUrl
+        photo_url: base64
       });
 
+      // Refresh data after successful update
       await refreshEmployeeData();
-      window.dispatchEvent(new Event('employee-updated'));
-
-      toast({
-        title: 'Success',
-        description: 'Profile photo updated successfully'
-      });
+      
+      // Use setTimeout to avoid the React state update during render warning
+      setTimeout(() => {
+        window.dispatchEvent(new Event('employee-updated'));
+        
+        toast({
+          title: 'Success',
+          description: 'Profile photo updated successfully'
+        });
+      }, 0);
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to update profile photo',
-        variant: 'destructive'
-      });
+      console.error('Photo upload error:', error);
+      
+      // Use setTimeout to avoid the React state update during render warning
+      setTimeout(() => {
+        toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Failed to update profile photo',
+          variant: 'destructive'
+        });
+      }, 0);
     } finally {
       setIsUploadingPhoto(false);
     }
-  }, [user?.id, currentEmployee, isUploadingPhoto, formData, updateEmployee, refreshEmployeeData]);
+  }, [user?.id, currentEmployee, isUploadingPhoto, updateEmployee, refreshEmployeeData]);
 
   const handlePhotoRemove = useCallback(async () => {
     if (!user?.id || !currentEmployee || isUploadingPhoto || !currentEmployee.photo_url) return;
 
     setIsUploadingPhoto(true);
     try {
-      const path = currentEmployee.photo_url.split('employee-photos/')[1];
-      if (path) {
-        await supabase.storage
-          .from('employee-photos')
-          .remove([path]);
-      }
-
-      // Only update the photo_url field
+      console.log('Removing profile photo');
+      
+      // Just set photo_url to null, no need to delete from storage
       await updateEmployee(currentEmployee.id, {
         photo_url: null
       });
 
+      // Refresh data after successful update
       await refreshEmployeeData();
-      window.dispatchEvent(new Event('employee-updated'));
-
-      toast({
-        title: 'Success',
-        description: 'Profile photo removed successfully'
-      });
+      
+      // Use setTimeout to avoid the React state update during render warning
+      setTimeout(() => {
+        window.dispatchEvent(new Event('employee-updated'));
+        
+        toast({
+          title: 'Success',
+          description: 'Profile photo removed successfully'
+        });
+      }, 0);
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to remove profile photo',
-        variant: 'destructive'
-      });
+      console.error('Photo remove error:', error);
+      
+      // Use setTimeout to avoid the React state update during render warning
+      setTimeout(() => {
+        toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Failed to remove profile photo',
+          variant: 'destructive'
+        });
+      }, 0);
     } finally {
       setIsUploadingPhoto(false);
     }
-  }, [user?.id, currentEmployee, isUploadingPhoto, formData, updateEmployee, refreshEmployeeData]);
+  }, [user?.id, currentEmployee, isUploadingPhoto, updateEmployee, refreshEmployeeData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,7 +184,7 @@ export default function UserSettings() {
       console.error('Failed to update user settings:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update settings',
+        description: error instanceof Error ? error.message : 'Failed to update settings',
         variant: 'destructive'
       });
     } finally {
@@ -200,7 +227,7 @@ export default function UserSettings() {
             className="mb-4"
           />
           <p className="text-sm text-neutral-500">
-            Upload a photo to personalize your profile. Max file size: 5MB.
+            Upload a photo to personalize your profile. Max file size: 1MB.
           </p>
         </div>
         

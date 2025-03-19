@@ -49,6 +49,7 @@ export async function initializeStorage() {
     
     if (!exists) {
       console.error('Storage initialization failed:', error);
+      console.warn('The employee-photos bucket must be created by an administrator in the Supabase dashboard');
       return false;
     }
 
@@ -83,8 +84,10 @@ export async function uploadFile(
     // Check if bucket exists
     const { exists, error: bucketError } = await checkBucketExists(bucket);
     if (!exists) {
-      console.error('Bucket check failed:', bucketError);
-      return { error: bucketError || 'Storage is not properly configured' };
+      console.error('Bucket not found:', bucketError);
+      return { 
+        error: 'The storage bucket does not exist. Please contact your administrator to set up the employee-photos bucket in Supabase.' 
+      };
     }
 
     console.log('Uploading file:', { bucket, path, type: file.type, size: file.size });
@@ -94,7 +97,7 @@ export async function uploadFile(
       .from(bucket)
       .upload(path, file, {
         cacheControl: '3600',
-        upsert: false
+        upsert: true // Changed to true to overwrite existing files
       });
 
     if (uploadError) {
