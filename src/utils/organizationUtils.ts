@@ -2,10 +2,16 @@ import { SupabaseClient, User } from '@supabase/supabase-js';
 
 // Default PTO structure used when creating new employees
 export const DEFAULT_PTO = {
-  annual: 80,
-  sick: 40,
-  used: 0,
-  accrued: 0
+  vacation: {
+    beginningBalance: 0,
+    ongoingBalance: 0,
+    firstYearRule: 40,
+    used: 0
+  },
+  sickLeave: {
+    beginningBalance: 0,
+    used: 0
+  }
 };
 
 // Default departments to create for each organization
@@ -35,39 +41,93 @@ export const createOrganizationFallback = async (
   console.log('Starting fallback organization creation process...');
   
   try {
-    const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    // Generate a unique slug with timestamp to avoid conflicts
+    const timestamp = Date.now();
+    const slug = `${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${timestamp}`;
     
-    // Step 1: Try to create the organization using a stored procedure
-    // This approach bypasses the RLS policies and materialized view checks
-    console.log('Attempting to create organization using direct SQL...');
+    // Check if user already has an organization
+    console.log('Checking if user already has an organization...');
+    const { data: existingMemberships, error: membershipError } = await supabase
+      .from('organization_members')
+      .select('id, organization_id')
+      .eq('user_id', currentUser.id);
     
-    const { data: orgData, error: orgError } = await supabase.rpc(
-      'create_organization_simple',
-      {
-        p_name: name,
-        p_slug: slug,
-        p_user_id: currentUser.id
+    if (membershipError) {
+      console.error('Error checking existing memberships:', membershipError);
+      throw membershipError;
+    }
+    
+    // Filter out any memberships with null organization_id
+    const validMemberships = (existingMemberships || []).filter(m => m.organization_id);
+    
+    if (validMemberships.length > 0) {
+      console.log('User already has an organization, fetching details...');
+      
+      // Fetch the existing organization
+      const { data: existingOrg, error: orgError } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('id', validMemberships[0].organization_id)
+        .single();
+      
+      if (orgError) {
+        console.error('Error fetching existing organization:', orgError);
+        throw orgError;
       }
-    );
-
+      
+      console.log('Returning existing organization:', existingOrg);
+      return {
+        organization: existingOrg,
+        memberId: validMemberships[0].id
+      };
+    }
+    
+    // Step 1: Create the organization directly
+    console.log('Creating new organization with name:', name);
+    
+    const { data: newOrg, error: orgError } = await supabase
+      .from('organizations')
+      .insert({
+        name: name,
+        slug: slug
+      })
+      .select()
+      .single();
+    
     if (orgError) {
-      console.error('Error creating organization via RPC:', orgError);
+      console.error('Error creating organization:', orgError);
       throw orgError;
     }
-
-    if (!orgData || !Array.isArray(orgData) || orgData.length === 0) {
-      console.error('Invalid response from create_organization_simple:', orgData);
-      throw new Error('Failed to create organization: Invalid response');
-    }
-
-    const organizationId = orgData[0].organization_id;
-    const memberId = orgData[0].member_id;
     
+    const organizationId = newOrg.id;
     console.log('Organization created with ID:', organizationId);
+    
+    // Step 2: Create organization member
+    console.log('Creating organization member for user:', currentUser.id);
+    
+    const { data: member, error: memberError } = await supabase
+      .from('organization_members')
+      .insert({
+        organization_id: organizationId,
+        user_id: currentUser.id,
+        role: 'admin'
+      })
+      .select()
+      .single();
+    
+    if (memberError) {
+      console.error('Error creating organization member:', memberError);
+      // Try to clean up the organization
+      await supabase.from('organizations').delete().eq('id', organizationId);
+      throw memberError;
+    }
+    
+    const memberId = member.id;
     console.log('Member created with ID:', memberId);
-
-    // Step 2: Create default service types
+    
+    // Step 3: Create default service types
     try {
+      console.log('Creating default service types...');
       const serviceTypeInserts = DEFAULT_SERVICE_TYPES.map(typeName => ({
         name: typeName,
         organization_id: organizationId
@@ -88,8 +148,9 @@ export const createOrganizationFallback = async (
       // Continue anyway
     }
 
-    // Step 3: Create default departments
+    // Step 4: Create default departments
     try {
+      console.log('Creating default departments...');
       const departmentInserts = DEFAULT_DEPARTMENTS.map(deptName => ({
         name: deptName,
         organization_id: organizationId
@@ -110,8 +171,9 @@ export const createOrganizationFallback = async (
       // Continue anyway
     }
 
-    // Step 4: Create employee record
+    // Step 5: Create employee record
     try {
+      console.log('Creating employee record...');
       const { error: employeeError } = await supabase
         .from('employees')
         .insert({
@@ -137,29 +199,8 @@ export const createOrganizationFallback = async (
       // Continue anyway
     }
 
-    // Step 5: Fetch the newly created organization
-    const { data: fetchedOrgData, error: fetchOrgError } = await supabase
-      .from('organizations')
-      .select('*')
-      .eq('id', organizationId)
-      .single();
-
-    if (fetchOrgError) {
-      console.error('Error fetching organization:', fetchOrgError);
-      // Create a minimal organization object to return
-      return {
-        organization: {
-          id: organizationId,
-          name: name,
-          slug: slug,
-          created_at: new Date().toISOString()
-        },
-        memberId: memberId
-      };
-    }
-    
     return {
-      organization: fetchedOrgData,
+      organization: newOrg,
       memberId: memberId
     };
   } catch (err) {

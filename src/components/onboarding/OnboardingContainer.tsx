@@ -35,21 +35,34 @@ const OnboardingContainer: React.FC<OnboardingContainerProps> = ({
     current: i === currentStep
   }));
 
+  // Calculate progress percentage
+  const progressPercentage = (currentStep / (totalSteps - 1)) * 100;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Progress bar */}
-        <div className="mb-8">
+        {/* Progress bar and steps */}
+        <nav aria-label="Onboarding progress" className="mb-8">
           <div className="relative">
-            <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-gray-200">
+            {/* Progress bar */}
+            <div 
+              className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-gray-200"
+              role="progressbar" 
+              aria-valuenow={progressPercentage} 
+              aria-valuemin={0} 
+              aria-valuemax={100}
+              aria-label={`Step ${currentStep + 1} of ${totalSteps}`}
+            >
               <div
-                style={{ width: `${(currentStep / (totalSteps - 1)) * 100}%` }}
+                style={{ width: `${progressPercentage}%` }}
                 className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-blue-500 transition-all duration-300"
               />
             </div>
-            <div className="flex justify-between text-sm">
+            
+            {/* Step indicators */}
+            <ol className="flex justify-between text-sm">
               {steps.map((step, index) => (
-                <div
+                <li
                   key={index}
                   className={`flex flex-col items-center ${
                     step.completed || step.current ? 'text-blue-500' : 'text-gray-400'
@@ -63,22 +76,24 @@ const OnboardingContainer: React.FC<OnboardingContainerProps> = ({
                         ? 'border-2 border-blue-500 text-blue-500'
                         : 'border-2 border-gray-300 text-gray-300'
                     }`}
+                    aria-current={step.current ? 'step' : undefined}
+                    aria-label={`Step ${index + 1} ${step.completed ? 'completed' : step.current ? 'current' : 'upcoming'}`}
                   >
-                    {step.completed ? '✓' : index + 1}
+                    <span aria-hidden="true">{step.completed ? '✓' : index + 1}</span>
                   </div>
                   <span className="text-xs">{step.title}</span>
-                </div>
+                </li>
               ))}
-            </div>
+            </ol>
           </div>
-        </div>
+        </nav>
 
         {/* Content area */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+        <main className="bg-white rounded-lg shadow-sm p-6 mb-8" role="main">
           {children}
-        </div>
+        </main>
 
-        {/* Navigation */}
+        {/* Navigation and status */}
         <div className="flex justify-between items-center">
           <div>
             <button
@@ -89,16 +104,23 @@ const OnboardingContainer: React.FC<OnboardingContainerProps> = ({
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
               }`}
+              aria-label="Go back to previous step"
             >
               Back
             </button>
           </div>
 
           {/* Save status */}
-          <div className="text-sm text-gray-500">
+          <div 
+            className="text-sm text-gray-500"
+            aria-live="polite"
+            role="status"
+          >
             {saveStatus === 'saving' && 'Saving...'}
             {saveStatus === 'saved' && lastSaved && `Last saved ${lastSaved.toLocaleTimeString()}`}
-            {saveStatus === 'error' && 'Failed to save'}
+            {saveStatus === 'error' && (
+              <span className="text-red-500">Failed to save. Please try again.</span>
+            )}
           </div>
         </div>
       </div>

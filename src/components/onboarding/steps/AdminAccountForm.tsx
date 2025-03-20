@@ -1,12 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { useOnboarding } from '../../../contexts/OnboardingContext';
+import { useOnboarding } from '../../../hooks/useOnboarding';
 import { AdminAccount } from '../types';
 
 interface AdminAccountFormProps {
   onSubmit: () => void;
+  error?: string | null;
+  isSubmitting?: boolean;
+  setError?: React.Dispatch<React.SetStateAction<string | null>>;
+  setIsSubmitting?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const AdminAccountForm: React.FC<AdminAccountFormProps> = ({ onSubmit }) => {
+const AdminAccountForm: React.FC<AdminAccountFormProps> = ({ 
+  onSubmit,
+  error: externalError,
+  isSubmitting: externalIsSubmitting,
+  setError: setExternalError,
+  setIsSubmitting: setExternalIsSubmitting
+}) => {
   const { state, updateAdmin, completeStep } = useOnboarding();
   const [formData, setFormData] = useState<Partial<AdminAccount>>({
     firstName: state.admin.firstName || '',
@@ -17,6 +27,10 @@ const AdminAccountForm: React.FC<AdminAccountFormProps> = ({ onSubmit }) => {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Use external state if provided
+  const isSubmitting = externalIsSubmitting || false;
+  const displayError = externalError || null;
 
   // Update context whenever form data changes
   useEffect(() => {
@@ -25,7 +39,7 @@ const AdminAccountForm: React.FC<AdminAccountFormProps> = ({ onSubmit }) => {
   }, [formData, updateAdmin]);
 
   const validatePassword = (password: string) => {
-    const requirements = {
+    const passwordRequirements = {
       minLength: password.length >= 8,
       hasUppercase: /[A-Z]/.test(password),
       hasLowercase: /[a-z]/.test(password),
@@ -34,8 +48,7 @@ const AdminAccountForm: React.FC<AdminAccountFormProps> = ({ onSubmit }) => {
     };
 
     return {
-      isValid: Object.values(requirements).every(Boolean),
-      requirements,
+      isValid: Object.values(passwordRequirements).every(Boolean),
     };
   };
 
@@ -56,7 +69,7 @@ const AdminAccountForm: React.FC<AdminAccountFormProps> = ({ onSubmit }) => {
 
     // Validate password as user types
     if (name === 'password') {
-      const { isValid, requirements } = validatePassword(value);
+      const { isValid } = validatePassword(value);
       if (!isValid) {
         setErrors(prev => ({
           ...prev,
@@ -71,23 +84,38 @@ const AdminAccountForm: React.FC<AdminAccountFormProps> = ({ onSubmit }) => {
     }
   };
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
+  const handleExternalError = (message: string) => {
+    if (setExternalError) {
+      setExternalError(message);
+    }
+  };
 
+  const handleExternalSubmitting = (submitting: boolean) => {
+    if (setExternalIsSubmitting) {
+      setExternalIsSubmitting(submitting);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validate form
+    const newErrors: Record<string, string> = {};
+    
     if (!formData.firstName?.trim()) {
       newErrors.firstName = 'First name is required';
     }
-
+    
     if (!formData.lastName?.trim()) {
       newErrors.lastName = 'Last name is required';
     }
-
+    
     if (!formData.email?.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Invalid email format';
     }
-
+    
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else {
@@ -96,30 +124,34 @@ const AdminAccountForm: React.FC<AdminAccountFormProps> = ({ onSubmit }) => {
         newErrors.password = 'Password does not meet requirements';
       }
     }
-
-    console.log('Form validation result:', {
-      formData,
-      errors: newErrors,
-      isValid: Object.keys(newErrors).length === 0
-    });
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
     
-    if (!validateForm()) {
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      // Also set external error if provided
+      handleExternalError('Please correct the errors in the form');
       return;
     }
-
-    // Final update of admin data before submission
-    await updateAdmin(formData);
-    console.log('Submitting admin form with data:', formData);
     
+    // Clear errors
+    setErrors({});
+    if (setExternalError) {
+      setExternalError(null);
+    }
+    
+    // Set submitting state
+    handleExternalSubmitting(true);
+    
+    // Update admin data in context
+    updateAdmin(formData);
+    
+    // Mark step as complete
     completeStep('admin');
+    
+    // Call onSubmit callback
     onSubmit();
+    
+    // Reset submitting state
+    handleExternalSubmitting(false);
   };
 
   return (
@@ -127,6 +159,14 @@ const AdminAccountForm: React.FC<AdminAccountFormProps> = ({ onSubmit }) => {
       <h2 className="text-2xl font-bold text-gray-900 mb-6">
         Create Admin Account
       </h2>
+
+      {/* Display external error if provided */}
+      {displayError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+          <strong className="font-bold">Error: </strong>
+          <span className="block sm:inline">{displayError}</span>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* First Name */}
@@ -245,8 +285,9 @@ const AdminAccountForm: React.FC<AdminAccountFormProps> = ({ onSubmit }) => {
           <button
             type="submit"
             className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            disabled={isSubmitting}
           >
-            Continue
+            {isSubmitting ? 'Saving...' : 'Continue'}
           </button>
         </div>
       </form>

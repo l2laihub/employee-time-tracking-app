@@ -1,16 +1,16 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useOrganization } from '../contexts/OrganizationContext';
-import { supabase } from '../lib/supabase';
 import OnboardingContainer from '../components/onboarding/OnboardingContainer';
 import WelcomeScreen from '../components/onboarding/steps/WelcomeScreen';
 import OrganizationForm from '../components/onboarding/steps/OrganizationForm';
 import AdminAccountForm from '../components/onboarding/steps/AdminAccountForm';
 import TeamConfigurationForm from '../components/onboarding/steps/TeamConfigurationForm';
+import FinalReviewForm from '../components/onboarding/steps/FinalReviewForm';
 import ErrorDisplay from '../components/onboarding/ErrorDisplay';
 import LoadingState from '../components/onboarding/LoadingState';
-import { OnboardingProvider, useOnboarding } from '../contexts/OnboardingContext';
+import { OnboardingProvider } from '../contexts/OnboardingContext';
+import { useOnboarding } from '../hooks/useOnboarding';
 import { getOnboardingState } from '../utils/onboardingStorage';
 
 type LoadingStepType = 'creating-account' | 'establishing-auth' | 'refreshing-session' | 'creating-organization';
@@ -18,23 +18,21 @@ type LoadingStepType = 'creating-account' | 'establishing-auth' | 'refreshing-se
 const OnboardingContent: React.FC = () => {
   const navigate = useNavigate();
   const { signUp } = useAuth();
-  const { createOrganization } = useOrganization();
   const {
-    state: { currentStep, steps, organization, admin },
-    nextStep,
+    state: { currentStep, steps, admin },
     previousStep,
     setStep,
     completeStep,
     completeOnboarding,
-    updateTeam,
-    resetOnboarding
+    resetOnboarding,
+    submitOnboarding
   } = useOnboarding();
 
   const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingStep, setLoadingStep] = useState<LoadingStepType>('creating-account');
 
-  // Only reset onboarding if there's no saved state or previous onboarding was completed
   useEffect(() => {
     const savedState = getOnboardingState();
     if (!savedState || savedState.completed) {
@@ -44,168 +42,115 @@ const OnboardingContent: React.FC = () => {
 
   const handleSave = useCallback(async () => {
     try {
-      // Auto-save is handled by the context
       return Promise.resolve();
-    } catch (err) {
+    } catch {
       setError('Failed to save progress. Please try again.');
     }
   }, []);
 
   const handleGetStarted = useCallback(() => {
     setError(null);
+    setInfoMessage(null);
     
-    // Find the index of the organization step
     const organizationStepIndex = steps.findIndex(step => step.id === 'organization');
     if (organizationStepIndex === -1) {
       console.error('Organization step not found');
       return;
     }
 
-    // Complete welcome step and move to organization step
     completeStep('welcome');
     setStep(organizationStepIndex);
   }, [completeStep, setStep, steps]);
 
   const handleOrganizationSubmit = useCallback(() => {
     setError(null);
+    setInfoMessage(null);
     
-    // Find the index of the admin step
     const adminStepIndex = steps.findIndex(step => step.id === 'admin');
     if (adminStepIndex === -1) {
       console.error('Admin step not found');
       return;
     }
 
-    // Complete organization step and move to admin step
     completeStep('organization');
     setStep(adminStepIndex);
   }, [completeStep, setStep, steps]);
 
-  const refreshSession = async (): Promise<string> => {
-    setLoadingStep('refreshing-session');
-    const { data: { session }, error } = await supabase.auth.refreshSession();
-    if (error || !session?.user?.id) {
-      throw new Error('Failed to refresh session');
-    }
-    return session.user.id;
-  };
-
-  const waitForAuthentication = async (): Promise<string> => {
-    setLoadingStep('establishing-auth');
-    return new Promise((resolve, reject) => {
-      // Set a timeout to reject if it takes too long
-      const timeout = setTimeout(() => {
-        reject(new Error('Authentication timeout'));
-      }, 10000);
-
-      // First check if we already have a session
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user?.id) {
-          console.log('Existing session found:', session.user.id);
-          clearTimeout(timeout);
-          resolve(session.user.id);
-          return;
-        }
-      });
-
-      // Listen for auth state change
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        console.log('Auth state changed:', { event, userId: session?.user?.id });
-        
-        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user?.id) {
-          console.log('Valid auth event received:', { event, userId: session.user.id });
-          clearTimeout(timeout);
-          subscription.unsubscribe();
-          resolve(session.user.id);
-        }
-      });
-    });
-  };
-
-  const handleAdminSubmit = useCallback(async () => {
+  const handleAdminSubmit = useCallback(() => {
     setError(null);
-    setIsSubmitting(true);
-    setLoadingStep('creating-account');
-
+    setInfoMessage(null);
+    
     try {
-      console.log('Starting admin account creation process...');
-
-      if (!organization.name) {
-        throw new Error('Organization name is required');
-      }
-
-      if (!admin.firstName || !admin.lastName || !admin.email || !admin.password) {
-        console.log('Missing admin fields:', {
-          firstName: !admin.firstName,
-          lastName: !admin.lastName,
-          email: !admin.email,
-          password: !admin.password
-        });
+      if (!admin.email || !admin.password || !admin.firstName || !admin.lastName) {
         throw new Error('Please fill in all admin account fields');
       }
 
-      // First create the user account
-      console.log('Creating user account...');
-      const { error: signUpError } = await signUp(
-        admin.email,
-        admin.password,
-        admin.firstName,
-        admin.lastName
+      completeStep('admin');
+      setStep(steps.findIndex(step => step.id === 'team'));
+    } catch (err) {
+      console.error('Error in admin submit:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create admin account');
+    }
+  }, [admin, completeStep, setStep, steps]);
+
+  const handleReviewSubmit = useCallback(async () => {
+    setError(null);
+    setInfoMessage(null);
+    setIsSubmitting(true);
+    setLoadingStep('creating-account');
+    
+    try {
+      if (!admin.email || !admin.password || !admin.firstName || !admin.lastName) {
+        throw new Error('Please fill in all admin account fields');
+      }
+
+      const email = admin.email;
+      const password = admin.password;
+      const firstName = admin.firstName || '';
+      const lastName = admin.lastName || '';
+      
+      const { error: signUpError, rateLimited } = await signUp(
+        email,
+        password,
+        firstName,
+        lastName
       );
 
       if (signUpError) {
+        if (rateLimited) {
+          throw new Error(`${signUpError.message} Please wait before trying again.`);
+        }
         throw signUpError;
       }
-
-      // Wait for authentication to be established
-      console.log('Waiting for authentication to be established...');
-      await waitForAuthentication();
-
-      // Refresh the session to ensure we have the latest token
-      console.log('Refreshing session...');
-      await refreshSession();
-      console.log('Session refreshed successfully');
-
-      // Small delay to ensure token propagation
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Then create the organization
-      setLoadingStep('creating-organization');
-      console.log('Creating organization...');
-      await createOrganization(organization.name);
-      console.log('Organization created successfully');
-
-      // Find the index of the team step
-      const teamStepIndex = steps.findIndex(step => step.id === 'team');
-      if (teamStepIndex === -1) {
-        console.error('Team step not found');
-        return;
-      }
-
-      // Complete admin step and move to team step
-      completeStep('admin');
-      setStep(teamStepIndex);
+      
+      console.log('Email confirmation required, skipping session establishment');
+      completeStep('review');
+      submitOnboarding();
+      setStep(steps.findIndex(step => step.id === 'complete'));
+      
+      setInfoMessage('Please check your email to confirm your account before logging in.');
+      setIsSubmitting(false);
+      return;
     } catch (err) {
       console.error('Error during onboarding:', err);
       setError(err instanceof Error ? err.message : 'Failed to complete setup');
     } finally {
       setIsSubmitting(false);
     }
-  }, [organization, admin, signUp, createOrganization, completeStep, setStep, steps]);
+  }, [admin, completeStep, setStep, steps, signUp, submitOnboarding]);
 
   const handleTeamSubmit = useCallback(() => {
     setError(null);
+    setInfoMessage(null);
     
-    // Find the index of the complete step
-    const completeStepIndex = steps.findIndex(step => step.id === 'complete');
-    if (completeStepIndex === -1) {
-      console.error('Complete step not found');
+    const reviewStepIndex = steps.findIndex(step => step.id === 'review');
+    if (reviewStepIndex === -1) {
+      console.error('Review step not found');
       return;
     }
 
-    // Complete team step and move to complete step
     completeStep('team');
-    setStep(completeStepIndex);
+    setStep(reviewStepIndex);
   }, [completeStep, setStep, steps]);
 
   const handleFinishOnboarding = useCallback(() => {
@@ -215,10 +160,14 @@ const OnboardingContent: React.FC = () => {
 
   const handleRetry = useCallback(() => {
     setError(null);
+    setInfoMessage(null);
   }, []);
 
+  const handleBack = useCallback(() => {
+    previousStep();
+  }, [previousStep]);
+
   const renderCurrentStep = () => {
-    // Show error if present
     if (error) {
       return (
         <>
@@ -228,11 +177,30 @@ const OnboardingContent: React.FC = () => {
       );
     }
 
+    if (infoMessage) {
+      return (
+        <>
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md" role="alert">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-blue-800">{infoMessage}</p>
+              </div>
+            </div>
+          </div>
+          {renderStepContent()}
+        </>
+      );
+    }
+
     return renderStepContent();
   };
 
   const renderStepContent = () => {
-    // Validate steps array and current step index
     if (!steps || !Array.isArray(steps) || steps.length === 0) {
       console.error('Invalid steps array:', steps);
       return null;
@@ -274,6 +242,10 @@ const OnboardingContent: React.FC = () => {
         return (
           <AdminAccountForm
             onSubmit={handleAdminSubmit}
+            error={error}
+            isSubmitting={isSubmitting}
+            setError={setError}
+            setIsSubmitting={setIsSubmitting}
           />
         );
       case 'team':
@@ -282,9 +254,24 @@ const OnboardingContent: React.FC = () => {
             onSubmit={handleTeamSubmit}
           />
         );
+      case 'review':
+        return (
+          <FinalReviewForm
+            onSubmit={handleReviewSubmit}
+            onBack={handleBack}
+            error={error}
+            isSubmitting={isSubmitting}
+            setError={setError}
+          />
+        );
       case 'complete':
         return (
           <div className="text-center p-8">
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+              <svg className="h-6 w-6 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
               Setup Complete!
             </h2>
@@ -294,6 +281,7 @@ const OnboardingContent: React.FC = () => {
             <button
               onClick={handleFinishOnboarding}
               className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              aria-label="Go to dashboard"
             >
               Go to Dashboard
             </button>
@@ -313,7 +301,6 @@ const OnboardingContent: React.FC = () => {
     }
   };
 
-  // Show loading state during submission
   if (isSubmitting) {
     return <LoadingState step={loadingStep} />;
   }

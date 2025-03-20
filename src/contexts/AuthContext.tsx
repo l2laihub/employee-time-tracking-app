@@ -3,18 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
-
-export interface AuthContextType {
-  user: User | null;
-  loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{
-    error: Error | null;
-    emailConfirmationRequired?: boolean;
-    user?: User | null;
-  }>;
-  signOut: () => Promise<void>;
-}
+import { AuthContextType } from './AuthTypes';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -91,8 +80,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       console.log('Sign in successful, navigating to dashboard');
       navigate('/dashboard', { replace: true });
+      return { error: null };
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error signing in');
+      console.error('Sign in error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to sign in');
+      return { error: error instanceof Error ? error : new Error('Failed to sign in') };
     } finally {
       setLoading(false);
     }
@@ -101,8 +93,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
     try {
       setLoading(true);
-      // Add a flag to bypass email confirmation in development
-      const bypassEmailConfirmation = process.env.NODE_ENV === 'development';
       
       // Get the current URL parameters to preserve invite information
       const currentUrl = new URL(window.location.href);
@@ -117,6 +107,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       console.log('Email confirmation will redirect to:', redirectUrl);
       
+      // Check if we've recently attempted a signup with this email to prevent rate limiting
+      const lastSignupAttempt = localStorage.getItem(`signup_attempt_${email}`);
+      if (lastSignupAttempt) {
+        const lastAttemptTime = parseInt(lastSignupAttempt, 10);
+        const currentTime = Date.now();
+        const timeDiff = currentTime - lastAttemptTime;
+        
+        // If less than 60 seconds since last attempt, show a friendly message
+        if (timeDiff < 60000) {
+          const secondsToWait = Math.ceil((60000 - timeDiff) / 1000);
+          console.log(`Rate limiting protection: Please wait ${secondsToWait} seconds before trying again`);
+          return { 
+            error: new Error(`Please wait ${secondsToWait} seconds before trying again`),
+            rateLimited: true
+          };
+        }
+      }
+      
+      // Store the current attempt time
+      localStorage.setItem(`signup_attempt_${email}`, Date.now().toString());
+      
+      // Simple signup - assume email confirmation is always required
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -125,106 +137,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             first_name: firstName,
             last_name: lastName,
           },
-          // Email confirmation is enabled in the new Supabase project
           emailRedirectTo: redirectUrl,
         },
       });
-
-      // Special handling for development mode
-      if (bypassEmailConfirmation && error) {
-        // Check if it's an invalid email error
-        if (error.message && error.message.includes('Email address') && error.message.includes('invalid')) {
-          console.log('DEVELOPMENT MODE: Bypassing invalid email error for:', email);
-          
-          // Create a mock user for development testing with a proper UUID format
-          const mockUser = {
-            id: '00000000-0000-4000-a000-000000000000', // Use a fixed UUID for testing
-            email: email,
-            aud: 'authenticated',
-            role: 'authenticated',
-            user_metadata: {
-              first_name: firstName,
-              last_name: lastName
-            },
-            app_metadata: {},
-            created_at: new Date().toISOString(),
-            confirmed_at: new Date().toISOString(), // Add confirmed_at to indicate email is confirmed
-            last_sign_in_at: new Date().toISOString()
-          };
-          
-          // Set the mock user - cast to unknown first to avoid TypeScript errors
-          setUser(mockUser as unknown as User);
-          
-          // Store the mock user in localStorage to persist across page refreshes
-          localStorage.setItem('supabase.auth.token', JSON.stringify({
-            currentSession: {
-              access_token: 'mock-token',
-              refresh_token: 'mock-refresh-token',
-              user: mockUser
-            }
-          }));
-          
-          // Return the mock user to be used in the signup flow
-          return { 
-            error: null,
-            user: mockUser as unknown as User 
-          };
-        } else {
-          // For other errors, throw normally
-          throw error;
-        }
-      } else if (error) {
-        throw error;
+      
+      if (error) {
+        console.error('Signup error:', error);
+        return { error };
       }
-
-      // Check if email confirmation is required
-      if (!bypassEmailConfirmation && (data?.user?.identities?.length === 0 || data?.user?.confirmed_at === null)) {
-        console.log('Email confirmation required for user:', email);
-        return { 
-          error: null, 
-          emailConfirmationRequired: true,
-          user: data?.user
-        };
-      }
-
-      // If email is already confirmed (unlikely but possible), try to establish session
-      const waitForSession = async (maxAttempts = 5) => {
-        for (let i = 0; i < maxAttempts; i++) {
-          console.log(`Attempt ${i + 1} to establish session...`);
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            console.log('Session established successfully:', session.user.id);
-            setUser(session.user);
-            return true;
-          }
-          // Increase wait time between attempts
-          await new Promise(resolve => setTimeout(resolve, 1500));
-        }
-        console.error('Failed to establish session after multiple attempts');
-        return false;
+      
+      // Always return that email confirmation is required
+      // This simplifies the flow and avoids trying to establish a session
+      // when we know it will likely fail
+      return { 
+        error: null, 
+        emailConfirmationRequired: true,
+        user: data?.user
       };
-
-      // Wait for session to be ready
-      const sessionEstablished = await waitForSession();
-      if (!sessionEstablished) {
-        // If session not established, try to get user anyway
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        if (currentUser) {
-          console.log('User found but session not established, setting user manually:', currentUser.id);
-          setUser(currentUser);
-          return { error: null };
-        }
-        return { 
-          error: null, 
-          emailConfirmationRequired: true,
-          user: data?.user
-        };
-      }
-
-      return { error: null };
     } catch (error) {
-      console.error('Sign up error:', error);
-      return { error: error instanceof Error ? error : new Error('Error signing up') };
+      console.error('Error during signup:', error);
+      return { 
+        error: error instanceof Error ? error : new Error('An unknown error occurred during signup') 
+      };
     } finally {
       setLoading(false);
     }
@@ -259,10 +193,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function useAuth() {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
+};

@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import OnboardingPage from '../../../pages/Onboarding';
-import { saveOnboardingState } from '../../../utils/onboardingStorage';
 import { Industry, OrganizationSize } from '../types';
 
 // Mock storage utilities
@@ -36,32 +35,34 @@ const mockSetValidationWarnings = vi.fn();
 const mockCompleteOnboarding = vi.fn();
 const mockResetOnboarding = vi.fn();
 
+const mockState = {
+  currentStep: 0,
+  steps: [
+    { id: 'welcome', title: 'Welcome', completed: false, current: true },
+    { id: 'organization', title: 'Organization Details', completed: false, current: false },
+    { id: 'admin', title: 'Admin Account', completed: false, current: false },
+    { id: 'team', title: 'Team Setup', completed: false, current: false },
+    { id: 'complete', title: 'Complete', completed: false, current: false }
+  ],
+  organization: {},
+  admin: {},
+  team: {
+    expectedUsers: 0,
+    departments: [],
+    roles: []
+  },
+  validation: {
+    errors: [],
+    warnings: []
+  },
+  completed: false
+};
+
 vi.mock('../../../contexts/OnboardingContext', () => ({
   useOnboarding: () => ({
-    state: {
-      currentStep: 0,
-      steps: [
-        { id: 'welcome', title: 'Welcome', completed: false, current: true },
-        { id: 'organization', title: 'Organization Details', completed: false, current: false },
-        { id: 'admin', title: 'Admin Account', completed: false, current: false },
-        { id: 'team', title: 'Team Setup', completed: false, current: false },
-        { id: 'complete', title: 'Complete', completed: false, current: false }
-      ],
-      organization: {},
-      admin: {},
-      team: {
-        expectedUsers: 0,
-        departments: [],
-        roles: []
-      },
-      validation: {
-        errors: [],
-        warnings: []
-      },
-      completed: false
-    },
-    nextStep: mockNextStep,
+    state: mockState,
     previousStep: mockPreviousStep,
+    nextStep: mockNextStep,
     setStep: mockSetStep,
     updateOrganization: mockUpdateOrganization,
     updateAdmin: mockUpdateAdmin,

@@ -39,7 +39,7 @@ interface OrganizationContextType {
   sendInvite: (email: string, role: UserRole) => Promise<void>;
   revokeInvite: (inviteId: string) => Promise<void>;
   acceptInvite: (inviteCode: string) => Promise<void>;
-  refreshOrganization: () => void;
+  refreshOrganization: () => Promise<void>;
 }
 
 export const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
@@ -89,27 +89,34 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       // First get the organization member record
       const { data: memberData, error: memberError } = await supabase
         .from('organization_members')
-        .select('organization_id, role')
+        .select('id, organization_id, role')
         .eq('user_id', user.id)
-        .maybeSingle();
+        .order('created_at', { ascending: false });
 
       if (memberError && memberError.code !== 'PGRST116') {
         throw memberError;
       }
 
-      if (!memberData) {
-        console.log('No organization membership found');
+      // Filter out any memberships with null organization_id
+      const validMemberships = (memberData || []).filter(m => m.organization_id);
+
+      if (!validMemberships || validMemberships.length === 0) {
+        console.log('No valid organization membership found');
         setOrganization(null);
         setUserRole(null);
         setIsLoading(false);
         return;
       }
 
+      // Use the most recent membership
+      const latestMembership = validMemberships[0];
+      console.log('Found valid membership:', latestMembership);
+
       // Then get the organization details
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
         .select('*')
-        .eq('id', memberData.organization_id)
+        .eq('id', latestMembership.organization_id)
         .single();
 
       if (orgError) {
@@ -118,11 +125,11 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
       console.log('Setting organization and role:', {
         org: orgData,
-        role: memberData.role
+        role: latestMembership.role
       });
 
       setOrganization(orgData);
-      setUserRole(memberData.role as UserRole);
+      setUserRole(latestMembership.role as UserRole);
       setError(null);
     } catch (err) {
       console.error('Error in fetchUserOrganization:', err);
@@ -143,8 +150,80 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   // Add a refresh trigger for manual refreshes
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   
-  const refreshOrganization = () => {
+  const refreshOrganization = async () => {
     console.log('Manual organization refresh triggered');
+    
+    // Force immediate refresh
+    try {
+      if (!user) {
+        console.log('No user found, skipping refresh');
+        return;
+      }
+      
+      console.log('Refreshing organization for user:', user.id);
+      setIsLoading(true);
+  
+      // First get the organization member record
+      const { data: memberData, error: memberError } = await supabase
+        .from('organization_members')
+        .select('id, organization_id, role')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+  
+      if (memberError && memberError.code !== 'PGRST116') {
+        throw memberError;
+      }
+  
+      // Filter out any memberships with null organization_id
+      const validMemberships = (memberData || []).filter(m => m.organization_id);
+  
+      if (!validMemberships || validMemberships.length === 0) {
+        console.log('No valid organization membership found during refresh');
+        setOrganization(null);
+        setUserRole(null);
+        setIsLoading(false);
+        return;
+      }
+  
+      // Use the most recent membership
+      const latestMembership = validMemberships[0];
+      console.log('Found valid membership during refresh:', latestMembership);
+  
+      // Then get the organization details
+      const { data: orgData, error: orgError } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('id', latestMembership.organization_id)
+        .single();
+  
+      if (orgError) {
+        throw orgError;
+      }
+  
+      console.log('Setting organization and role during refresh:', {
+        org: orgData,
+        role: latestMembership.role
+      });
+  
+      setOrganization(orgData);
+      setUserRole(latestMembership.role as UserRole);
+      setError(null);
+    } catch (err) {
+      console.error('Error in refreshOrganization:', err);
+      if (err instanceof Error) {
+        console.error('Error details:', {
+          name: err.name,
+          message: err.message,
+          stack: err.stack
+        });
+      }
+      setError(err instanceof Error ? err : new Error('Failed to refresh organization'));
+    } finally {
+      console.log('Refresh completed, setting isLoading to false');
+      setIsLoading(false);
+    }
+    
+    // Also trigger the effect by updating the refreshTrigger
     setRefreshTrigger(prev => prev + 1);
   };
 
@@ -193,6 +272,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         });
       }
       setError(err as Error);
+      throw err; // Re-throw to allow handling in the UI
     } finally {
       setIsLoading(false);
     }

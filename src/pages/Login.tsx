@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import Logo from '../components/Logo';
 import { supabase } from '../lib/supabase';
+import { hasPendingOnboarding } from '../utils/processOnboarding';
 
 export default function Login() {
   const location = useLocation();
@@ -30,7 +31,7 @@ export default function Login() {
       console.log('Login: Pre-filling email from invite:', inviteEmail);
       setEmail(inviteEmail);
     }
-  }, [inviteEmail, user]);
+  }, [inviteEmail, user, location.state, redirectPath]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,6 +72,10 @@ export default function Login() {
       if (redirectPath) {
         console.log('Login: Redirecting to:', redirectPath);
         navigate(redirectPath);
+      } else if (hasPendingOnboarding()) {
+        // If there's pending onboarding data, let the FirstLoginHandler process it
+        console.log('Login: Found pending onboarding data, redirecting to process-onboarding');
+        navigate('/process-onboarding');
       } else {
         // Default redirect to dashboard
         console.log('Login: No redirect path specified, redirecting to dashboard');

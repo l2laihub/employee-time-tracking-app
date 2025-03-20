@@ -23,6 +23,8 @@ import CreateOrganization from '../../pages/CreateOrganization';
 import Onboarding from '../../pages/Onboarding';
 import DevVerify from '../../pages/DevVerify';
 import StorageDebugPage from '../../pages/StorageDebugPage';
+import FirstLoginHandler from '../auth/FirstLoginHandler';
+import { hasPendingOnboarding } from '../../utils/processOnboarding';
 
 export default function AppRoutes() {
   const { user } = useAuth();
@@ -64,7 +66,13 @@ export default function AppRoutes() {
 
       {/* Protected Routes */}
       {user ? (
-        !organization ? (
+        hasPendingOnboarding() ? (
+          // User has pending onboarding data - process it
+          <>
+            <Route path="/process-onboarding" element={<FirstLoginHandler />} />
+            <Route path="*" element={<Navigate to="/process-onboarding" replace />} />
+          </>
+        ) : !organization ? (
           // No organization - show create org
           <>
             <Route path="/create-organization" element={<CreateOrganization />} />

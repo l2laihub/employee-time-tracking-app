@@ -1,5 +1,5 @@
 import React from 'react';
-import { useOnboarding } from '../../../contexts/OnboardingContext';
+import { useOnboarding } from '../../../hooks/useOnboarding';
 
 interface WelcomeScreenProps {
   valuePropositions: string[];

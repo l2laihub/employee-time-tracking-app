@@ -29,6 +29,7 @@ export interface AdminAccount {
   email: string;
   password: string;
   role: 'owner' | 'admin';
+  _passwordExists?: boolean; // Flag to indicate password is stored in sessionStorage
 }
 
 // Team configuration types
@@ -44,10 +45,17 @@ export interface Role {
   description?: string;
 }
 
+export interface ServiceType {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 export interface TeamConfiguration {
-  expectedUsers: number;
-  departments: Department[];
-  roles: Role[];
+  expectedUsers?: number;
+  departments?: (string | Department)[];
+  roles?: (string | Role)[];
+  serviceTypes?: (string | ServiceType)[];
 }
 
 // Onboarding specific types
@@ -56,7 +64,7 @@ export interface OnboardingStep {
   title: string;
   completed: boolean;
   current: boolean;
-  data: any;
+  data: unknown;
 }
 
 export interface ValidationError {
@@ -75,7 +83,9 @@ export interface OnboardingState {
     warnings: ValidationError[];
   };
   completed: boolean;
+  submitted: boolean;
   lastUpdated?: string;
+  expiresAt?: string; // Expiration timestamp for onboarding data
 }
 
 // Component props
