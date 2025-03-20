@@ -68,8 +68,28 @@ export default function CreateOrganization() {
 
     setLoading(true);
     try {
-      console.log('Creating organization with name:', name);
-      await createOrganization(name.trim());
+      // Try using the bypass function first
+      console.log('Using bypass function to create organization');
+      const { data: bypassData, error: bypassError } = await supabase.rpc(
+        'bypass_create_complete_organization',
+        {
+          p_org_name: name.trim(),
+          p_user_id: user.id,
+          p_user_email: user.email || '',
+          p_first_name: user.user_metadata?.first_name || '',
+          p_last_name: user.user_metadata?.last_name || ''
+        }
+      );
+      
+      if (bypassError) {
+        console.error('Error using bypass function:', bypassError);
+        // Fall back to the standard creation method
+        console.log('Falling back to standard creation method');
+        await createOrganization(name.trim());
+      } else {
+        console.log('Organization created successfully via bypass function:', bypassData);
+      }
+      
       toast.success('Organization created successfully');
       
       // Refresh organization context to ensure it's up to date
@@ -108,73 +128,29 @@ export default function CreateOrganization() {
     try {
       console.log('Attempting direct database creation...');
       
-      // Generate a unique slug
-      const timestamp = Date.now();
-      const slug = `${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${timestamp}`;
+      // Use the bypass function to create everything in one go
+      const { data: bypassData, error: bypassError } = await supabase.rpc(
+        'bypass_create_complete_organization',
+        {
+          p_org_name: name.trim(),
+          p_user_id: user.id,
+          p_user_email: user.email || '',
+          p_first_name: user.user_metadata?.first_name || '',
+          p_last_name: user.user_metadata?.last_name || ''
+        }
+      );
       
-      // 1. Create organization
-      const { data: orgData, error: orgError } = await supabase
-        .from('organizations')
-        .insert({
-          name: name.trim(),
-          slug: slug
-        })
-        .select()
-        .single();
-      
-      if (orgError) throw orgError;
-      console.log('Organization created:', orgData);
-      
-      // 2. Create organization member
-      const { data: memberData, error: memberError } = await supabase
-        .from('organization_members')
-        .insert({
-          organization_id: orgData.id,
-          user_id: user.id,
-          role: 'admin'
-        })
-        .select()
-        .single();
-      
-      if (memberError) throw memberError;
-      console.log('Organization member created:', memberData);
-      
-      // 3. Create employee record
-      const { data: employeeData, error: employeeError } = await supabase
-        .from('employees')
-        .insert({
-          organization_id: orgData.id,
-          member_id: memberData.id,
-          email: user.email || '',
-          first_name: user.user_metadata?.first_name || '',
-          last_name: user.user_metadata?.last_name || '',
-          role: 'admin',
-          status: 'active',
-          start_date: new Date().toISOString().split('T')[0],
-          pto: {
-            vacation: {
-              beginningBalance: 0,
-              ongoingBalance: 0,
-              firstYearRule: 40,
-              used: 0
-            },
-            sickLeave: {
-              beginningBalance: 0,
-              used: 0
-            }
-          }
-        })
-        .select()
-        .single();
-      
-      if (employeeError) {
-        console.error('Error creating employee:', employeeError);
-        // Continue anyway
-      } else {
-        console.log('Employee created:', employeeData);
+      if (bypassError) {
+        console.error('Error using bypass function:', bypassError);
+        throw bypassError;
       }
       
-      toast.success('Organization created successfully via direct method');
+      if (!bypassData || bypassData.length === 0) {
+        throw new Error('No data returned from bypass function');
+      }
+      
+      console.log('Organization created successfully via bypass function:', bypassData);
+      toast.success('Organization created successfully via bypass function');
       
       // Refresh organization context
       await refreshOrganization();
@@ -184,6 +160,87 @@ export default function CreateOrganization() {
     } catch (error: any) {
       console.error('Error in direct creation:', error);
       toast.error(error.message || 'Failed to create organization directly');
+      
+      // Try one more approach - create organization directly
+      try {
+        console.log('Attempting direct table insert as last resort');
+        
+        // Generate a unique slug
+        const timestamp = Date.now();
+        const slug = `${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${timestamp}`;
+        
+        // 1. Create organization
+        const { data: orgData, error: orgError } = await supabase
+          .from('organizations')
+          .insert({
+            name: name.trim(),
+            slug: slug
+          })
+          .select()
+          .single();
+        
+        if (orgError) throw orgError;
+        console.log('Organization created:', orgData);
+        
+        // 2. Create organization member using bypass function
+        const { data: memberId, error: memberError } = await supabase.rpc(
+          'bypass_create_organization_member',
+          {
+            p_organization_id: orgData.id,
+            p_user_id: user.id,
+            p_role: 'admin'
+          }
+        );
+        
+        if (memberError) throw memberError;
+        console.log('Organization member created with ID:', memberId);
+        
+        // 3. Create employee record
+        const { data: employeeData, error: employeeError } = await supabase
+          .from('employees')
+          .insert({
+            organization_id: orgData.id,
+            member_id: memberId,
+            email: user.email || '',
+            first_name: user.user_metadata?.first_name || '',
+            last_name: user.user_metadata?.last_name || '',
+            role: 'admin',
+            status: 'active',
+            start_date: new Date().toISOString().split('T')[0],
+            pto: {
+              vacation: {
+                beginningBalance: 0,
+                ongoingBalance: 0,
+                firstYearRule: 40,
+                used: 0
+              },
+              sickLeave: {
+                beginningBalance: 0,
+                used: 0
+              }
+            }
+          })
+          .select()
+          .single();
+        
+        if (employeeError) {
+          console.error('Error creating employee:', employeeError);
+          // Continue anyway
+        } else {
+          console.log('Employee created:', employeeData);
+        }
+        
+        toast.success('Organization created successfully via direct method');
+        
+        // Refresh organization context
+        await refreshOrganization();
+        
+        // Navigate to dashboard
+        navigate('/dashboard');
+      } catch (fallbackError: any) {
+        console.error('Error in fallback creation:', fallbackError);
+        toast.error(fallbackError.message || 'Failed to create organization via fallback method');
+      }
     } finally {
       setLoading(false);
     }
