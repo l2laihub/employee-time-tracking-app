@@ -172,7 +172,10 @@ export default function UserSettings() {
 
     try {
       setIsSubmitting(true);
-      await updateEmployee(currentEmployee.id, formData);
+      await updateEmployee(currentEmployee.id, {
+        ...formData,
+        photo_url: currentEmployee.photo_url // Include the photo_url in the update
+      });
       await refreshEmployeeData();
       await refreshEmployees();
       

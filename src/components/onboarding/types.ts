@@ -13,6 +13,16 @@ export enum Industry {
   TECHNOLOGY = 'technology',
   RETAIL = 'retail',
   CONTRACTING = 'contracting',
+  CONSTRUCTION = 'construction',
+  CONSULTING = 'consulting',
+  EDUCATION = 'education',
+  FINANCE = 'finance',
+  HOSPITALITY = 'hospitality',
+  LEGAL = 'legal',
+  MANUFACTURING = 'manufacturing',
+  NONPROFIT = 'nonprofit',
+  PROFESSIONAL_SERVICES = 'professional_services',
+  TRANSPORTATION = 'transportation',
   OTHER = 'other'
 }
 

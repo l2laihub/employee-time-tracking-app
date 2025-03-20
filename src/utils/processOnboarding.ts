@@ -10,6 +10,7 @@ export interface OnboardingState {
     name: string;
     industry?: string;
     size?: string;
+    website?: string;
   };
   team: {
     departments?: (string | { name: string })[];
@@ -229,6 +230,26 @@ export const processOnboarding = async (userId: string): Promise<{
     console.log('Using bypass function to create organization with custom departments and service types');
     const bypassResult = await executeWithRetry(
       async () => {
+        // Extract organization details from state
+        const industry = state.organization.industry;
+        const size = state.organization.size;
+        const website = state.organization.website;
+        
+        // Prepare settings and branding objects for the function
+        const settings = {
+          industry: industry || null,
+          size: size || null
+        };
+        
+        const branding = {
+          "primary_color": "#3b82f6",
+          "secondary_color": "#1e40af",
+          "logo_url": null,
+          "favicon_url": null,
+          "company_name": null,
+          "company_website": website || null
+        };
+        
         const { data, error } = await supabase.rpc(
           'bypass_create_complete_organization_with_custom',
           {
@@ -238,7 +259,9 @@ export const processOnboarding = async (userId: string): Promise<{
             p_first_name: firstName,
             p_last_name: lastName,
             p_departments: departmentNames.length > 0 ? departmentNames : null,
-            p_service_types: serviceTypeNames.length > 0 ? serviceTypeNames : null
+            p_service_types: serviceTypeNames.length > 0 ? serviceTypeNames : null,
+            p_settings: settings,
+            p_branding: branding
           }
         );
         return { data, error };
@@ -253,6 +276,26 @@ export const processOnboarding = async (userId: string): Promise<{
       console.log('Falling back to original bypass function');
       const originalBypassResult = await executeWithRetry(
         async () => {
+          // Extract organization details from state
+          const industry = state.organization.industry;
+          const size = state.organization.size;
+          const website = state.organization.website;
+          
+          // Prepare settings and branding objects for the function
+          const settings = {
+            industry: industry || null,
+            size: size || null
+          };
+          
+          const branding = {
+            "primary_color": "#3b82f6",
+            "secondary_color": "#1e40af",
+            "logo_url": null,
+            "favicon_url": null,
+            "company_name": null,
+            "company_website": website || null
+          };
+          
           const { data, error } = await supabase.rpc(
             'bypass_create_complete_organization',
             {
@@ -260,7 +303,9 @@ export const processOnboarding = async (userId: string): Promise<{
               p_user_id: userId,
               p_user_email: userEmail,
               p_first_name: firstName,
-              p_last_name: lastName
+              p_last_name: lastName,
+              p_settings: settings,
+              p_branding: branding
             }
           );
           return { data, error };
@@ -277,11 +322,34 @@ export const processOnboarding = async (userId: string): Promise<{
         // Create the organization directly
         const newOrgResult = await executeWithRetry(
           async () => {
+            // Extract organization details from state
+            const industry = state.organization.industry;
+            const size = state.organization.size;
+            const website = state.organization.website;
+            
+            // Prepare settings and branding objects
+            const settings = {
+              industry: industry || null,
+              size: size || null
+            };
+            
+            // Get existing branding defaults
+            const branding = {
+              "primary_color": "#3b82f6",
+              "secondary_color": "#1e40af",
+              "logo_url": null,
+              "favicon_url": null,
+              "company_name": null,
+              "company_website": website || null
+            };
+            
             const { data, error } = await supabase
               .from('organizations')
               .insert({
                 name: orgName,
-                slug: slug
+                slug: slug,
+                settings: settings,
+                branding: branding
               })
               .select()
               .single();

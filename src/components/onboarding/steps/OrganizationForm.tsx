@@ -77,6 +77,16 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({ onSubmit }) => {
             <option value={Industry.TECHNOLOGY}>Technology</option>
             <option value={Industry.RETAIL}>Retail</option>
             <option value={Industry.CONTRACTING}>Contracting</option>
+            <option value={Industry.CONSTRUCTION}>Construction</option>
+            <option value={Industry.CONSULTING}>Consulting</option>
+            <option value={Industry.EDUCATION}>Education</option>
+            <option value={Industry.FINANCE}>Finance</option>
+            <option value={Industry.HOSPITALITY}>Hospitality</option>
+            <option value={Industry.LEGAL}>Legal</option>
+            <option value={Industry.MANUFACTURING}>Manufacturing</option>
+            <option value={Industry.NONPROFIT}>Non-Profit</option>
+            <option value={Industry.PROFESSIONAL_SERVICES}>Professional Services</option>
+            <option value={Industry.TRANSPORTATION}>Transportation</option>
             <option value={Industry.OTHER}>Other</option>
           </select>
         </div>

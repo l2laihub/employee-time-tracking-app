@@ -49,6 +49,16 @@ const FinalReviewForm: React.FC<FinalReviewFormProps> = ({
       [Industry.HEALTHCARE]: 'Healthcare',
       [Industry.RETAIL]: 'Retail',
       [Industry.CONTRACTING]: 'Contracting',
+      [Industry.CONSTRUCTION]: 'Construction',
+      [Industry.CONSULTING]: 'Consulting',
+      [Industry.EDUCATION]: 'Education',
+      [Industry.FINANCE]: 'Finance',
+      [Industry.HOSPITALITY]: 'Hospitality',
+      [Industry.LEGAL]: 'Legal',
+      [Industry.MANUFACTURING]: 'Manufacturing',
+      [Industry.NONPROFIT]: 'Non-Profit',
+      [Industry.PROFESSIONAL_SERVICES]: 'Professional Services',
+      [Industry.TRANSPORTATION]: 'Transportation',
       [Industry.OTHER]: 'Other'
     };
     
@@ -271,6 +281,10 @@ const FinalReviewForm: React.FC<FinalReviewFormProps> = ({
             <div>
               <dt className="text-sm font-medium text-gray-500">Size</dt>
               <dd className="text-sm text-gray-900">{getSizeLabel(organization?.size)}</dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-gray-500">Website</dt>
+              <dd className="text-sm text-gray-900">{organization?.website || 'Not specified'}</dd>
             </div>
           </dl>
         </div>
