@@ -12,12 +12,16 @@ export default function CreateOrganization() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { createOrganization, refreshOrganization, organization } = useOrganization();
+  
+  // Only show debug info in development mode
+  const isDevelopment = process.env.NODE_ENV === 'development';
 
   // Debug effect to check if user already has an organization
   useEffect(() => {
+    // Only run in development mode
+    if (!isDevelopment || !user) return;
+    
     const checkExistingOrg = async () => {
-      if (!user) return;
-      
       try {
         // Check for existing memberships
         const { data: memberships, error: membershipError } = await supabase
@@ -56,7 +60,7 @@ export default function CreateOrganization() {
     };
     
     checkExistingOrg();
-  }, [user]);
+  }, [user, isDevelopment]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,9 +100,9 @@ export default function CreateOrganization() {
     }
   };
 
-  // Direct database creation as a fallback
+  // Direct database creation as a fallback - only available in development mode
   const handleDirectCreation = async () => {
-    if (!name.trim() || !user) return;
+    if (!isDevelopment || !name.trim() || !user) return;
     
     setLoading(true);
     try {
@@ -217,27 +221,29 @@ export default function CreateOrganization() {
               </div>
             </div>
 
-            <div className="flex space-x-4">
+            <div className={isDevelopment ? "flex space-x-4" : ""}>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                className={`${isDevelopment ? 'flex-1' : 'w-full'} py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50`}
               >
                 {loading ? 'Creating...' : 'Create Organization'}
               </button>
               
-              <button
-                type="button"
-                onClick={handleDirectCreation}
-                disabled={loading}
-                className="flex-1 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                Direct Creation
-              </button>
+              {isDevelopment && (
+                <button
+                  type="button"
+                  onClick={handleDirectCreation}
+                  disabled={loading}
+                  className="flex-1 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  Direct Creation
+                </button>
+              )}
             </div>
           </form>
           
-          {debugInfo && (
+          {isDevelopment && debugInfo && (
             <div className="mt-6 p-4 bg-gray-100 rounded-md text-xs overflow-auto max-h-96">
               <h3 className="font-bold mb-2">Debug Information</h3>
               <pre>{JSON.stringify(debugInfo, null, 2)}</pre>

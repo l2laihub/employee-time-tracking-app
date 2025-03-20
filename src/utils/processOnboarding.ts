@@ -83,27 +83,61 @@ export const processOnboarding = async (userId: string): Promise<{
       return { success: false, error: 'No onboarding state found', step: currentStep };
     }
 
-    const state: AppOnboardingState = JSON.parse(onboardingState);
+    // Try to parse the state, if it fails, clear it and return an error
+    let state: AppOnboardingState;
+    try {
+      state = JSON.parse(onboardingState);
+    } catch (parseError) {
+      console.error('Error parsing onboarding state:', parseError);
+      clearOnboardingState();
+      return { 
+        success: false, 
+        error: 'Invalid onboarding data format. Please start the onboarding process again.', 
+        step: 'invalid_format' 
+      };
+    }
+    
+    // Check if the state has the expected structure
+    if (!state || typeof state !== 'object') {
+      console.error('Invalid onboarding state format');
+      clearOnboardingState();
+      return { 
+        success: false, 
+        error: 'Invalid onboarding data format. Please start the onboarding process again.', 
+        step: 'invalid_format' 
+      };
+    }
     
     // Check if onboarding data has expired
     if (state.expiresAt) {
-      const expirationDate = new Date(state.expiresAt);
-      if (expirationDate < new Date()) {
-        console.error('Onboarding data has expired');
+      try {
+        const expirationDate = new Date(state.expiresAt);
+        if (expirationDate < new Date()) {
+          console.error('Onboarding data has expired');
+          clearOnboardingState();
+          return { 
+            success: false, 
+            error: 'Your onboarding data has expired. Please start the onboarding process again.', 
+            step: 'expired' 
+          };
+        }
+      } catch (dateError) {
+        console.error('Error parsing expiration date:', dateError);
         clearOnboardingState();
         return { 
           success: false, 
-          error: 'Your onboarding data has expired. Please start the onboarding process again.', 
-          step: 'expired' 
+          error: 'Invalid expiration date format. Please start the onboarding process again.', 
+          step: 'invalid_date' 
         };
       }
     }
     
     if (!state.organization?.name) {
       console.error('No organization name found in onboarding state');
+      clearOnboardingState();
       return { 
         success: false, 
-        error: 'No organization name found in onboarding state', 
+        error: 'No organization name found in onboarding state. Please start the onboarding process again.', 
         step: currentStep 
       };
     }
@@ -660,24 +694,57 @@ export const hasPendingOnboarding = (): boolean => {
     const onboardingState = localStorage.getItem('onboardingState');
     if (!onboardingState) return false;
 
-    const state = JSON.parse(onboardingState);
+    // Try to parse the state, if it fails, clear it and return false
+    let state;
+    try {
+      state = JSON.parse(onboardingState);
+    } catch (parseError) {
+      console.error('Error parsing onboarding state:', parseError);
+      clearOnboardingState();
+      return false;
+    }
+    
+    // Check if the state has the expected structure
+    if (!state || typeof state !== 'object') {
+      console.log('Invalid onboarding state format, clearing...');
+      clearOnboardingState();
+      return false;
+    }
     
     // Check if the onboarding data is submitted
-    if (state.submitted !== true) return false;
+    if (state.submitted !== true) {
+      console.log('Onboarding data not submitted, clearing...');
+      clearOnboardingState();
+      return false;
+    }
     
     // Check if the onboarding data has expired
     if (state.expiresAt) {
-      const expirationDate = new Date(state.expiresAt);
-      if (expirationDate < new Date()) {
-        console.log('Onboarding data has expired, clearing...');
+      try {
+        const expirationDate = new Date(state.expiresAt);
+        if (expirationDate < new Date()) {
+          console.log('Onboarding data has expired, clearing...');
+          clearOnboardingState();
+          return false;
+        }
+      } catch (dateError) {
+        console.error('Error parsing expiration date:', dateError);
         clearOnboardingState();
         return false;
       }
     }
     
+    // Check if the state has the required organization data
+    if (!state.organization || !state.organization.name) {
+      console.log('Missing organization data in onboarding state, clearing...');
+      clearOnboardingState();
+      return false;
+    }
+    
     return true;
   } catch (error) {
     console.error('Error checking for pending onboarding:', error);
+    clearOnboardingState();
     return false;
   }
 };
