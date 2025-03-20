@@ -68,26 +68,49 @@ export default function CreateOrganization() {
 
     setLoading(true);
     try {
-      // Try using the bypass function first
+      // Try using the bypass function with custom departments and service types
       console.log('Using bypass function to create organization');
+      
+      // For direct creation from the UI, we'll use default departments and service types
       const { data: bypassData, error: bypassError } = await supabase.rpc(
-        'bypass_create_complete_organization',
+        'bypass_create_complete_organization_with_custom',
         {
           p_org_name: name.trim(),
           p_user_id: user.id,
           p_user_email: user.email || '',
           p_first_name: user.user_metadata?.first_name || '',
-          p_last_name: user.user_metadata?.last_name || ''
+          p_last_name: user.user_metadata?.last_name || '',
+          p_departments: null, // Use default departments
+          p_service_types: null // Use default service types
         }
       );
       
       if (bypassError) {
-        console.error('Error using bypass function:', bypassError);
-        // Fall back to the standard creation method
-        console.log('Falling back to standard creation method');
-        await createOrganization(name.trim());
+        console.error('Error using bypass function with custom:', bypassError);
+        
+        // Fall back to the original bypass function
+        console.log('Falling back to original bypass function');
+        const { data: originalBypassData, error: originalBypassError } = await supabase.rpc(
+          'bypass_create_complete_organization',
+          {
+            p_org_name: name.trim(),
+            p_user_id: user.id,
+            p_user_email: user.email || '',
+            p_first_name: user.user_metadata?.first_name || '',
+            p_last_name: user.user_metadata?.last_name || ''
+          }
+        );
+        
+        if (originalBypassError) {
+          console.error('Error using original bypass function:', originalBypassError);
+          // Fall back to the standard creation method
+          console.log('Falling back to standard creation method');
+          await createOrganization(name.trim());
+        } else {
+          console.log('Organization created successfully via original bypass function:', originalBypassData);
+        }
       } else {
-        console.log('Organization created successfully via bypass function:', bypassData);
+        console.log('Organization created successfully via bypass function with custom:', bypassData);
       }
       
       toast.success('Organization created successfully');
@@ -130,13 +153,15 @@ export default function CreateOrganization() {
       
       // Use the bypass function to create everything in one go
       const { data: bypassData, error: bypassError } = await supabase.rpc(
-        'bypass_create_complete_organization',
+        'bypass_create_complete_organization_with_custom',
         {
           p_org_name: name.trim(),
           p_user_id: user.id,
           p_user_email: user.email || '',
           p_first_name: user.user_metadata?.first_name || '',
-          p_last_name: user.user_metadata?.last_name || ''
+          p_last_name: user.user_metadata?.last_name || '',
+          p_departments: null, // Use default departments
+          p_service_types: null // Use default service types
         }
       );
       

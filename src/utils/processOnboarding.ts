@@ -212,188 +212,340 @@ export const processOnboarding = async (userId: string): Promise<{
     const firstName = state.admin?.firstName || '';
     const lastName = state.admin?.lastName || '';
 
-    // Use the bypass function to create everything in one go
-    console.log('Using bypass function to create organization');
+    // Extract department names
+    const departmentNames = state.team?.departments?.map((dept: any) => 
+      typeof dept === 'string' ? dept : dept.name
+    ) || [];
+    
+    // Extract service type names
+    const serviceTypeNames = state.team?.serviceTypes?.map((type: any) => 
+      typeof type === 'string' ? type : type.name
+    ) || [];
+    
+    console.log('Custom departments:', departmentNames);
+    console.log('Custom service types:', serviceTypeNames);
+    
+    // Use the bypass function with custom departments and service types
+    console.log('Using bypass function to create organization with custom departments and service types');
     const bypassResult = await executeWithRetry(
       async () => {
         const { data, error } = await supabase.rpc(
-          'bypass_create_complete_organization',
+          'bypass_create_complete_organization_with_custom',
           {
             p_org_name: orgName,
             p_user_id: userId,
             p_user_email: userEmail,
             p_first_name: firstName,
-            p_last_name: lastName
+            p_last_name: lastName,
+            p_departments: departmentNames.length > 0 ? departmentNames : null,
+            p_service_types: serviceTypeNames.length > 0 ? serviceTypeNames : null
           }
         );
         return { data, error };
       },
-      'Error creating organization via bypass function'
+      'Error creating organization via bypass function with custom departments and service types'
     );
     
     if (bypassResult.error) {
-      console.error('Error creating organization via bypass function:', bypassResult.error);
+      console.error('Error creating organization via bypass function with custom:', bypassResult.error);
       
-      // Try one more approach - create organization directly
-      console.log('Attempting direct table insert as last resort');
-      
-      // Create the organization directly
-      const newOrgResult = await executeWithRetry(
-        async () => {
-          const { data, error } = await supabase
-            .from('organizations')
-            .insert({
-              name: orgName,
-              slug: slug
-            })
-            .select()
-            .single();
-          return { data, error };
-        },
-        'Error creating organization with direct insert'
-      );
-
-      if (newOrgResult.error) {
-        console.error('Error creating organization with direct insert:', newOrgResult.error);
-        return { 
-          success: false, 
-          error: 'Error creating organization: ' + newOrgResult.error.message, 
-          step: currentStep 
-        };
-      }
-
-      const newOrg = newOrgResult.data;
-      organizationId = newOrg.id;
-      console.log('Organization created with direct insert, ID:', organizationId);
-
-      // Create the organization member using the bypass function
-      currentStep = 'creating_organization_member';
-      const memberResult = await executeWithRetry(
+      // Fall back to the original bypass function
+      console.log('Falling back to original bypass function');
+      const originalBypassResult = await executeWithRetry(
         async () => {
           const { data, error } = await supabase.rpc(
-            'bypass_create_organization_member',
+            'bypass_create_complete_organization',
             {
-              p_organization_id: organizationId,
+              p_org_name: orgName,
               p_user_id: userId,
-              p_role: 'admin'
+              p_user_email: userEmail,
+              p_first_name: firstName,
+              p_last_name: lastName
             }
           );
           return { data, error };
         },
-        'Error creating organization member'
+        'Error creating organization via original bypass function'
       );
-
-      if (memberResult.error) {
-        console.error('Error creating organization member:', memberResult.error);
-        // Don't try to clean up the organization - it might be used by other members
-        return { 
-          success: false, 
-          error: 'Error creating organization member: ' + memberResult.error.message, 
-          step: currentStep 
-        };
-      }
-
-      memberId = memberResult.data;
-      console.log('Member created with ID:', memberId);
       
-      // Create an employee record for the user
-      try {
-        console.log('Creating employee record for user:', userId);
-        currentStep = 'creating_employee';
+      if (originalBypassResult.error) {
+        console.error('Error creating organization via original bypass function:', originalBypassResult.error);
         
-        // Create employee record - only if we have a valid organizationId and memberId
-        if (organizationId && memberId) {
-          // Use direct table insert as last resort
-          const { data: employeeData, error: employeeError } = await supabase
-            .from('employees')
-            .insert({
-              organization_id: organizationId,
-              member_id: memberId,
-              email: userEmail,
-              first_name: firstName,
-              last_name: lastName,
-              role: 'admin',
-              status: 'active',
-              start_date: new Date().toISOString().split('T')[0],
-              pto: {
-                vacation: {
-                  beginningBalance: 0,
-                  ongoingBalance: 0,
-                  firstYearRule: 40,
-                  used: 0
-                },
-                sickLeave: {
-                  beginningBalance: 0,
-                  used: 0
-                }
+        // Try one more approach - create organization directly
+        console.log('Attempting direct table insert as last resort');
+        
+        // Create the organization directly
+        const newOrgResult = await executeWithRetry(
+          async () => {
+            const { data, error } = await supabase
+              .from('organizations')
+              .insert({
+                name: orgName,
+                slug: slug
+              })
+              .select()
+              .single();
+            return { data, error };
+          },
+          'Error creating organization with direct insert'
+        );
+
+        if (newOrgResult.error) {
+          console.error('Error creating organization with direct insert:', newOrgResult.error);
+          return { 
+            success: false, 
+            error: 'Error creating organization: ' + newOrgResult.error.message, 
+            step: currentStep 
+          };
+        }
+
+        const newOrg = newOrgResult.data;
+        organizationId = newOrg.id;
+        console.log('Organization created with direct insert, ID:', organizationId);
+
+        // Create the organization member using the bypass function
+        currentStep = 'creating_organization_member';
+        const memberResult = await executeWithRetry(
+          async () => {
+            const { data, error } = await supabase.rpc(
+              'bypass_create_organization_member',
+              {
+                p_organization_id: organizationId,
+                p_user_id: userId,
+                p_role: 'admin'
               }
-            })
-            .select();
+            );
+            return { data, error };
+          },
+          'Error creating organization member'
+        );
+
+        if (memberResult.error) {
+          console.error('Error creating organization member:', memberResult.error);
+          // Don't try to clean up the organization - it might be used by other members
+          return { 
+            success: false, 
+            error: 'Error creating organization member: ' + memberResult.error.message, 
+            step: currentStep 
+          };
+        }
+
+        memberId = memberResult.data;
+        console.log('Member created with ID:', memberId);
+        
+        // Create an employee record for the user
+        try {
+          console.log('Creating employee record for user:', userId);
+          currentStep = 'creating_employee';
           
-          if (employeeError) {
-            console.error('Error creating employee record:', employeeError);
-            // Continue with the process even if employee creation fails
+          // Create employee record - only if we have a valid organizationId and memberId
+          if (organizationId && memberId) {
+            // Use direct table insert as last resort
+            const { data: employeeData, error: employeeError } = await supabase
+              .from('employees')
+              .insert({
+                organization_id: organizationId,
+                member_id: memberId,
+                email: userEmail,
+                first_name: firstName,
+                last_name: lastName,
+                role: 'admin',
+                status: 'active',
+                start_date: new Date().toISOString().split('T')[0],
+                pto: {
+                  vacation: {
+                    beginningBalance: 0,
+                    ongoingBalance: 0,
+                    firstYearRule: 40,
+                    used: 0
+                  },
+                  sickLeave: {
+                    beginningBalance: 0,
+                    used: 0
+                  }
+                }
+              })
+              .select();
+            
+            if (employeeError) {
+              console.error('Error creating employee record:', employeeError);
+              // Continue with the process even if employee creation fails
+            } else {
+              console.log('Employee record created successfully:', employeeData);
+            }
           } else {
-            console.log('Employee record created successfully:', employeeData);
+            console.error('Cannot create employee record: Missing organization ID or member ID');
+          }
+        } catch (err) {
+          console.error('Error in employee creation process:', err);
+          // Continue with the process even if employee creation fails
+        }
+        
+        // Create custom departments if provided
+        if (departmentNames.length > 0) {
+          try {
+            console.log('Creating custom departments:', departmentNames);
+            
+            const departmentInserts = departmentNames.map(name => ({
+              name,
+              organization_id: organizationId
+            }));
+            
+            const { error: deptError } = await supabase
+              .from('departments')
+              .insert(departmentInserts);
+            
+            if (deptError) {
+              console.error('Error creating custom departments:', deptError);
+            } else {
+              console.log('Custom departments created successfully');
+            }
+          } catch (err) {
+            console.error('Error creating custom departments:', err);
           }
         } else {
-          console.error('Cannot create employee record: Missing organization ID or member ID');
+          // Create default departments
+          try {
+            const defaultDepartments = ['Administration', 'Field Operations', 'Sales'];
+            console.log('Creating default departments:', defaultDepartments);
+            
+            const departmentInserts = defaultDepartments.map(name => ({
+              name,
+              organization_id: organizationId
+            }));
+            
+            const { error: deptError } = await supabase
+              .from('departments')
+              .insert(departmentInserts);
+            
+            if (deptError) {
+              console.error('Error creating default departments:', deptError);
+            } else {
+              console.log('Default departments created successfully');
+            }
+          } catch (err) {
+            console.error('Error creating default departments:', err);
+          }
         }
-      } catch (err) {
-        console.error('Error in employee creation process:', err);
-        // Continue with the process even if employee creation fails
-      }
-      
-      // Create default departments
-      try {
-        const defaultDepartments = ['Administration', 'Field Operations', 'Sales'];
-        console.log('Creating default departments:', defaultDepartments);
         
-        const departmentInserts = defaultDepartments.map(name => ({
-          name,
-          organization_id: organizationId
-        }));
-        
-        const { error: deptError } = await supabase
-          .from('departments')
-          .insert(departmentInserts);
-        
-        if (deptError) {
-          console.error('Error creating default departments:', deptError);
+        // Create custom service types if provided
+        if (serviceTypeNames.length > 0) {
+          try {
+            console.log('Creating custom service types:', serviceTypeNames);
+            
+            const serviceTypeInserts = serviceTypeNames.map(name => ({
+              name,
+              organization_id: organizationId
+            }));
+            
+            const { error: typeError } = await supabase
+              .from('service_types')
+              .insert(serviceTypeInserts);
+            
+            if (typeError) {
+              console.error('Error creating custom service types:', typeError);
+            } else {
+              console.log('Custom service types created successfully');
+            }
+          } catch (err) {
+            console.error('Error creating custom service types:', err);
+          }
         } else {
-          console.log('Default departments created successfully');
+          // Create default service types
+          try {
+            const defaultServiceTypes = ['Standard', 'Premium'];
+            console.log('Creating default service types:', defaultServiceTypes);
+            
+            const serviceTypeInserts = defaultServiceTypes.map(name => ({
+              name,
+              organization_id: organizationId
+            }));
+            
+            const { error: typeError } = await supabase
+              .from('service_types')
+              .insert(serviceTypeInserts);
+            
+            if (typeError) {
+              console.error('Error creating default service types:', typeError);
+            } else {
+              console.log('Default service types created successfully');
+            }
+          } catch (err) {
+            console.error('Error creating default service types:', err);
+          }
         }
-      } catch (err) {
-        console.error('Error creating default departments:', err);
-      }
-      
-      // Create default service types
-      try {
-        const defaultServiceTypes = ['Standard', 'Premium'];
-        console.log('Creating default service types:', defaultServiceTypes);
-        
-        const serviceTypeInserts = defaultServiceTypes.map(name => ({
-          name,
-          organization_id: organizationId
-        }));
-        
-        const { error: typeError } = await supabase
-          .from('service_types')
-          .insert(serviceTypeInserts);
-        
-        if (typeError) {
-          console.error('Error creating default service types:', typeError);
-        } else {
-          console.log('Default service types created successfully');
+      } else {
+        // Original bypass function succeeded
+        const originalBypassData = originalBypassResult.data;
+        if (!originalBypassData || originalBypassData.length === 0) {
+          console.error('No data returned from original bypass function');
+          return {
+            success: false,
+            error: 'Failed to create organization: No data returned',
+            step: currentStep
+          };
         }
-      } catch (err) {
-        console.error('Error creating default service types:', err);
+        
+        organizationId = originalBypassData[0].organization_id;
+        memberId = originalBypassData[0].member_id;
+        console.log('Organization created successfully via original bypass function:', originalBypassData);
+        
+        // Create custom departments and service types separately
+        if (organizationId) {
+          // Create custom departments if provided
+          if (departmentNames.length > 0) {
+            try {
+              console.log('Creating custom departments:', departmentNames);
+              
+              const departmentInserts = departmentNames.map(name => ({
+                name,
+                organization_id: organizationId
+              }));
+              
+              const { error: deptError } = await supabase
+                .from('departments')
+                .insert(departmentInserts);
+              
+              if (deptError) {
+                console.error('Error creating custom departments:', deptError);
+              } else {
+                console.log('Custom departments created successfully');
+              }
+            } catch (err) {
+              console.error('Error creating custom departments:', err);
+            }
+          }
+          
+          // Create custom service types if provided
+          if (serviceTypeNames.length > 0) {
+            try {
+              console.log('Creating custom service types:', serviceTypeNames);
+              
+              const serviceTypeInserts = serviceTypeNames.map(name => ({
+                name,
+                organization_id: organizationId
+              }));
+              
+              const { error: typeError } = await supabase
+                .from('service_types')
+                .insert(serviceTypeInserts);
+              
+              if (typeError) {
+                console.error('Error creating custom service types:', typeError);
+              } else {
+                console.log('Custom service types created successfully');
+              }
+            } catch (err) {
+              console.error('Error creating custom service types:', err);
+            }
+          }
+        }
       }
     } else {
-      // Bypass function succeeded
+      // Bypass function with custom departments and service types succeeded
       const bypassData = bypassResult.data;
       if (!bypassData || bypassData.length === 0) {
-        console.error('No data returned from bypass function');
+        console.error('No data returned from bypass function with custom');
         return {
           success: false,
           error: 'Failed to create organization: No data returned',
@@ -403,7 +555,7 @@ export const processOnboarding = async (userId: string): Promise<{
       
       organizationId = bypassData[0].organization_id;
       memberId = bypassData[0].member_id;
-      console.log('Organization created successfully via bypass function:', bypassData);
+      console.log('Organization created successfully via bypass function with custom:', bypassData);
     }
 
     // Clear the onboarding state
